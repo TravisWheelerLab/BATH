@@ -3226,7 +3226,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
 
   p7_omx_GrowTo_dpf(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
-  p7_omx_GrowTo_dpf(pli->bwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
+  p7_omx_GrowTo_dpf(pli->bwd, om->M, 0,                 pli->amino_sq->n);
 
   p7_bg_SetLength(pli->bg, pli->amino_sq->n);
   if (pli->do_biasfilter)
@@ -3235,14 +3235,21 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
 
   p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
-  p7_Backward(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc);
+
+  /* p7_splice_ScoreExons() needs these Forward values; the Backward sweep below overwrites <fwd> */
+  for (i = 0; i <= pli->amino_sq->n; i++) {
+    pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
+    pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
+  }
+
+  status = p7_BackwardDecoding(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc); /* <fwd> is now overwritten with posterior probabilities */
 
   /* Rescaling underflow in the single-precision unihit SIMD DP can make
-   * Forward and Backward disagree. Detect that disagreement and fall
-   * back unconditionally to the generic (log-space) engine, which
-   * never underflows this way. */
+   * Forward and Backward disagree, or make the posterior scaling
+   * overflow. Detect either and fall back unconditionally to the generic
+   * (log-space) engine, which never underflows this way. */
   fbdiff      = fabsf(envsc - bwdsc);
-  use_generic = (fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
+  use_generic = (status != eslOK || fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
 
   if (use_generic) {
     p7_ReconfigUnihit(gm, pli->amino_sq->n);
@@ -3253,41 +3260,33 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
     p7_omx_Destroy(pli->fwd);
     p7_omx_Destroy(pli->bwd);
     if ((pli->fwd = p7_omx_Create_dpf(100, 100, 100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
-    if ((pli->bwd = p7_omx_Create_dpf(100, 100, 100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
+    if ((pli->bwd = p7_omx_Create_dpf(100, 0,   100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
 
-    gfwd = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
-    gbck = p7_gmx_Create(gm->M, pli->amino_sq->n, pli->amino_sq->n, p7G_NSCELLS);
+    gfwd = p7_gmx_Create(gm->M, pli->amino_sq->n,       pli->amino_sq->n, p7G_NSCELLS);
+    gbck = p7_gmx_Create(gm->M, BACKWARD_DECODING_ROWS, pli->amino_sq->n, p7G_NSCELLS);
 
     p7_GForward (pli->amino_sq->dsq, pli->amino_sq->n, gm, gfwd, &envsc);
-    p7_GBackward(pli->amino_sq->dsq, pli->amino_sq->n, gm, gbck, NULL);
 
-    /* <gfwd> is overwritten below by p7_GOptimalAccuracy(); p7_splice_ScoreExons_Generic()
+    /* <gfwd> is overwritten below by p7_GBackwardDecoding(); p7_splice_ScoreExons_Generic()
      * needs these per-row C-state values, which are already the true cumulative log-odds
      * score at that row - no scale reconstruction needed, unlike the SIMD path. */
     for (i = 0; i <= pli->amino_sq->n; i++)
       pli->fwd_C[i] = gfwd->xmx[i*p7G_NXCELLS + p7G_C];
 
-    p7_GDecoding(gm, gfwd, gbck, gbck);          /* <gbck> is now the posterior probability matrix */
-    p7_GNull2_ByExpectation(gm, gbck, null2);
+    p7_GBackwardDecoding(pli->amino_sq->dsq, pli->amino_sq->n, gm, gfwd, gbck, NULL); /* <gfwd> is now the posterior probability matrix */
+    p7_GNull2_ByExpectation(gm, gfwd, null2);
 
-    p7_GOptimalAccuracy(gm, gbck, gfwd, &oasc);  /* <gfwd> is now the OA matrix */
-    p7_GOATrace        (gm, gbck, gfwd, tr);
+    p7_GOptimalAccuracy(gm, gfwd, gfwd, &oasc);  /* <gfwd> is now the OA matrix */
+    p7_GOATrace        (gm, gfwd, tr);
 
     p7_gmx_Destroy(gfwd);
     p7_gmx_Destroy(gbck);
   }
   else {
-    /* <fwd> is overwritten below; p7_splice_ScoreExons() needs these Forward values */
-    for (i = 0; i <= pli->amino_sq->n; i++) {
-      pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-      pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
-    }
+    p7_Null2_ByExpectation(om, pli->fwd, null2);
 
-    p7_Decoding(om, pli->fwd, pli->bwd, pli->bwd);  /* <bwd> is now overwritten with posterior probabilities */
-    p7_Null2_ByExpectation(om, pli->bwd, null2);
-
-    p7_OptimalAccuracy(om, pli->bwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
-    p7_OATrace        (om, pli->bwd, pli->fwd, tr);
+    p7_OptimalAccuracy(om, pli->fwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
+    p7_OATrace        (om, pli->fwd, tr);
   }
 
   p7_trace_Index(tr);

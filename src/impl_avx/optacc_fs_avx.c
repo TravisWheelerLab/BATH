@@ -40,6 +40,41 @@ avx_hmax_ps(__m256 v, float *ret_max)
 }
 
 
+
+/* The OA matrix uses the frameshift (p7X_NSCELLS_FS) cell layout, so the
+ * fill can write it over the posterior matrix. Each filled cell holds
+ * the OA scores of M, I and D in the C1, C2 and D slots, the codon length
+ * the trace takes for an M there in C3, and the posteriors pp_C0 and
+ * pp_I, which the trace reports, in C0 and I. C4 and C5 keep pp_C4 and
+ * pp_C5, which nothing reads after the fill.
+ */
+#define MMO_OA(dp,q)   MMO_FS(dp,q,p7X_FS_C1)
+#define IMO_OA(dp,q)   MMO_FS(dp,q,p7X_FS_C2)
+#define DMO_OA(dp,q)   DMO_FS(dp,q)
+#define CODON_OA(dp,q) MMO_FS(dp,q,p7X_FS_C3)
+
+/* codon_argmax_fs()
+ * For the fill: the codon length the trace takes for an M in stripe <q>
+ * of posterior row <ppc>, the argmax of pp_C1..C5 (the first one on
+ * ties), as a float in each lane.
+ */
+static inline __m256
+codon_argmax_fs(const __m256 *ppc, int q)
+{
+  __m256 best = MMO_FS(ppc, q, p7X_FS_C1);
+  __m256 cv   = _mm256_set1_ps(1.0f);
+  __m256 gt;
+  int    c;
+
+  for (c = p7X_FS_C2; c <= p7X_FS_C5; c++)
+    {
+      gt   = _mm256_cmp_ps(MMO_FS(ppc, q, c), best, _CMP_GT_OQ);
+      best = _mm256_max_ps(best, MMO_FS(ppc, q, c));
+      cv   = _mm256_blendv_ps(cv, _mm256_set1_ps((float) c), gt);
+    }
+  return cv;
+}
+
 /*****************************************************************
  * 1. Optimal accuracy alignment, DP fill
  *****************************************************************/
@@ -48,9 +83,10 @@ avx_hmax_ps(__m256 v, float *ret_max)
  *
  * Purpose:   AVX2 implementation of the DP fill step of optimal accuracy
  *            alignment for the frameshift model.  Five codon lengths (1-5 nt)
- *            are supported.  The posterior decoding matrix <pp> uses the
- *            8-cell FS layout; the OA result matrix <ox> uses the standard
- *            3-cell layout.
+ *            are supported.  The posterior decoding matrix <pp> and the
+ *            OA matrix <ox> use the 8-cell FS layout, and <ox> may be
+ *            <pp> itself; see the OA cell layout above. The caller copies
+ *            <pp->xmx> for the trace before the fill.
  *
  * Returns:   <eslOK> on success.
  */
@@ -74,9 +110,10 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   register __m256 sv1, sv2, sv3, sv4, sv5, sv;
   register __m256 xEv, xBv1, xBv2, xBv3, xBv4, xBv5;
   register __m256 dcv;
+  __m256 cdv;
   __m256 bm, mm, im, dm, md, mi, ii;
   __m256 *tp;
-  __m256 *dpc;                          /* current OA row (3-cell layout)     */
+  __m256 *dpc;                          /* current OA row (8-cell FS layout) */
   __m256 *dp1, *dp2, *dp3, *dp4, *dp5; /* previous OA rows                   */
   __m256 *ppc;                          /* current pp row (8-cell FS layout)  */
   __m256  zerov = _mm256_setzero_ps();
@@ -88,7 +125,7 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
   /* Initialize row 0: MDI = -inf; N=0, B=0, E/J/C = -inf */
   dpc = ox->dpf_avx[0];
-  for (q = 0; q < Q; q++) { MMO(dpc,q) = DMO(dpc,q) = IMO(dpc,q) = infv; }
+  for (q = 0; q < Q; q++) { MMO_OA(dpc,q) = DMO_OA(dpc,q) = IMO_OA(dpc,q) = infv; }
   ox->xmx[0*p7X_NXCELLS+p7X_E] = -eslINFINITY;
   ox->xmx[0*p7X_NXCELLS+p7X_N] =  0.0f;
   ox->xmx[0*p7X_NXCELLS+p7X_J] = -eslINFINITY;
@@ -115,25 +152,25 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
       xBv5 = (i >= 5) ? _mm256_set1_ps(ox->xmx[(i-5)*p7X_NXCELLS + p7X_B]) : infv;
 
       /* Right-shift last stripe of each prev row for k=0 (k-1 access at q=0) */
-      mpv1 = avx_rightshift_ps(MMO(dp1, Q-1), infv);
-      dpv1 = avx_rightshift_ps(DMO(dp1, Q-1), infv);
-      ipv1 = avx_rightshift_ps(IMO(dp1, Q-1), infv);
+      mpv1 = avx_rightshift_ps(MMO_OA(dp1, Q-1), infv);
+      dpv1 = avx_rightshift_ps(DMO_OA(dp1, Q-1), infv);
+      ipv1 = avx_rightshift_ps(IMO_OA(dp1, Q-1), infv);
 
-      mpv2 = avx_rightshift_ps(MMO(dp2, Q-1), infv);
-      dpv2 = avx_rightshift_ps(DMO(dp2, Q-1), infv);
-      ipv2 = avx_rightshift_ps(IMO(dp2, Q-1), infv);
+      mpv2 = avx_rightshift_ps(MMO_OA(dp2, Q-1), infv);
+      dpv2 = avx_rightshift_ps(DMO_OA(dp2, Q-1), infv);
+      ipv2 = avx_rightshift_ps(IMO_OA(dp2, Q-1), infv);
 
-      mpv3 = avx_rightshift_ps(MMO(dp3, Q-1), infv);
-      dpv3 = avx_rightshift_ps(DMO(dp3, Q-1), infv);
-      ipv3 = avx_rightshift_ps(IMO(dp3, Q-1), infv);
+      mpv3 = avx_rightshift_ps(MMO_OA(dp3, Q-1), infv);
+      dpv3 = avx_rightshift_ps(DMO_OA(dp3, Q-1), infv);
+      ipv3 = avx_rightshift_ps(IMO_OA(dp3, Q-1), infv);
 
-      mpv4 = avx_rightshift_ps(MMO(dp4, Q-1), infv);
-      dpv4 = avx_rightshift_ps(DMO(dp4, Q-1), infv);
-      ipv4 = avx_rightshift_ps(IMO(dp4, Q-1), infv);
+      mpv4 = avx_rightshift_ps(MMO_OA(dp4, Q-1), infv);
+      dpv4 = avx_rightshift_ps(DMO_OA(dp4, Q-1), infv);
+      ipv4 = avx_rightshift_ps(IMO_OA(dp4, Q-1), infv);
 
-      mpv5 = avx_rightshift_ps(MMO(dp5, Q-1), infv);
-      dpv5 = avx_rightshift_ps(DMO(dp5, Q-1), infv);
-      ipv5 = avx_rightshift_ps(IMO(dp5, Q-1), infv);
+      mpv5 = avx_rightshift_ps(MMO_OA(dp5, Q-1), infv);
+      dpv5 = avx_rightshift_ps(DMO_OA(dp5, Q-1), infv);
+      ipv5 = avx_rightshift_ps(IMO_OA(dp5, Q-1), infv);
 
       dcv = infv;
       xEv = infv;
@@ -192,34 +229,46 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           xEv = _mm256_max_ps(xEv, sv);
 
           /* Update prev-row ptrs from right-shifted (k-1) to current q (k access) */
-          mpv1 = MMO(dp1, q);  dpv1 = DMO(dp1, q);  ipv1 = IMO(dp1, q);
-          mpv2 = MMO(dp2, q);  dpv2 = DMO(dp2, q);  ipv2 = IMO(dp2, q);
-          mpv3 = MMO(dp3, q);  dpv3 = DMO(dp3, q);  ipv3 = IMO(dp3, q);
-          mpv4 = MMO(dp4, q);  dpv4 = DMO(dp4, q);  ipv4 = IMO(dp4, q);
-          mpv5 = MMO(dp5, q);  dpv5 = DMO(dp5, q);  ipv5 = IMO(dp5, q);
+          mpv1 = MMO_OA(dp1, q);  dpv1 = DMO_OA(dp1, q);  ipv1 = IMO_OA(dp1, q);
+          mpv2 = MMO_OA(dp2, q);  dpv2 = DMO_OA(dp2, q);  ipv2 = IMO_OA(dp2, q);
+          mpv3 = MMO_OA(dp3, q);  dpv3 = DMO_OA(dp3, q);  ipv3 = IMO_OA(dp3, q);
+          mpv4 = MMO_OA(dp4, q);  dpv4 = DMO_OA(dp4, q);  ipv4 = IMO_OA(dp4, q);
+          mpv5 = MMO_OA(dp5, q);  dpv5 = DMO_OA(dp5, q);  ipv5 = IMO_OA(dp5, q);
 
-          MMO(dpc, q) = sv;
-          DMO(dpc, q) = dcv;
+          /* C3: the codon length for an M here, from pp_C1..C5 (read above).
+           * C0, I, C4 and C5 keep the posteriors, copied when <ox> isn't <pp>. */
+          cdv = codon_argmax_fs(ppc, q);
+          if (dpc != ppc)
+            {
+              MMO_FS(dpc, q, p7X_FS_C0) = MMO_FS(ppc, q, p7X_FS_C0);
+              MMO_FS(dpc, q, p7X_FS_C4) = MMO_FS(ppc, q, p7X_FS_C4);
+              MMO_FS(dpc, q, p7X_FS_C5) = MMO_FS(ppc, q, p7X_FS_C5);
+              IMO_FS(dpc, q)            = IMO_FS(ppc, q);
+            }
+          CODON_OA(dpc, q) = cdv;
+
+          MMO_OA(dpc, q) = sv;
+          DMO_OA(dpc, q) = dcv;
           dcv = _mm256_and_ps(md, sv);
 
           /* I(i,k) = max(MI*M(i-3,k), II*I(i-3,k)) + pp_I(i,k); lag-3, same column */
           sv  =                  _mm256_and_ps(mi, mpv3);
           sv  = _mm256_max_ps(sv, _mm256_and_ps(ii, ipv3));
-          IMO(dpc, q) = _mm256_add_ps(sv, IMO_FS(ppc, q));
+          IMO_OA(dpc, q) = _mm256_add_ps(sv, IMO_FS(ppc, q));
         }
 
       /* I(i,M) has no I state; explicitly set to -inf */
-      imfix.v      = IMO(dpc, qM);
+      imfix.v      = IMO_OA(dpc, qM);
       imfix.p[rM]  = -eslINFINITY;
-      IMO(dpc, qM) = imfix.v;
+      IMO_OA(dpc, qM) = imfix.v;
 
       /* DD propagation: first pass */
       dcv = avx_rightshift_ps(dcv, infv);
       tp  = om_fs->tfv_avx + 7*Q;
       for (q = 0; q < Q; q++)
         {
-          DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
-          dcv         = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), DMO(dpc, q));  tp++;
+          DMO_OA(dpc, q) = _mm256_max_ps(dcv, DMO_OA(dpc, q));
+          dcv         = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), DMO_OA(dpc, q));  tp++;
         }
 
       /* DD propagation: 7 more lazy passes (AVX: 8 lanes, need 8 total passes) */
@@ -229,13 +278,13 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           tp  = om_fs->tfv_avx + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO(dpc, q) = _mm256_max_ps(dcv, DMO(dpc, q));
+              DMO_OA(dpc, q) = _mm256_max_ps(dcv, DMO_OA(dpc, q));
               dcv         = _mm256_and_ps(_mm256_cmp_ps(*tp, zerov, _CMP_GT_OQ), dcv);  tp++;
             }
         }
 
       /* D->E */
-      for (q = 0; q < Q; q++) xEv = _mm256_max_ps(xEv, DMO(dpc, q));
+      for (q = 0; q < Q; q++) xEv = _mm256_max_ps(xEv, DMO_OA(dpc, q));
 
       xE = -eslINFINITY;
       avx_hmax_ps(xEv, &xE);
@@ -290,21 +339,21 @@ p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
  *****************************************************************/
 
 static inline float
-get_postprob_fs(const P7_OMX *pp, int scur, int sprv, int k, int i)
+get_postprob_fs(const P7_OMX *ox, const float *ppx, int scur, int sprv, int k, int i)
 {
-  int   Q = p7O_NQF_AVX(pp->M);
+  int   Q = p7O_NQF_AVX(ox->M);
   int   q = (k-1) % Q;
   int   r = (k-1) / Q;
   union { __m256 v; float p[8]; } u;
 
   switch (scur) {
   case p7T_M:
-    u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C0);  return u.p[r];
+    u.v = MMO_FS(ox->dpf_avx[i], q, p7X_FS_C0);  return u.p[r];
   case p7T_I:
-    u.v = IMO_FS(pp->dpf_avx[i], q);              return u.p[r];
-  case p7T_N: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_N]; break;
-  case p7T_C: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_C]; break;
-  case p7T_J: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_J]; break;
+    u.v = IMO_FS(ox->dpf_avx[i], q);              return u.p[r];
+  case p7T_N: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_N]; break;
+  case p7T_C: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_C]; break;
+  case p7T_J: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_J]; break;
   default: break;
   }
   return 0.0f;
@@ -323,14 +372,14 @@ select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   __m256  mpv, dpv, ipv;
 
   if (q > 0) {
-    mpv = ox->dpf_avx[i][(q-1)*p7X_NSCELLS + p7X_M];
-    dpv = ox->dpf_avx[i][(q-1)*p7X_NSCELLS + p7X_D];
-    ipv = ox->dpf_avx[i][(q-1)*p7X_NSCELLS + p7X_I];
+    mpv = MMO_OA(ox->dpf_avx[i], q-1);
+    dpv = DMO_OA(ox->dpf_avx[i], q-1);
+    ipv = IMO_OA(ox->dpf_avx[i], q-1);
   } else {
     __m256 neg_inf = _mm256_set1_ps(-eslINFINITY);
-    mpv = avx_rightshift_ps(ox->dpf_avx[i][(Q-1)*p7X_NSCELLS + p7X_M], neg_inf);
-    dpv = avx_rightshift_ps(ox->dpf_avx[i][(Q-1)*p7X_NSCELLS + p7X_D], neg_inf);
-    ipv = avx_rightshift_ps(ox->dpf_avx[i][(Q-1)*p7X_NSCELLS + p7X_I], neg_inf);
+    mpv = avx_rightshift_ps(MMO_OA(ox->dpf_avx[i], Q-1), neg_inf);
+    dpv = avx_rightshift_ps(DMO_OA(ox->dpf_avx[i], Q-1), neg_inf);
+    ipv = avx_rightshift_ps(IMO_OA(ox->dpf_avx[i], Q-1), neg_inf);
   }
 
   tv.v = *tp;  path[3] = ((tv.p[r] == 0.0f) ? -eslINFINITY : ox->xmx[i*p7X_NXCELLS+p7X_B]);  tp++;
@@ -350,14 +399,14 @@ select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   float   path[2];
 
   if (q > 0) {
-    mpv.v  = ox->dpf_avx[i][(q-1)*p7X_NSCELLS + p7X_M];
-    dpv.v  = ox->dpf_avx[i][(q-1)*p7X_NSCELLS + p7X_D];
+    mpv.v  = MMO_OA(ox->dpf_avx[i], q-1);
+    dpv.v  = DMO_OA(ox->dpf_avx[i], q-1);
     tmdv.v = om_fs->tfv_avx[7*(q-1) + p7O_MD];
     tddv.v = om_fs->tfv_avx[7*Q     + (q-1)];
   } else {
     __m256 neg_inf = _mm256_set1_ps(-eslINFINITY);
-    mpv.v  = avx_rightshift_ps(ox->dpf_avx[i][(Q-1)*p7X_NSCELLS + p7X_M], neg_inf);
-    dpv.v  = avx_rightshift_ps(ox->dpf_avx[i][(Q-1)*p7X_NSCELLS + p7X_D], neg_inf);
+    mpv.v  = avx_rightshift_ps(MMO_OA(ox->dpf_avx[i], Q-1), neg_inf);
+    dpv.v  = avx_rightshift_ps(DMO_OA(ox->dpf_avx[i], Q-1), neg_inf);
     tmdv.v = esl_avx_rightshiftz_float(om_fs->tfv_avx[7*(Q-1) + p7O_MD]);
     tddv.v = esl_avx_rightshiftz_float(om_fs->tfv_avx[8*Q - 1]);
   }
@@ -378,9 +427,9 @@ select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   union { __m256 v; float p[8]; } tv, mpv, ipv;
   float   path[2];
 
-  mpv.v = ox->dpf_avx[prev_i][q*p7X_NSCELLS + p7X_M];
+  mpv.v = MMO_OA(ox->dpf_avx[prev_i], q);
   tv.v  = *tp;  path[0] = ((tv.p[r] == 0.0f) ? -eslINFINITY : mpv.p[r]);  tp++;
-  ipv.v = ox->dpf_avx[prev_i][q*p7X_NSCELLS + p7X_I];
+  ipv.v = IMO_OA(ox->dpf_avx[prev_i], q);
   tv.v  = *tp;  path[1] = ((tv.p[r] == 0.0f) ? -eslINFINITY : ipv.p[r]);
   return ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
@@ -392,7 +441,7 @@ select_n_fs(int i)
 }
 
 static inline int
-select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_c_fs(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, int i)
 {
   int   L     = ox->L;
   float t1    = (om_fs->xf[p7O_C][p7O_LOOP] == 0.0f) ? 0.0f : 1.0f;
@@ -403,17 +452,17 @@ select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int
   if (i < 4) return p7T_E;
 
   path[0] = (t1 == 0.0f) ? -eslINFINITY :
-            ox->xmx[(i-3)*p7X_NXCELLS+p7X_C] + pp->xmx[ i   *p7X_NXCELLS+p7X_C];
+            ox->xmx[(i-3)*p7X_NXCELLS+p7X_C] + ppx[ i   *p7X_NXCELLS+p7X_C];
   path[1] = (i < L && t1 != 0.0f) ?
-            ox->xmx[(i-2)*p7X_NXCELLS+p7X_C] + pp->xmx[(i+1)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
+            ox->xmx[(i-2)*p7X_NXCELLS+p7X_C] + ppx[(i+1)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
   path[2] = (i < L-1 && t1 != 0.0f) ?
-            ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + pp->xmx[(i+2)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
+            ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + ppx[(i+2)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
   path[3] = (t2 == 0.0f) ? -eslINFINITY : ox->xmx[i*p7X_NXCELLS+p7X_E];
   return state[esl_vec_FArgMax(path, 4)];
 }
 
 static inline int
-select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_j_fs(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, int i)
 {
   float path[2];
   int   state[2] = { p7T_J, p7T_E };
@@ -421,7 +470,7 @@ select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int
   if (i <= 5) return p7T_E;
 
   path[0] = (om_fs->xf[p7O_J][p7O_LOOP] == 0.0f) ? -eslINFINITY :
-            ox->xmx[i*p7X_NXCELLS+p7X_J] + pp->xmx[i*p7X_NXCELLS+p7X_J];
+            ox->xmx[i*p7X_NXCELLS+p7X_J] + ppx[i*p7X_NXCELLS+p7X_J];
   path[1] = (om_fs->xf[p7O_E][p7O_LOOP] == 0.0f) ? -eslINFINITY :
             ox->xmx[i*p7X_NXCELLS+p7X_E];
   return state[esl_vec_FArgMax(path, 2)];
@@ -439,9 +488,9 @@ select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
   for (k = 1; k <= ox->M; k++) {
     q = (k-1) % Q;
     r = (k-1) / Q;
-    u.v = ox->dpf_avx[i][q * p7X_NSCELLS + p7X_M];
+    u.v = MMO_OA(ox->dpf_avx[i], q);
     if (u.p[r] > max) { max = u.p[r]; smax = p7T_M; kmax = k; }
-    u.v = ox->dpf_avx[i][q * p7X_NSCELLS + p7X_D];
+    u.v = DMO_OA(ox->dpf_avx[i], q);
     if (u.p[r] > max) { max = u.p[r]; smax = p7T_D; kmax = k; }
   }
   *ret_k = kmax;
@@ -458,35 +507,32 @@ select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 }
 
 static inline int
-select_codon_fs(const P7_OMX *pp, int i, int k)
+select_codon_fs(const P7_OMX *ox, int i, int k)
 {
-  int   Q = p7O_NQF_AVX(pp->M);
+  int   Q = p7O_NQF_AVX(ox->M);
   int   q = (k-1) % Q;
   int   r = (k-1) / Q;
   union { __m256 v; float p[8]; } u;
-  float codon[5];
 
-  u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C1);  codon[0] = u.p[r];
-  u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C2);  codon[1] = u.p[r];
-  u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C3);  codon[2] = u.p[r];
-  u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C4);  codon[3] = u.p[r];
-  u.v = MMO_FS(pp->dpf_avx[i], q, p7X_FS_C5);  codon[4] = u.p[r];
-  return esl_vec_FArgMax(codon, 5) + 1;
+  u.v = CODON_OA(ox->dpf_avx[i], q);
+  return (int) u.p[r];
 }
 
 
 /* Function:  p7_OATrace_Frameshift_avx()
  *
  * Purpose:   AVX2 implementation of optimal accuracy traceback for the
- *            frameshift model.  Traces back through OA matrix <ox> annotated
- *            with posterior probabilities from FS decoding matrix <pp>.
+ *            frameshift model.  Traces back through OA matrix <ox>,
+ *            reading the posteriors of M and I from <ox> and those of the
+ *            special states from <ppx>, the caller's copy of the
+ *            decoding matrix's <xmx>.
  *
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> if trace is not empty or a bogus state is reached.
  *            <eslEMEM> on allocation error.
  */
 int
-p7_OATrace_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+p7_OATrace_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *ppx,
                            const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i    = ox->L;
@@ -509,17 +555,17 @@ p7_OATrace_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
       case p7T_D: scur = select_d_fs(om_fs,     ox, i, k);       k--;    break;
       case p7T_I: scur = select_i_fs(om_fs,     ox, i, k);       i -= 3; break;
       case p7T_N: scur = select_n_fs(i);                                  break;
-      case p7T_C: scur = select_c_fs(om_fs, pp, ox, i);                   break;
-      case p7T_J: scur = select_j_fs(om_fs, pp, ox, i);                   break;
+      case p7T_C: scur = select_c_fs(om_fs, ppx, ox, i);                   break;
+      case p7T_J: scur = select_j_fs(om_fs, ppx, ox, i);                   break;
       case p7T_E: scur = select_e_fs(om_fs,     ox, i, &k);               break;
       case p7T_B: scur = select_b_fs(om_fs,     ox, i);                   break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in OA FS traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA FS AVX traceback choice failed");
 
-      postprob = get_postprob_fs(pp, scur, sprv, k, i);
+      postprob = get_postprob_fs(ox, ppx, scur, sprv, k, i);
 
-      if (scur == p7T_M) c = select_codon_fs(pp, i, k);
+      if (scur == p7T_M) c = select_codon_fs(ox, i, k);
       else               c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;

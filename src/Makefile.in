@@ -153,6 +153,7 @@ UTESTS =\
 	build_utest\
 	generic_fwdback_utest\
 	generic_fwdback_chk_utest\
+	generic_optacc_utest\
     generic_fwdback_frameshift_utest\
     generic_msv_utest\
 	generic_stotrace_utest\

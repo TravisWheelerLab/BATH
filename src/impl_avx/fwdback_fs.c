@@ -222,6 +222,44 @@ p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFIL
   return eslENORESULT;
 #endif
 }
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardDecoding_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                     P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardDecoding_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                      P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_BackwardDecoding_Frameshift_Dispatcher;
+
+/* Function:  p7_BackwardDecoding_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the 5-codon frameshift Backward
+ *            with posterior decoding: Backward kept in a ring of
+ *            <PARSER_ROWS_BWD> rows of <bck>, posteriors written over the
+ *            full Forward matrix <fwd>, as p7_Decoding_Frameshift() would
+ *            produce them.
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslERANGE> if the Backward score or the posterior scaling
+ *            is out of range.
+ * Throws:    <eslEINVAL>, <eslEMEM> as above.
+ */
+static int
+p7_BackwardDecoding_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                          P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx())    { p7_BackwardDecoding_Frameshift = p7_BackwardDecoding_Frameshift_avx;    return p7_BackwardDecoding_Frameshift_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardDecoding_Frameshift = p7_BackwardDecoding_Frameshift_sse;
+  return p7_BackwardDecoding_Frameshift_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+#else
+  p7_Die("p7_BackwardDecoding_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
@@ -522,6 +560,146 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_fs_oprofile_Destroy(om_fs5);
 }
 
+/* utest_backward_decoding_fs()
+ * Compare p7_BackwardDecoding_Frameshift() with p7_Backward_Frameshift()
+ * followed by p7_Decoding_Frameshift() on sequences emitted from a
+ * sampled model: the Backward scores, the Backward special states and
+ * scale factors, and the posterior matrices must be identical. With
+ * <use_sse>, the _sse versions are called directly, so an AVX CPU also
+ * tests the SSE engine.
+ */
+static void
+utest_backward_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_CODONTABLE *codon_table, int M, int N, int use_sse)
+{
+  char           *msg    = "backward decoding fs unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_PROFILE     *gm     = p7_profile_Create(M, abcAA);
+  P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE *om_fs5 = NULL;
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = NULL;
+  P7_TRACE       *tr     = p7_trace_Create();
+  P7_OMX         *fwd1   = NULL;
+  P7_OMX         *bck1   = NULL;
+  P7_OMX         *fwd2   = NULL;
+  P7_OMX         *bck2   = NULL;
+  P7_OIVX        *ov5    = NULL;
+  P7_GMX         *gxp1   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  P7_GMX         *gxp2   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
+  float           bsc1, bsc2;
+  int             s1, s2;
+  int             curr_L, i, j, x;
+
+  p7_hmm_Sample(r, M, abcAA, &hmm);
+  p7_ProfileConfig(hmm, bgAA, gm, M, p7_LOCAL);
+  p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, M, p7_LOCAL);
+  if (use_sse)
+    {
+      om_fs5 = p7_fs_oprofile_Create_sse(M, abcAA, 5);
+      p7_fs_oprofile_Convert_sse(gm_fs5, om_fs5);
+      fwd1 = p7_omx_Create_dpf_sse(M, M, M, p7X_NSCELLS_FS);
+      bck1 = p7_omx_Create_dpf_sse(M, M, M, p7X_NSCELLS);
+      fwd2 = p7_omx_Create_dpf_sse(M, M, M, p7X_NSCELLS_FS);
+      bck2 = p7_omx_Create_dpf_sse(M, PARSER_ROWS_BWD, M, p7X_NSCELLS);
+      ov5  = p7_oivx_Create_sse(M, p7P_5CODONS);
+    }
+  else
+    {
+      om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
+      p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+      fwd1 = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+      bck1 = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
+      fwd2 = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
+      bck2 = p7_omx_Create_dpf(M, PARSER_ROWS_BWD, M, p7X_NSCELLS);
+      ov5  = p7_oivx_Create(M, p7P_5CODONS);
+    }
+
+  while (N--)
+    {
+      p7_ProfileEmit(r, hmm, gm, bgAA, sq, tr);
+      curr_L = sq->n*3;
+      if (curr_L < 15 || curr_L > 30000) { esl_sq_Reuse(sq); p7_trace_Reuse(tr); continue; }
+
+      free(dsq);
+      if ((dsq = malloc(sizeof(ESL_DSQ) * (curr_L+2))) == NULL) esl_fatal("malloc failed");
+      for (i = 1, j = 1; i <= sq->n; i++, j += 3)
+        p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+
+      p7_gmx_GrowTo(gxp1, M, curr_L, curr_L);
+      p7_gmx_GrowTo(gxp2, M, curr_L, curr_L);
+      if (use_sse)
+        {
+          p7_fs_oprofile_ReconfigLength_sse(om_fs5, sq->n);
+          p7_omx_GrowTo_dpf_sse(fwd1, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf_sse(bck1, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf_sse(fwd2, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf_sse(bck2, M, PARSER_ROWS_BWD, curr_L);
+          if (p7_Forward_Frameshift_sse(dsq, curr_L, om_fs5, fwd1, ov5, NULL) != eslOK) continue;
+          if (p7_Forward_Frameshift_sse(dsq, curr_L, om_fs5, fwd2, ov5, NULL) != eslOK) esl_fatal(msg);
+          s1 = p7_Backward_Frameshift_sse(dsq, curr_L, om_fs5, fwd1, bck1, ov5, &bsc1);
+          if (s1 == eslOK) s1 = p7_Decoding_Frameshift_sse(om_fs5, fwd1, bck1);
+          s2 = p7_BackwardDecoding_Frameshift_sse(dsq, curr_L, om_fs5, fwd2, bck2, ov5, &bsc2);
+          if (s1 != s2) esl_fatal("%s: return codes differ (%d %d)", msg, s1, s2);
+          if (s1 != eslOK) continue;
+          p7_omx_FDeconvert_sse(fwd1, gxp1);
+          p7_omx_FDeconvert_sse(fwd2, gxp2);
+        }
+      else
+        {
+          p7_fs_oprofile_ReconfigLength(om_fs5, sq->n);
+          p7_omx_GrowTo_dpf(fwd1, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf(bck1, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf(fwd2, M, curr_L, curr_L);
+          p7_omx_GrowTo_dpf(bck2, M, PARSER_ROWS_BWD, curr_L);
+          if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd1, ov5, NULL) != eslOK) continue;
+          if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd2, ov5, NULL) != eslOK) esl_fatal(msg);
+          s1 = p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd1, bck1, ov5, &bsc1);
+          if (s1 == eslOK) s1 = p7_Decoding_Frameshift(om_fs5, fwd1, bck1);
+          s2 = p7_BackwardDecoding_Frameshift(dsq, curr_L, om_fs5, fwd2, bck2, ov5, &bsc2);
+          if (s1 != s2) esl_fatal("%s: return codes differ (%d %d)", msg, s1, s2);
+          if (s1 != eslOK) continue;
+          p7_omx_FDeconvert(fwd1, gxp1);
+          p7_omx_FDeconvert(fwd2, gxp2);
+        }
+
+      if (bsc1 != bsc2)                       esl_fatal("%s: Backward scores differ (%f %f)", msg, bsc1, bsc2);
+      if (p7_gmx_Compare(gxp2, gxp1, 0.0) != eslOK) esl_fatal("%s: posterior matrices differ", msg);
+      for (i = 0; i <= curr_L; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (bck2->xmx[i*p7X_NXCELLS+x] != bck1->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Backward special states differ", msg);
+
+      esl_sq_Reuse(sq);
+      p7_trace_Reuse(tr);
+    }
+
+  free(dsq);
+  esl_sq_Destroy(sq);
+  p7_trace_Destroy(tr);
+  p7_hmm_Destroy(hmm);
+  p7_gmx_Destroy(gxp1);
+  p7_gmx_Destroy(gxp2);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(fwd1);
+      p7_omx_Destroy_sse(bck1);
+      p7_omx_Destroy_sse(fwd2);
+      p7_omx_Destroy_sse(bck2);
+      p7_oivx_Destroy_sse(ov5);
+      p7_fs_oprofile_Destroy_sse(om_fs5);
+    }
+  else
+    {
+      p7_omx_Destroy(fwd1);
+      p7_omx_Destroy(bck1);
+      p7_omx_Destroy(fwd2);
+      p7_omx_Destroy(bck2);
+      p7_oivx_Destroy(ov5);
+      p7_fs_oprofile_Destroy(om_fs5);
+    }
+  p7_profile_Destroy(gm);
+  p7_profile_fs_Destroy(gm_fs5);
+}
+
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
 /* utest_sse_vs_avx_fwdbackfs()
  *
@@ -744,6 +922,10 @@ main(int argc, char **argv)
   utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
   utest_sse_vs_avx_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
+#endif
+  utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N, FALSE);
+#ifdef eslENABLE_SSE
+  if (esl_cpu_has_sse()) utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N, TRUE);
 #endif
 
   esl_alphabet_Destroy(abcDNA);

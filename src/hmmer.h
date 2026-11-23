@@ -1117,11 +1117,12 @@ typedef struct p7_pipeline_s {
   P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                    */
   P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                   */
   P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                  */
-  P7_OMX     *bck;    /* full Bck matrix for domain envelopes                  */
+  P7_OMX     *bck;    /* one-row Bck parsing matrix for domain envelopes       */
   P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
   P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
   P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for domain envelopes       */
-  P7_OMX     *bck_fs; /* full frameshift Bwd matrix for domain envelopes       */
+  P7_OMX     *bck_fs; /* PARSER_ROWS_BWD-row frameshift Bwd matrix for domain envelopes */
+  float      *fs_ppx; /* copy of the frameshift posterior special states, for the OA trace */
   P7_OIVX    *ov3;    /* pre-allocated IVX buffer for 3-codon forward/backward */
   P7_OIVX    *ov5;    /* pre-allocated IVX buffer for 5-codon forward/backward */
 
@@ -1201,6 +1202,7 @@ typedef struct p7_pipeline_s {
 
 #define PARSER_ROWS_FWD 4
 #define PARSER_ROWS_BWD 6
+#define BACKWARD_DECODING_ROWS 2  /* core rows used by p7_GBackwardDecoding() */
 
 /*****************************************************************
  * 17. P7_BUILDER: pipeline for new HMM construction
@@ -1312,6 +1314,7 @@ extern int p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_G
 /* generic_fwdback.c */
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
+extern int p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *fwd, P7_GMX *bck, float *opt_sc);
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* generic_fwdback_frameshift.c */
@@ -1321,6 +1324,7 @@ extern int p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const
 extern int p7_GBackward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern int p7_GBackwardDecoding_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, float *opt_sc);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
@@ -1334,11 +1338,11 @@ extern int p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, f
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
-extern int p7_GOATrace        (const P7_PROFILE *gm, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_GOATrace        (const P7_PROFILE *gm,                   const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_optacc_frameshift.c */
 extern int p7_GOptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
-extern int p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *ppx, const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_stotrace.c */
 extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, const P7_GMX *gx, P7_TRACE *tr);

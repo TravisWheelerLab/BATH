@@ -281,7 +281,7 @@ p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, int N, P7_TRA
     if (status == eslOK)
       {
         p7_OptimalAccuracy(om, oxb, oxf, &oasc);      /* <oxf> is now overwritten with OA scores              */
-        p7_OATrace        (om, oxb, oxf, tr[idx]);    /* tr[idx] is now an OA traceback for seq #idx          */
+        p7_OATrace        (om, oxf, tr[idx]);    /* tr[idx] is now an OA traceback for seq #idx          */
       }
     else if (status == eslERANGE)
       {
@@ -320,7 +320,7 @@ p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, int N, P7_TRA
         p7_GBackward(sq[idx]->dsq, sq[idx]->n, gm, gxb, NULL);
         p7_GDecoding(gm, gxf, gxb, gxb);
         p7_GOptimalAccuracy(gm, gxb, gxf, &oasc);
-        p7_GOATrace        (gm, gxb, gxf, tr[idx]);
+        p7_GOATrace        (gm, gxf, tr[idx]);
         p7_gmx_Reuse(gxf);
         p7_gmx_Reuse(gxb);
       }

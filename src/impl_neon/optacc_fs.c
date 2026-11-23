@@ -21,6 +21,41 @@
 #include "impl_neon.h"
 
 
+
+/* The OA matrix uses the frameshift (p7X_NSCELLS_FS) cell layout, so the
+ * fill can write it over the posterior matrix. Each filled cell holds
+ * the OA scores of M, I and D in the C1, C2 and D slots, the codon length
+ * the trace takes for an M there in C3, and the posteriors pp_C0 and
+ * pp_I, which the trace reports, in C0 and I. C4 and C5 keep pp_C4 and
+ * pp_C5, which nothing reads after the fill.
+ */
+#define MMO_OA(dp,q)   MMO_FS(dp,q,p7X_FS_C1)
+#define IMO_OA(dp,q)   MMO_FS(dp,q,p7X_FS_C2)
+#define DMO_OA(dp,q)   DMO_FS(dp,q)
+#define CODON_OA(dp,q) MMO_FS(dp,q,p7X_FS_C3)
+
+/* codon_argmax_fs()
+ * For the fill: the codon length the trace takes for an M in stripe <q>
+ * of posterior row <ppc>, the argmax of pp_C1..C5 (the first one on
+ * ties), as a float in each lane.
+ */
+static inline float32x4_t
+codon_argmax_fs(const float32x4_t *ppc, int q)
+{
+  float32x4_t best = MMO_FS(ppc, q, p7X_FS_C1);
+  float32x4_t cv   = vdupq_n_f32(1.0f);
+  uint32x4_t  gt;
+  int         c;
+
+  for (c = p7X_FS_C2; c <= p7X_FS_C5; c++)
+    {
+      gt   = vcgtq_f32(MMO_FS(ppc, q, c), best);
+      best = vmaxq_f32(best, MMO_FS(ppc, q, c));
+      cv   = vbslq_f32(gt, vdupq_n_f32((float) c), cv);
+    }
+  return cv;
+}
+
 /*****************************************************************
  * 1. Optimal accuracy alignment, DP fill
  *****************************************************************/
@@ -34,8 +69,9 @@
  *
  *            The posterior decoding matrix <pp> must have the 8-cell FS
  *            layout (p7X_NSCELLS_FS=8; from p7_Decoding_Frameshift).
- *            The OA result matrix <ox> uses the standard 3-cell layout
- *            (p7X_NSCELLS=3; M, D, I per stripe position).
+ *            The OA result matrix <ox> uses the same layout and may be
+ *            <pp> itself; see the OA cell layout above. The caller copies
+ *            <pp->xmx> for the trace before the fill.
  *
  *            Five codon lengths (1-5 nt) are supported. M(i,k) takes
  *            contributions from rows i-1..i-5; I(i,k) from row i-3;
@@ -43,7 +79,7 @@
  *
  * Args:      om_fs  - optimized frameshift profile
  *            pp     - posterior decoding matrix (8-cell FS layout)
- *            ox     - RESULT: OA DP matrix (3-cell standard layout)
+ *            ox     - RESULT: OA DP matrix (8-cell FS layout); may be <pp>
  *            ret_e  - RETURN: expected number of correctly decoded positions
  *
  * Returns:   eslOK on success.
@@ -68,9 +104,10 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
   register float32x4_t sv1, sv2, sv3, sv4, sv5, sv;
   register float32x4_t xEv, xBv1, xBv2, xBv3, xBv4, xBv5;
   register float32x4_t dcv;
+  float32x4_t cdv;
   float32x4_t bm, mm, im, dm, md, mi, ii;
   float32x4_t *tp;
-  float32x4_t *dpc;                           /* current OA row (3-cell layout)     */
+  float32x4_t *dpc;                           /* current OA row (8-cell FS layout) */
   float32x4_t *dp1, *dp2, *dp3, *dp4, *dp5;  /* previous OA rows                   */
   float32x4_t *ppc;                           /* current pp row (8-cell FS layout)  */
   float32x4_t  zerov = vdupq_n_f32(0.0f);
@@ -82,7 +119,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
   /* Initialize row 0: MDI = -inf; N=0, B=0, E/J/C = -inf */
   dpc = ox->dpf[0];
-  for (q = 0; q < Q; q++) { MMO(dpc,q) = DMO(dpc,q) = IMO(dpc,q) = infv; }
+  for (q = 0; q < Q; q++) { MMO_OA(dpc,q) = DMO_OA(dpc,q) = IMO_OA(dpc,q) = infv; }
   ox->xmx[0*p7X_NXCELLS+p7X_E] = -eslINFINITY;
   ox->xmx[0*p7X_NXCELLS+p7X_N] =  0.0f;
   ox->xmx[0*p7X_NXCELLS+p7X_J] = -eslINFINITY;
@@ -109,25 +146,25 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
       xBv5 = (i >= 5) ? vdupq_n_f32(ox->xmx[(i-5)*p7X_NXCELLS + p7X_B]) : infv;
 
       /* Right-shift last stripe of each prev row for k=0 (k-1 access at q=0) */
-      mpv1 = vextq_f32(infv, MMO(dp1, Q-1), 3);
-      dpv1 = vextq_f32(infv, DMO(dp1, Q-1), 3);
-      ipv1 = vextq_f32(infv, IMO(dp1, Q-1), 3);
+      mpv1 = vextq_f32(infv, MMO_OA(dp1, Q-1), 3);
+      dpv1 = vextq_f32(infv, DMO_OA(dp1, Q-1), 3);
+      ipv1 = vextq_f32(infv, IMO_OA(dp1, Q-1), 3);
 
-      mpv2 = vextq_f32(infv, MMO(dp2, Q-1), 3);
-      dpv2 = vextq_f32(infv, DMO(dp2, Q-1), 3);
-      ipv2 = vextq_f32(infv, IMO(dp2, Q-1), 3);
+      mpv2 = vextq_f32(infv, MMO_OA(dp2, Q-1), 3);
+      dpv2 = vextq_f32(infv, DMO_OA(dp2, Q-1), 3);
+      ipv2 = vextq_f32(infv, IMO_OA(dp2, Q-1), 3);
 
-      mpv3 = vextq_f32(infv, MMO(dp3, Q-1), 3);
-      dpv3 = vextq_f32(infv, DMO(dp3, Q-1), 3);
-      ipv3 = vextq_f32(infv, IMO(dp3, Q-1), 3);
+      mpv3 = vextq_f32(infv, MMO_OA(dp3, Q-1), 3);
+      dpv3 = vextq_f32(infv, DMO_OA(dp3, Q-1), 3);
+      ipv3 = vextq_f32(infv, IMO_OA(dp3, Q-1), 3);
 
-      mpv4 = vextq_f32(infv, MMO(dp4, Q-1), 3);
-      dpv4 = vextq_f32(infv, DMO(dp4, Q-1), 3);
-      ipv4 = vextq_f32(infv, IMO(dp4, Q-1), 3);
+      mpv4 = vextq_f32(infv, MMO_OA(dp4, Q-1), 3);
+      dpv4 = vextq_f32(infv, DMO_OA(dp4, Q-1), 3);
+      ipv4 = vextq_f32(infv, IMO_OA(dp4, Q-1), 3);
 
-      mpv5 = vextq_f32(infv, MMO(dp5, Q-1), 3);
-      dpv5 = vextq_f32(infv, DMO(dp5, Q-1), 3);
-      ipv5 = vextq_f32(infv, IMO(dp5, Q-1), 3);
+      mpv5 = vextq_f32(infv, MMO_OA(dp5, Q-1), 3);
+      dpv5 = vextq_f32(infv, DMO_OA(dp5, Q-1), 3);
+      ipv5 = vextq_f32(infv, IMO_OA(dp5, Q-1), 3);
 
       dcv = infv;
       xEv = infv;
@@ -188,38 +225,50 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
           /* Update prev-row ptrs from right-shifted (k-1) to current q (k access),
            * for the I-state calculation and for the next stripe's right-shift init */
-          mpv1 = MMO(dp1, q);  dpv1 = DMO(dp1, q);  ipv1 = IMO(dp1, q);
-          mpv2 = MMO(dp2, q);  dpv2 = DMO(dp2, q);  ipv2 = IMO(dp2, q);
-          mpv3 = MMO(dp3, q);  dpv3 = DMO(dp3, q);  ipv3 = IMO(dp3, q);
-          mpv4 = MMO(dp4, q);  dpv4 = DMO(dp4, q);  ipv4 = IMO(dp4, q);
-          mpv5 = MMO(dp5, q);  dpv5 = DMO(dp5, q);  ipv5 = IMO(dp5, q);
+          mpv1 = MMO_OA(dp1, q);  dpv1 = DMO_OA(dp1, q);  ipv1 = IMO_OA(dp1, q);
+          mpv2 = MMO_OA(dp2, q);  dpv2 = DMO_OA(dp2, q);  ipv2 = IMO_OA(dp2, q);
+          mpv3 = MMO_OA(dp3, q);  dpv3 = DMO_OA(dp3, q);  ipv3 = IMO_OA(dp3, q);
+          mpv4 = MMO_OA(dp4, q);  dpv4 = DMO_OA(dp4, q);  ipv4 = IMO_OA(dp4, q);
+          mpv5 = MMO_OA(dp5, q);  dpv5 = DMO_OA(dp5, q);  ipv5 = IMO_OA(dp5, q);
 
-          MMO(dpc, q) = sv;
-          DMO(dpc, q) = dcv;
+          /* C3: the codon length for an M here, from pp_C1..C5 (read above).
+           * C0, I, C4 and C5 keep the posteriors, copied when <ox> isn't <pp>. */
+          cdv = codon_argmax_fs(ppc, q);
+          if (dpc != ppc)
+            {
+              MMO_FS(dpc, q, p7X_FS_C0) = MMO_FS(ppc, q, p7X_FS_C0);
+              MMO_FS(dpc, q, p7X_FS_C4) = MMO_FS(ppc, q, p7X_FS_C4);
+              MMO_FS(dpc, q, p7X_FS_C5) = MMO_FS(ppc, q, p7X_FS_C5);
+              IMO_FS(dpc, q)            = IMO_FS(ppc, q);
+            }
+          CODON_OA(dpc, q) = cdv;
+
+          MMO_OA(dpc, q) = sv;
+          DMO_OA(dpc, q) = dcv;
           dcv = vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(md), vreinterpretq_u32_f32(sv)));
 
           /* I(i,k) = max(MI*M(i-3,k), II*I(i-3,k)) + pp_I(i,k); lag-3, same column */
           sv  =                vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(mi), vreinterpretq_u32_f32(mpv3)));
           sv  = vmaxq_f32(sv, vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(ii), vreinterpretq_u32_f32(ipv3))));
-          IMO(dpc, q) = vaddq_f32(sv, IMO_FS(ppc, q));
+          IMO_OA(dpc, q) = vaddq_f32(sv, IMO_FS(ppc, q));
         }
 
       /* I(i,M) has no I state; MI/II transitions stored as 0 cause AND(0)=0.
        * The scalar explicitly sets IMX(i,M)=-inf; replicate that here.
        */
-      imfix.v      = IMO(dpc, qM);
+      imfix.v      = IMO_OA(dpc, qM);
       imfix.p[rM]  = -eslINFINITY;
-      IMO(dpc, qM) = imfix.v;
+      IMO_OA(dpc, qM) = imfix.v;
 
       /* DD propagation: first pass (includes M->D carry from main loop) */
       dcv = vextq_f32(infv, dcv, 3);
       tp  = om_fs->tfv + 7*Q;   /* DD transitions follow the 7*Q regular transitions */
       for (q = 0; q < Q; q++)
         {
-          DMO(dpc, q) = vmaxq_f32(dcv, DMO(dpc, q));
+          DMO_OA(dpc, q) = vmaxq_f32(dcv, DMO_OA(dpc, q));
           dcv         = vreinterpretq_f32_u32(vandq_u32(
                           vreinterpretq_u32_f32(vreinterpretq_f32_u32(vcgtq_f32(*tp, zerov))),
-                          vreinterpretq_u32_f32(DMO(dpc, q))));  tp++;
+                          vreinterpretq_u32_f32(DMO_OA(dpc, q))));  tp++;
         }
 
       /* DD propagation: 3 more lazy passes */
@@ -229,7 +278,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
           tp  = om_fs->tfv + 7*Q;
           for (q = 0; q < Q; q++)
             {
-              DMO(dpc, q) = vmaxq_f32(dcv, DMO(dpc, q));
+              DMO_OA(dpc, q) = vmaxq_f32(dcv, DMO_OA(dpc, q));
               dcv         = vreinterpretq_f32_u32(vandq_u32(
                               vreinterpretq_u32_f32(vreinterpretq_f32_u32(vcgtq_f32(*tp, zerov))),
                               vreinterpretq_u32_f32(dcv)));  tp++;
@@ -237,7 +286,7 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
         }
 
       /* D->E */
-      for (q = 0; q < Q; q++) xEv = vmaxq_f32(xEv, DMO(dpc, q));
+      for (q = 0; q < Q; q++) xEv = vmaxq_f32(xEv, DMO_OA(dpc, q));
 
       /* E state */
       xE = esl_neon_hmax_f32((esl_neon_128f_t){ .f32x4 = xEv });
@@ -296,25 +345,25 @@ p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
 
 /* get_postprob_fs:
  *   Return the posterior probability annotation for state <scur> at
- *   position (i,k), given previous state <sprv>.  The pp matrix uses
- *   the 8-cell FS layout.
+ *   position (i,k), given previous state <sprv>: pp_C0 or pp_I from the
+ *   OA matrix <ox>, N/C/J from the copy <ppx> of the special states.
  */
 static inline float
-get_postprob_fs(const P7_OMX *pp, int scur, int sprv, int k, int i)
+get_postprob_fs(const P7_OMX *ox, const float *ppx, int scur, int sprv, int k, int i)
 {
-  int   Q = p7O_NQF(pp->M);
+  int   Q = p7O_NQF(ox->M);
   int   q = (k-1) % Q;
   int   r = (k-1) / Q;
   union { float32x4_t v; float p[4]; } u;
 
   switch (scur) {
   case p7T_M:
-    u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C0);  return u.p[r];
+    u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C0);  return u.p[r];
   case p7T_I:
-    u.v = IMO_FS(pp->dpf[i], q);              return u.p[r];
-  case p7T_N: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_N]; break;
-  case p7T_C: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_C]; break;
-  case p7T_J: if (sprv == scur) return pp->xmx[i*p7X_NXCELLS+p7X_J]; break;
+    u.v = IMO_FS(ox->dpf[i], q);              return u.p[r];
+  case p7T_N: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_N]; break;
+  case p7T_C: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_C]; break;
+  case p7T_J: if (sprv == scur) return ppx[i*p7X_NXCELLS+p7X_J]; break;
   default: break;
   }
   return 0.0f;
@@ -341,14 +390,14 @@ select_m_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   /* Source M/I/D at row i, column k-1 (right-shift if k-1 crosses stripe boundary).
    * Use -inf fill (not zero) so k=0 boundary values behave like MMX(i,0)=-inf (scalar). */
   if (q > 0) {
-    mpv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_M];
-    dpv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_D];
-    ipv = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_I];
+    mpv = MMO_OA(ox->dpf[i], q-1);
+    dpv = DMO_OA(ox->dpf[i], q-1);
+    ipv = IMO_OA(ox->dpf[i], q-1);
   } else {
     float32x4_t neg_inf = vdupq_n_f32(-eslINFINITY);
-    mpv = vextq_f32(neg_inf, ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M], 3);
-    dpv = vextq_f32(neg_inf, ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D], 3);
-    ipv = vextq_f32(neg_inf, ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_I], 3);
+    mpv = vextq_f32(neg_inf, MMO_OA(ox->dpf[i], Q-1), 3);
+    dpv = vextq_f32(neg_inf, DMO_OA(ox->dpf[i], Q-1), 3);
+    ipv = vextq_f32(neg_inf, IMO_OA(ox->dpf[i], Q-1), 3);
   }
 
   /* tp[0]=BM, tp[1]=MM, tp[2]=IM, tp[3]=DM; ordered so M beats I beats D beats B in ties */
@@ -372,16 +421,16 @@ select_d_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   float   path[2];
 
   if (q > 0) {
-    mpv.v  = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_M];
-    dpv.v  = ox->dpf[i][(q-1)*p7X_NSCELLS + p7X_D];
+    mpv.v  = MMO_OA(ox->dpf[i], q-1);
+    dpv.v  = DMO_OA(ox->dpf[i], q-1);
     tmdv.v = om_fs->tfv[7*(q-1) + p7O_MD];
     tddv.v = om_fs->tfv[7*Q     + (q-1)];   /* DD block starts at 7*Q */
   } else {
     /* Use -inf fill so k=0 boundary gives -inf (matching scalar DMX(i,0)=-inf). */
     float32x4_t neg_inf = vdupq_n_f32(-eslINFINITY);
     float32x4_t zerov   = vdupq_n_f32(0.0f);
-    mpv.v  = vextq_f32(neg_inf, ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_M], 3);
-    dpv.v  = vextq_f32(neg_inf, ox->dpf[i][(Q-1)*p7X_NSCELLS + p7X_D], 3);
+    mpv.v  = vextq_f32(neg_inf, MMO_OA(ox->dpf[i], Q-1), 3);
+    dpv.v  = vextq_f32(neg_inf, DMO_OA(ox->dpf[i], Q-1), 3);
     tmdv.v = vextq_f32(zerov,   om_fs->tfv[7*(Q-1) + p7O_MD], 3);
     tddv.v = vextq_f32(zerov,   om_fs->tfv[8*Q - 1], 3);
   }
@@ -405,9 +454,9 @@ select_i_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
   union { float32x4_t v; float p[4]; } tv, mpv, ipv;
   float   path[2];
 
-  mpv.v = ox->dpf[prev_i][q*p7X_NSCELLS + p7X_M];
+  mpv.v = MMO_OA(ox->dpf[prev_i], q);
   tv.v  = *tp;  path[0] = ((tv.p[r] == 0.0f) ? -eslINFINITY : mpv.p[r]);  tp++;
-  ipv.v = ox->dpf[prev_i][q*p7X_NSCELLS + p7X_I];
+  ipv.v = IMO_OA(ox->dpf[prev_i], q);
   tv.v  = *tp;  path[1] = ((tv.p[r] == 0.0f) ? -eslINFINITY : ipv.p[r]);
   return ((path[0] >= path[1]) ? p7T_M : p7T_I);
 }
@@ -424,7 +473,7 @@ select_n_fs(int i)
  *   Returns p7T_C or p7T_E.
  */
 static inline int
-select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_c_fs(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, int i)
 {
   int   L     = ox->L;
   float t1    = (om_fs->xf[p7O_C][p7O_LOOP] == 0.0f) ? 0.0f : 1.0f;
@@ -435,11 +484,11 @@ select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int
   if (i < 4) return p7T_E;
 
   path[0] = (t1 == 0.0f) ? -eslINFINITY :
-            ox->xmx[(i-3)*p7X_NXCELLS+p7X_C] + pp->xmx[ i   *p7X_NXCELLS+p7X_C];
+            ox->xmx[(i-3)*p7X_NXCELLS+p7X_C] + ppx[ i   *p7X_NXCELLS+p7X_C];
   path[1] = (i < L && t1 != 0.0f) ?
-            ox->xmx[(i-2)*p7X_NXCELLS+p7X_C] + pp->xmx[(i+1)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
+            ox->xmx[(i-2)*p7X_NXCELLS+p7X_C] + ppx[(i+1)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
   path[2] = (i < L-1 && t1 != 0.0f) ?
-            ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + pp->xmx[(i+2)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
+            ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + ppx[(i+2)*p7X_NXCELLS+p7X_C] : -eslINFINITY;
   path[3] = (t2 == 0.0f) ? -eslINFINITY : ox->xmx[i*p7X_NXCELLS+p7X_E];
   return state[esl_vec_FArgMax(path, 4)];
 }
@@ -449,7 +498,7 @@ select_c_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int
  *   Returns p7T_J or p7T_E.
  */
 static inline int
-select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int i)
+select_j_fs(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, int i)
 {
   float path[2];
   int   state[2] = { p7T_J, p7T_E };
@@ -457,7 +506,7 @@ select_j_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, const P7_OMX *ox, int
   if (i <= 5) return p7T_E;
 
   path[0] = (om_fs->xf[p7O_J][p7O_LOOP] == 0.0f) ? -eslINFINITY :
-            ox->xmx[i*p7X_NXCELLS+p7X_J] + pp->xmx[i*p7X_NXCELLS+p7X_J];
+            ox->xmx[i*p7X_NXCELLS+p7X_J] + ppx[i*p7X_NXCELLS+p7X_J];
   path[1] = (om_fs->xf[p7O_E][p7O_LOOP] == 0.0f) ? -eslINFINITY :
             ox->xmx[i*p7X_NXCELLS+p7X_E];
   return state[esl_vec_FArgMax(path, 2)];
@@ -480,9 +529,9 @@ select_e_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
   for (k = 1; k <= ox->M; k++) {
     q = (k-1) % Q;
     r = (k-1) / Q;
-    u.v = ox->dpf[i][q * p7X_NSCELLS + p7X_M];
+    u.v = MMO_OA(ox->dpf[i], q);
     if (u.p[r] > max) { max = u.p[r]; smax = p7T_M; kmax = k; }
-    u.v = ox->dpf[i][q * p7X_NSCELLS + p7X_D];
+    u.v = DMO_OA(ox->dpf[i], q);
     if (u.p[r] > max) { max = u.p[r]; smax = p7T_D; kmax = k; }
   }
   *ret_k = kmax;
@@ -500,24 +549,19 @@ select_b_fs(const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
 }
 
 /* select_codon_fs:
- *   At M(i,k), choose the codon length c=1..5 with the highest posterior
- *   probability from the FS pp matrix.
+ *   At M(i,k), the codon length c=1..5 with the highest posterior, which
+ *   the fill stored in the cell's C3 slot.
  */
 static inline int
-select_codon_fs(const P7_OMX *pp, int i, int k)
+select_codon_fs(const P7_OMX *ox, int i, int k)
 {
-  int   Q = p7O_NQF(pp->M);
+  int   Q = p7O_NQF(ox->M);
   int   q = (k-1) % Q;
   int   r = (k-1) / Q;
   union { float32x4_t v; float p[4]; } u;
-  float codon[5];
 
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C1);  codon[0] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C2);  codon[1] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C3);  codon[2] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C4);  codon[3] = u.p[r];
-  u.v = MMO_FS(pp->dpf[i], q, p7X_FS_C5);  codon[4] = u.p[r];
-  return esl_vec_FArgMax(codon, 5) + 1;
+  u.v = CODON_OA(ox->dpf[i], q);
+  return (int) u.p[r];
 }
 
 
@@ -525,19 +569,19 @@ select_codon_fs(const P7_OMX *pp, int i, int k)
  * Synopsis:  Optimal accuracy decoding traceback, frameshift NEON version.
  *
  * Purpose:   Traceback through the OA DP matrix <ox> filled by
- *            <p7_OptimalAccuracy_Frameshift>, annotated with
- *            posterior probabilities from the FS decoding matrix <pp>.
+ *            <p7_OptimalAccuracy_Frameshift>, annotated with posterior
+ *            probabilities: those of M and I from <ox>, those of the
+ *            special states from <ppx>, the caller's copy of the
+ *            decoding matrix's <xmx>.
  *
- *            The OA matrix <ox> uses standard 3-cell layout; the pp matrix
- *            uses 8-cell FS layout.  At each M state, <select_codon_fs>
- *            picks the codon length c=1..5 that maximizes the joint OA
- *            predecessor score plus posterior pp_Cc(i,k), and i is
- *            decremented by c after the step.  I states use lag-3.
+ *            At each M state, <select_codon_fs> takes the codon length
+ *            c=1..5 that the fill stored (the argmax of pp_C1..C5), and
+ *            i is decremented by c after the step.  I states use lag-3.
  *            N/J/C special states use lag-3 nucleotide stepping.
  *
  * Args:      om_fs - optimized frameshift profile
- *            pp    - posterior decoding matrix (8-cell FS layout)
- *            ox    - OA DP matrix (3-cell standard layout, from p7_OptimalAccuracy_Frameshift)
+ *            ppx   - copy of the posterior special states (decoding matrix <xmx>)
+ *            ox    - OA DP matrix (8-cell FS layout, from p7_OptimalAccuracy_Frameshift)
  *            tr    - RESULT: OA traceback (must be empty; allocated with p7_trace_fs_CreateWithPP)
  *
  * Returns:   eslOK on success.
@@ -546,7 +590,7 @@ select_codon_fs(const P7_OMX *pp, int i, int k)
  *            eslEMEM on allocation error.
  */
 int
-p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
+p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const float *ppx,
                            const P7_OMX *ox, P7_TRACE *tr)
 {
   int   i    = ox->L;
@@ -569,17 +613,17 @@ p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,
       case p7T_D: scur = select_d_fs(om_fs,     ox, i, k);       k--;   break;
       case p7T_I: scur = select_i_fs(om_fs,     ox, i, k);       i -= 3; break;
       case p7T_N: scur = select_n_fs(i);                                  break;
-      case p7T_C: scur = select_c_fs(om_fs, pp, ox, i);                   break;
-      case p7T_J: scur = select_j_fs(om_fs, pp, ox, i);                   break;
+      case p7T_C: scur = select_c_fs(om_fs, ppx, ox, i);                   break;
+      case p7T_J: scur = select_j_fs(om_fs, ppx, ox, i);                   break;
       case p7T_E: scur = select_e_fs(om_fs,     ox, i, &k);               break;
       case p7T_B: scur = select_b_fs(om_fs,     ox, i);                   break;
       default: ESL_EXCEPTION(eslEINVAL, "bogus state in OA FS traceback");
       }
       if (scur == -1) ESL_EXCEPTION(eslEINVAL, "OA FS NEON traceback choice failed");
 
-      postprob = get_postprob_fs(pp, scur, sprv, k, i);
+      postprob = get_postprob_fs(ox, ppx, scur, sprv, k, i);
 
-      if (scur == p7T_M) c = select_codon_fs(pp, i, k);
+      if (scur == p7T_M) c = select_codon_fs(ox, i, k);
       else               c = 0;
 
       if ((status = p7_trace_fs_AppendWithPP(tr, scur, k, i, c, postprob)) != eslOK) return status;
@@ -655,7 +699,8 @@ main(int argc, char **argv)
   P7_FS_PROFILE  *gm_fs5  = NULL;
   P7_FS_OPROFILE *om_fs5  = NULL;
   P7_OMX         *ox_fwd  = NULL;   /* forward matrix; overwritten in-place by Decoding -> pp */
-  P7_OMX         *ox_bck  = NULL;   /* backward matrix; overwritten by OptimalAccuracy -> OA  */
+  P7_OMX         *ox_bck  = NULL;   /* backward matrix                                  */
+  P7_OMX         *ox_oa   = NULL;   /* OA matrix (8-cell FS layout)                     */
   P7_TRACE       *tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
@@ -682,9 +727,9 @@ main(int argc, char **argv)
   p7_fs_oprofile_ReconfigLength(om_fs5, L/3);
 
   /* ox_fwd: 8-cell FS layout (Forward input; becomes pp after Decoding)  */
-  /* ox_bck: standard 3-cell layout (Backward input; becomes OA after OA) */
   ox_fwd = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   ox_bck = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS);
+  ox_oa  = p7_omx_Create_dpf(hmm->M, L, L, p7X_NSCELLS_FS);
   P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
   tr     = p7_trace_fs_CreateWithPP();
 
@@ -697,11 +742,11 @@ main(int argc, char **argv)
   esl_stopwatch_Start(w);
   for (i = 0; i < N; i++)
     {
-      p7_OptimalAccuracy_Frameshift(om_fs5, ox_fwd, ox_bck, &accscore);
+      p7_OptimalAccuracy_Frameshift(om_fs5, ox_fwd, ox_oa, &accscore);
 
       if (! esl_opt_GetBoolean(go, "--notrace"))
         {
-          p7_OATrace_Frameshift(om_fs5, ox_fwd, ox_bck, tr);
+          p7_OATrace_Frameshift(om_fs5, ox_fwd->xmx, ox_oa, tr);
           p7_trace_Reuse(tr);
         }
     }
@@ -715,6 +760,7 @@ main(int argc, char **argv)
   free(dsq);
   p7_trace_fs_Destroy(tr);
   p7_omx_Destroy(ox_bck);
+  p7_omx_Destroy(ox_oa);
   p7_omx_Destroy(ox_fwd);
   p7_oivx_Destroy(ov5);
   p7_fs_oprofile_Destroy(om_fs5);
@@ -745,6 +791,31 @@ main(int argc, char **argv)
 #include "esl_random.h"
 #include "esl_randomseq.h"
 
+/* oa_fs_compare()
+ * Compare two frameshift OA matrices (scalar, or SIMD deconverted): every
+ * slot of rows 1..L, the OA slots (C1, C2, D) of row 0, which is all the
+ * fill writes there, and the special states. With <tol> 0 the values must
+ * be identical.
+ */
+static int
+oa_fs_compare(const P7_GMX *gx1, const P7_GMX *gx2, float tol)
+{
+  int i, k, s, x;
+
+  if (gx1->M != gx2->M || gx1->L != gx2->L) return eslFAIL;
+
+  for (i = 0; i <= gx1->L; i++)
+    {
+      for (k = 1; k <= gx1->M; k++)
+        for (s = 0; s < p7G_NSCELLS_FS; s++)
+          if (i > 0 || s == p7G_D || s == p7G_M + p7G_C1 || s == p7G_M + p7G_C2)
+            if (esl_FCompare_old(gx1->dp[i][k*p7G_NSCELLS_FS + s], gx2->dp[i][k*p7G_NSCELLS_FS + s], tol) != eslOK) return eslFAIL;
+      for (x = 0; x < p7G_NXCELLS; x++)
+        if (esl_FCompare_old(gx1->xmx[i*p7G_NXCELLS + x], gx2->xmx[i*p7G_NXCELLS + x], tol) != eslOK) return eslFAIL;
+    }
+  return eslOK;
+}
+
 /* utest_optacc_fs:
  *   Compare p7_OptimalAccuracy_Frameshift and p7_OATrace_Frameshift
  *   against their scalar counterparts.
@@ -767,14 +838,17 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   P7_FS_PROFILE   *gm_fs = NULL;
   P7_FS_OPROFILE  *om_fs = NULL;
   P7_GMX          *gx_pp  = NULL;   /* scalar pp (8-cell FS) */
-  P7_GMX          *gx_oa  = NULL;   /* scalar OA (3-cell)    */
-  P7_GMX          *gx_oa2 = NULL;   /* NEON OA deconverted   */
+  P7_GMX          *gx_oa  = NULL;   /* scalar OA (8-cell FS) */
+  P7_GMX          *gx_oa2 = NULL;   /* NEON OA deconverted (8-cell) */
   P7_OMX          *ox_fwd = NULL;   /* NEON forward/pp (8-cell FS) */
   P7_OMX          *ox_bck = NULL;   /* NEON backward (3-cell)      */
+  P7_OMX          *ox_oa  = NULL;   /* SIMD OA (8-cell FS)         */
   P7_TRACE        *tr_neon = NULL;  /* NEON OA traceback           */
   P7_TRACE        *tr_ref  = NULL;  /* scalar OA traceback         */
+  P7_TRACE        *tr_ip   = NULL;  /* scalar OA traceback, in place */
+  float           *ppx     = NULL;  /* copy of the pp special states */
   ESL_DSQ         *dsq    = NULL;
-  float            fsc, bsc, accscore_ref, accscore_neon;
+  float            fsc, bsc, accscore_ref, accscore_neon, accscore_ip, accscore_simd_ip;
   float            tol    = 0.01f;
   float            pptol  = 0.01f;
   int              seq_L;
@@ -792,18 +866,21 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   seq_L = L;
   dsq   = malloc(sizeof(ESL_DSQ) * (seq_L + 2));
 
-  /* NEON: forward/backward use 8-cell FS layout; OA uses standard 3-cell */
+  /* SIMD: Forward and pp use the 8-cell FS layout, Backward 3-cell, OA 8-cell */
   ox_fwd = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
   ox_bck = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS);
+  ox_oa  = p7_omx_Create_dpf(hmm->M, seq_L, seq_L, p7X_NSCELLS_FS);
   P7_OIVX *ov5 = p7_oivx_Create(hmm->M, p7P_5CODONS);
 
-  /* Scalar: pp uses 8-cell FS layout; OA matrices use standard 3-cell */
+  /* Scalar: pp, OA and the deconverted SIMD OA use the 8-cell FS layout */
   gx_pp  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
-  gx_oa  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS);
-  gx_oa2 = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS);
+  gx_oa  = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
+  gx_oa2 = p7_gmx_Create(hmm->M, seq_L, seq_L, p7G_NSCELLS_FS);
 
   tr_neon = p7_trace_fs_CreateWithPP();
   tr_ref  = p7_trace_fs_CreateWithPP();
+  tr_ip   = p7_trace_fs_CreateWithPP();
+  ppx     = malloc(sizeof(float) * (seq_L+1) * p7X_NXCELLS);   /* p7X_NXCELLS >= p7G_NXCELLS */
 
   while (N--)
     {
@@ -815,20 +892,40 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       if (esl_FCompare_old(fsc, bsc, tol)                                        != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift(om_fs, ox_fwd, ox_bck)                      != eslOK) esl_fatal(msg);
       /* ox_fwd now holds the NEON posterior probability matrix */
-      if (p7_OptimalAccuracy_Frameshift(om_fs, ox_fwd, ox_bck, &accscore_neon) != eslOK) esl_fatal(msg);
-      if (p7_OATrace_Frameshift(om_fs, ox_fwd, ox_bck, tr_neon)               != eslOK) esl_fatal(msg);
+      if (p7_OptimalAccuracy_Frameshift(om_fs, ox_fwd, ox_oa, &accscore_neon)  != eslOK) esl_fatal(msg);
+      if (p7_OATrace_Frameshift(om_fs, ox_fwd->xmx, ox_oa, tr_neon)          != eslOK) esl_fatal(msg);
 
       /* Reference: convert NEON pp to scalar GMX, run scalar OA and trace */
       if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                      != eslOK) esl_fatal(msg);
       if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_oa, &accscore_ref)    != eslOK) esl_fatal(msg);
-      if (p7_GOATrace_Frameshift(gm_fs, gx_pp, gx_oa, tr_ref)                   != eslOK) esl_fatal(msg);
+      if (p7_GOATrace_Frameshift(gm_fs, gx_pp->xmx, gx_oa, tr_ref)              != eslOK) esl_fatal(msg);
+
+      /* In place: the scalar OA written over the posteriors, with a copy of
+       * their special states for the trace, matches the separate OA exactly */
+      esl_vec_FCopy(gx_pp->xmx, (seq_L+1) * p7G_NXCELLS, ppx);
+      if (p7_GOptimalAccuracy_Frameshift(gm_fs, gx_pp, gx_pp, &accscore_ip)  != eslOK) esl_fatal(msg);
+      if (p7_GOATrace_Frameshift(gm_fs, ppx, gx_pp, tr_ip)                   != eslOK) esl_fatal(msg);
+      if (accscore_ip != accscore_ref)                                                 esl_fatal(msg);
+      if (oa_fs_compare(gx_pp, gx_oa, 0.0)                                    != eslOK) esl_fatal(msg);
+      if (p7_trace_Compare(tr_ip, tr_ref, 0.0)                               != eslOK) esl_fatal(msg);
 
       /* Convert NEON OA to scalar GMX for matrix-level comparison */
-      if (p7_omx_FDeconvert(ox_bck, gx_oa2)                                     != eslOK) esl_fatal(msg);
+      if (p7_omx_FDeconvert(ox_oa, gx_oa2)                                      != eslOK) esl_fatal(msg);
 
       if (esl_FCompare_old(accscore_neon, accscore_ref, tol) != eslOK) esl_fatal(msg);
-      if (p7_gmx_Compare(gx_oa, gx_oa2, tol)                != eslOK) esl_fatal(msg);
+      if (oa_fs_compare(gx_oa, gx_oa2, tol)                 != eslOK) esl_fatal(msg);
       if (p7_trace_Compare(tr_neon, tr_ref, pptol)           != eslOK) esl_fatal(msg);
+
+      /* In place: the SIMD OA written over the posteriors, with a copy of
+       * their special states for the trace, matches the separate OA exactly */
+      p7_trace_Reuse(tr_ip);
+      esl_vec_FCopy(ox_fwd->xmx, (seq_L+1) * p7X_NXCELLS, ppx);
+      if (p7_OptimalAccuracy_Frameshift(om_fs, ox_fwd, ox_fwd, &accscore_simd_ip) != eslOK) esl_fatal(msg);
+      if (p7_OATrace_Frameshift(om_fs, ppx, ox_fwd, tr_ip)                        != eslOK) esl_fatal(msg);
+      if (accscore_simd_ip != accscore_neon)                                                esl_fatal(msg);
+      if (p7_omx_FDeconvert(ox_fwd, gx_pp)                                        != eslOK) esl_fatal(msg);
+      if (oa_fs_compare(gx_pp, gx_oa2, 0.0)                                       != eslOK) esl_fatal(msg);
+      if (p7_trace_Compare(tr_ip, tr_neon, 0.0)                                   != eslOK) esl_fatal(msg);
 
       if (esl_opt_GetBoolean(go, "--traces"))
         {
@@ -838,13 +935,17 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
 
       p7_trace_Reuse(tr_neon);
       p7_trace_Reuse(tr_ref);
+      p7_trace_Reuse(tr_ip);
     }
 
   free(dsq);
   p7_trace_fs_Destroy(tr_neon);
   p7_trace_fs_Destroy(tr_ref);
+  p7_trace_fs_Destroy(tr_ip);
+  free(ppx);
   p7_omx_Destroy(ox_fwd);
   p7_omx_Destroy(ox_bck);
+  p7_omx_Destroy(ox_oa);
   p7_oivx_Destroy(ov5);
   p7_gmx_Destroy(gx_pp);
   p7_gmx_Destroy(gx_oa);

@@ -24,7 +24,7 @@
 
 #ifdef eslENABLE_SSE
 static int forward_engine_sse (int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-static int backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+static int backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc);
 #endif
 
 /*****************************************************************
@@ -74,7 +74,7 @@ p7_Backward_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *
   if (L     != fwd->L)            ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
-  return backward_engine_sse(TRUE, dsq, L, om, fwd, bck, opt_sc);
+  return backward_engine_sse(TRUE, dsq, L, om, fwd, bck, NULL, opt_sc);
 #else
   return eslENORESULT;
 #endif
@@ -91,7 +91,25 @@ p7_BackwardParser_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7
   if (L     != fwd->L)            ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
-  return backward_engine_sse(FALSE, dsq, L, om, fwd, bck, opt_sc);
+  return backward_engine_sse(FALSE, dsq, L, om, fwd, bck, NULL, opt_sc);
+#else
+  return eslENORESULT;
+#endif
+}
+
+int
+p7_BackwardDecoding_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+{
+#ifdef eslENABLE_SSE
+#if eslDEBUGLEVEL > 0
+  if (om->M >  bck->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
+  if (bck->validR < 1)            ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
+  if (L     >= bck->allocXR)      ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
+  if (L     != fwd->L)            ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
+  if (L     >= fwd->validR)       ESL_EXCEPTION(eslEINVAL, "fwd matrix isn't a full matrix (too few MDI rows)");
+  if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
+#endif
+  return backward_engine_sse(FALSE, dsq, L, om, fwd, bck, fwd, opt_sc);
 #else
   return eslENORESULT;
 #endif
@@ -262,8 +280,40 @@ forward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
 }
 
 
+/* backward_decode_row_sse()
+ * For backward_engine_sse() with a posterior matrix <pp>, which is
+ * the Forward matrix <fwd>: as soon as Backward row <i> (<dpc>, and the
+ * special states in <bck>) is final, write F*B for M and I over row <i>
+ * of <pp>, 0 for D, and F(i-1)*B(i)*t_loop for N, J and C. The engine
+ * multiplies each row by its scale product after the sweep, completing
+ * the same products, in the same order, as p7_Decoding_sse().
+ * Posterior row <i> reads Forward row <i> and the Forward special
+ * states of row <i-1>, which are not overwritten yet when the rows are
+ * done from L down.
+ */
+static inline void
+backward_decode_row_sse(const P7_OPROFILE *om, const P7_OMX *fwd, const P7_OMX *bck, __m128 *dpc, P7_OMX *pp, int i, int Q)
+{
+  __m128 *ppv = pp->dpf[i];
+  __m128 *fv  = fwd->dpf[i];
+  int     q;
+
+  for (q = 0; q < Q; q++)
+    {
+      MMO(ppv,q) = _mm_mul_ps(MMO(fv,q), MMO(dpc,q));
+      DMO(ppv,q) = _mm_setzero_ps();
+      IMO(ppv,q) = _mm_mul_ps(IMO(fv,q), IMO(dpc,q));
+    }
+  pp->xmx[i*p7X_NXCELLS+p7X_E] = 0.0;
+  pp->xmx[i*p7X_NXCELLS+p7X_N] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_N] * bck->xmx[i*p7X_NXCELLS+p7X_N] * om->xf[p7O_N][p7O_LOOP];
+  pp->xmx[i*p7X_NXCELLS+p7X_J] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_J] * bck->xmx[i*p7X_NXCELLS+p7X_J] * om->xf[p7O_J][p7O_LOOP];
+  pp->xmx[i*p7X_NXCELLS+p7X_C] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_C] * bck->xmx[i*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_LOOP];
+  pp->xmx[i*p7X_NXCELLS+p7X_B] = 0.0;
+}
+
+
 static int
-backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
+backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc)
 {
   register __m128 mpv, ipv, dpv;
   register __m128 mcv, dcv;
@@ -342,6 +392,7 @@ backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
   bck->xmx[L*p7X_NXCELLS+p7X_J] = xJ;
   bck->xmx[L*p7X_NXCELLS+p7X_B] = xB;
   bck->xmx[L*p7X_NXCELLS+p7X_C] = xC;
+  if (pp != NULL) backward_decode_row_sse(om, fwd, bck, dpc, pp, L, Q);
 
 #if eslDEBUGLEVEL > 0
   if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, L, 9, 4, xE, xN, xJ, xB, xC);
@@ -443,6 +494,7 @@ backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
     bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
     bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
     bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+    if (pp != NULL) backward_decode_row_sse(om, fwd, bck, dpc, pp, i, Q);
 
 #if eslDEBUGLEVEL > 0
     if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, xE, xN, xJ, xB, xC);
@@ -487,6 +539,43 @@ backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
   else if (isinf(xN) == 1)   ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
 
   if (opt_sc != NULL) *opt_sc = bck->totscale + log(xN);
+
+  /* Posterior decoding: scale each row by its scale product, as p7_Decoding_sse() does */
+  if (pp != NULL)
+    {
+      float   scaleproduct = 1.0 / bck->xmx[p7X_N];
+      __m128  totrv;
+      __m128 *ppv;
+
+      pp->M = om->M;
+      pp->L = L;
+
+      ppv = pp->dpf[0];
+      for (q = 0; q < Q; q++)
+        MMO(ppv,q) = DMO(ppv,q) = IMO(ppv,q) = zerov;
+      pp->xmx[p7X_E] = 0.0;
+      pp->xmx[p7X_N] = 0.0;
+      pp->xmx[p7X_J] = 0.0;
+      pp->xmx[p7X_C] = 0.0;
+      pp->xmx[p7X_B] = 0.0;
+
+      for (i = 1; i <= L; i++)
+        {
+          ppv   = pp->dpf[i];
+          totrv = _mm_set1_ps(scaleproduct * fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          for (q = 0; q < Q; q++)
+            {
+              MMO(ppv,q) = _mm_mul_ps(MMO(ppv,q), totrv);
+              IMO(ppv,q) = _mm_mul_ps(IMO(ppv,q), totrv);
+            }
+          pp->xmx[i*p7X_NXCELLS+p7X_N] *= scaleproduct;
+          pp->xmx[i*p7X_NXCELLS+p7X_J] *= scaleproduct;
+          pp->xmx[i*p7X_NXCELLS+p7X_C] *= scaleproduct;
+
+          if (bck->has_own_scales) scaleproduct *= fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] /  bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
+        }
+      if (isinf(scaleproduct)) return eslERANGE;
+    }
   return eslOK;
 }
 

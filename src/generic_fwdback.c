@@ -251,6 +251,181 @@ p7_GBackward(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float 
 }
 
 
+/* Function:  p7_GBackwardDecoding()
+ * Synopsis:  The Backward algorithm in two rows, with posterior decoding.
+ *
+ * Purpose:   The Backward dynamic programming algorithm, computed in
+ *            two rows of core model cells, combined with the posterior
+ *            decoding of <p7_GDecoding()>.
+ *
+ *            Given a digital sequence <dsq> of length <L>, a profile
+ *            <gm>, a Forward matrix <fwd> filled by <p7_GForward()> for
+ *            the same sequence and profile, and a DP matrix <bck>
+ *            allocated for at least <gm->M> by <BACKWARD_DECODING_ROWS>
+ *            cells for the core model states <M,I,D> and <L> rows for
+ *            the special states; calculate the Backward matrix one row
+ *            at a time from <L> down to 0. As soon as Backward row <i>
+ *            is complete, row <i> of the posterior decoding is
+ *            calculated and written over row <i> of <fwd>. On return
+ *            <fwd> holds the posterior decoding matrix that
+ *            <p7_GDecoding()> would produce, and <bck> holds the
+ *            Backward special states for all rows.
+ *
+ *            Overwriting <fwd> works in this order because posterior
+ *            row <i> reads Forward row <i> and the Forward special
+ *            states of row <i-1>, which have not been overwritten yet.
+ *
+ *            The Backward score is in lod score form. To convert to a
+ *            bitscore, the caller needs to subtract a null model lod
+ *            score, then convert to bits.
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq
+ *            gm     - profile (the one used to fill <fwd>)
+ *            fwd    - filled Forward matrix; RESULT: posterior decoding matrix
+ *            bck    - DP matrix with room for M x BACKWARD_DECODING_ROWS core
+ *                     cells and L rows of special states
+ *            opt_sc - optRETURN: Backward lod score in nats
+ *
+ * Return:    <eslOK> on success.
+ */
+int
+p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *fwd, P7_GMX *bck, float *opt_sc)
+{
+  float const *tsc  = gm->tsc;
+  float const *rsc  = NULL;
+  float      **dp   = bck->dp;
+  float       *xmx  = bck->xmx;
+  float       *ppr  = NULL;
+  float       *bpr  = NULL;
+  int          M    = gm->M;
+  int          i, k;
+  int          curr, next;
+  float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
+  float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
+  float        denom;
+
+  /* Note: backward calculates the probability we can get *out* of
+   * cell i,k; exclusive of emitting residue x_i.
+   */
+  p7_FLogsumInit();
+
+  /* Initialize the L row.  */
+  curr = L % BACKWARD_DECODING_ROWS;
+  XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY;
+  XMX(L,p7G_C) = gm->xsc[p7P_C][p7P_MOVE];                 /* C<-T          */
+  XMX(L,p7G_E) = XMX(L,p7G_C) + gm->xsc[p7P_E][p7P_MOVE];  /* E<-C, no tail */
+
+  MMX(curr,M) = DMX(curr,M) = XMX(L,p7G_E); /* {MD}_M <- E (prob 1.0) */
+  IMX(curr,M) = -eslINFINITY;               /* no I_M state        */
+  for (k = M-1; k >= 1; k--) {
+    MMX(curr,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
+                              DMX(curr, k+1) + TSC(p7P_MD,k));
+    DMX(curr,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
+                              DMX(curr, k+1) + TSC(p7P_DD,k));
+    IMX(curr,k) = -eslINFINITY;
+  }
+
+  /* Main recursion; row L is already filled, so its Backward step is skipped */
+  for (i = L; i >= 1; i--)
+    {
+      curr = i     % BACKWARD_DECODING_ROWS;
+      next = (i+1) % BACKWARD_DECODING_ROWS;
+
+      if (i < L)
+        {
+          rsc = gm->rsc[dsq[i+1]];
+
+          XMX(i,p7G_B) = MMX(next,1) + TSC(p7P_BM,0) + MSC(1); /* t_BM index is 0 because it's stored off-by-one. */
+          for (k = 2; k <= M; k++)
+            XMX(i,p7G_B) = p7_FLogsum(XMX(i, p7G_B), MMX(next,k) + TSC(p7P_BM,k-1) + MSC(k));
+
+          XMX(i,p7G_J) = p7_FLogsum( XMX(i+1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
+                                     XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
+
+          XMX(i,p7G_C) = XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
+
+          XMX(i,p7G_E) = p7_FLogsum( XMX(i, p7G_J)  + gm->xsc[p7P_E][p7P_LOOP],
+                                     XMX(i, p7G_C)  + gm->xsc[p7P_E][p7P_MOVE]);
+
+          XMX(i,p7G_N) = p7_FLogsum( XMX(i+1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
+                                     XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
+
+          MMX(curr,M) = DMX(curr,M) = XMX(i,p7G_E);
+          IMX(curr,M) = -eslINFINITY;
+          for (k = M-1; k >= 1; k--)
+            {
+              MMX(curr,k) = p7_FLogsum( p7_FLogsum(MMX(next,k+1) + TSC(p7P_MM,k) + MSC(k+1),
+                                                   IMX(next,k)   + TSC(p7P_MI,k) + ISC(k)),
+                                        p7_FLogsum(XMX(i,p7G_E)  + esc,
+                                                   DMX(curr,k+1) + TSC(p7P_MD,k)));
+
+              IMX(curr,k) = p7_FLogsum( MMX(next,k+1) + TSC(p7P_IM,k) + MSC(k+1),
+                                        IMX(next,k)   + TSC(p7P_II,k) + ISC(k));
+
+              DMX(curr,k) = p7_FLogsum( MMX(next,k+1) + TSC(p7P_DM,k) + MSC(k+1),
+                                        p7_FLogsum( DMX(curr,k+1) + TSC(p7P_DD,k),
+                                                    XMX(i, p7G_E) + esc));
+            }
+        }
+
+      /* Posterior decoding of row i, written over Forward row i; as in p7_GDecoding() */
+      ppr   = fwd->dp[i];
+      bpr   = dp[curr];
+      denom = 0.0;
+      ppr[p7G_M] = ppr[p7G_I] = ppr[p7G_D] = 0.0;
+      for (k = 1; k < M; k++)
+        {
+          ppr[k*p7G_NSCELLS + p7G_M] = expf(ppr[k*p7G_NSCELLS + p7G_M] + bpr[k*p7G_NSCELLS + p7G_M] - overall_sc); denom += ppr[k*p7G_NSCELLS + p7G_M];
+          ppr[k*p7G_NSCELLS + p7G_I] = expf(ppr[k*p7G_NSCELLS + p7G_I] + bpr[k*p7G_NSCELLS + p7G_I] - overall_sc); denom += ppr[k*p7G_NSCELLS + p7G_I];
+          ppr[k*p7G_NSCELLS + p7G_D] = 0.;
+        }
+      ppr[M*p7G_NSCELLS + p7G_M] = expf(ppr[M*p7G_NSCELLS + p7G_M] + bpr[M*p7G_NSCELLS + p7G_M] - overall_sc); denom += ppr[M*p7G_NSCELLS + p7G_M];
+      ppr[M*p7G_NSCELLS + p7G_I] = 0.;
+      ppr[M*p7G_NSCELLS + p7G_D] = 0.;
+
+      fwd->xmx[p7G_NXCELLS*i + p7G_E] = 0.;
+      fwd->xmx[p7G_NXCELLS*i + p7G_N] = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_N] + XMX(i,p7G_N) + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
+      fwd->xmx[p7G_NXCELLS*i + p7G_J] = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_J] + XMX(i,p7G_J) + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
+      fwd->xmx[p7G_NXCELLS*i + p7G_B] = 0.;
+      fwd->xmx[p7G_NXCELLS*i + p7G_C] = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] + XMX(i,p7G_C) + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
+      denom += fwd->xmx[p7G_NXCELLS*i + p7G_N] + fwd->xmx[p7G_NXCELLS*i + p7G_J] + fwd->xmx[p7G_NXCELLS*i + p7G_C];
+
+      denom = 1.0 / denom;
+      for (k = 1; k < M; k++) { ppr[k*p7G_NSCELLS + p7G_M] *= denom; ppr[k*p7G_NSCELLS + p7G_I] *= denom; }
+      ppr[M*p7G_NSCELLS + p7G_M]      *= denom;
+      fwd->xmx[p7G_NXCELLS*i + p7G_N] *= denom;
+      fwd->xmx[p7G_NXCELLS*i + p7G_J] *= denom;
+      fwd->xmx[p7G_NXCELLS*i + p7G_C] *= denom;
+    }
+
+  /* At i=0, only N,B states are reachable. */
+  curr = 0;
+  next = 1 % BACKWARD_DECODING_ROWS;
+  rsc  = gm->rsc[dsq[1]];
+  XMX(0,p7G_B) = MMX(next,1) + TSC(p7P_BM,0) + MSC(1); /* t_BM index is 0 because it's stored off-by-one. */
+  for (k = 2; k <= M; k++)
+    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), MMX(next,k) + TSC(p7P_BM,k-1) + MSC(k));
+  XMX(0,p7G_J) = -eslINFINITY;
+  XMX(0,p7G_C) = -eslINFINITY;
+  XMX(0,p7G_E) = -eslINFINITY;
+  XMX(0,p7G_N) = p7_FLogsum( XMX(1, p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
+                             XMX(0, p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
+  for (k = M; k >= 1; k--)
+    MMX(curr,k) = IMX(curr,k) = DMX(curr,k) = -eslINFINITY;
+
+  /* Posterior row 0 is unused (all zeros); null2 uses it as workspace */
+  for (k = 0; k <= M; k++)
+    fwd->dp[0][k*p7G_NSCELLS + p7G_M] = fwd->dp[0][k*p7G_NSCELLS + p7G_I] = fwd->dp[0][k*p7G_NSCELLS + p7G_D] = 0.0;
+  fwd->xmx[p7G_E] = fwd->xmx[p7G_N] = fwd->xmx[p7G_J] = fwd->xmx[p7G_B] = fwd->xmx[p7G_C] = 0.0;
+
+  if (opt_sc != NULL) *opt_sc = XMX(0,p7G_N);
+  bck->M = M;
+  bck->L = L;
+  return eslOK;
+}
+
+
 
 /* Function:  p7_GHybrid()
  * Synopsis:  The "hybrid" algorithm.
@@ -490,6 +665,61 @@ utest_forward(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, 
   return;
 }
 
+/* The "backward_decoding" test compares p7_GBackwardDecoding() with
+ * p7_GBackward() followed by p7_GDecoding(). Both do the same
+ * arithmetic in the same order, so the Backward score, the Backward
+ * special states and the posterior decoding matrix must be identical.
+ */
+static void
+utest_backward_decoding(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *gm, int nseq, int L)
+{
+  char     *msg  = "backward decoding unit test failed";
+  ESL_DSQ  *dsq  = NULL;
+  P7_GMX   *fwd  = NULL;
+  P7_GMX   *bck  = NULL;
+  P7_GMX   *pp   = NULL;
+  P7_GMX   *fwd2 = NULL;
+  P7_GMX   *bck2 = NULL;
+  int       idx, i, x;
+  float     bsc, bsc2;
+
+  if ((dsq  = malloc(sizeof(ESL_DSQ) *(L+2)))                                   == NULL)  esl_fatal("malloc failed");
+  if ((fwd  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))                          == NULL)  esl_fatal("matrix creation failed");
+  if ((bck  = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))                          == NULL)  esl_fatal("matrix creation failed");
+  if ((pp   = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))                          == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd2 = p7_gmx_Create(gm->M, L, L, p7G_NSCELLS))                          == NULL)  esl_fatal("matrix creation failed");
+  if ((bck2 = p7_gmx_Create(gm->M, BACKWARD_DECODING_ROWS, L, p7G_NSCELLS))     == NULL)  esl_fatal("matrix creation failed");
+
+  for (idx = 0; idx < nseq; idx++)
+    {
+      if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq)             != eslOK) esl_fatal("seq generation failed");
+
+      if (p7_GForward (dsq, L, gm, fwd, NULL)                 != eslOK) esl_fatal(msg);
+      if (p7_GBackward(dsq, L, gm, bck, &bsc)                 != eslOK) esl_fatal(msg);
+      if (p7_GDecoding(gm, fwd, bck, pp)                      != eslOK) esl_fatal(msg);
+
+      if (p7_GForward (dsq, L, gm, fwd2, NULL)                != eslOK) esl_fatal(msg);
+      if (p7_GBackwardDecoding(dsq, L, gm, fwd2, bck2, &bsc2) != eslOK) esl_fatal(msg);
+
+      if (bsc != bsc2)                                                  esl_fatal("%s: Backward scores differ (%f %f)", msg, bsc, bsc2);
+      if (p7_gmx_Compare(fwd2, pp, 0.0)                       != eslOK) esl_fatal("%s: posterior matrices differ", msg);
+      for (i = 0; i <= L; i++)
+        for (x = 0; x < p7G_NXCELLS; x++)
+          if (bck2->xmx[i*p7G_NXCELLS + x] != bck->xmx[i*p7G_NXCELLS + x]) esl_fatal("%s: Backward special states differ", msg);
+
+      if (esl_opt_GetBoolean(go, "--vv"))
+        printf("utest_backward_decoding: Backward score: %.4f\n", bsc);
+    }
+
+  p7_gmx_Destroy(fwd);
+  p7_gmx_Destroy(bck);
+  p7_gmx_Destroy(pp);
+  p7_gmx_Destroy(fwd2);
+  p7_gmx_Destroy(bck2);
+  free(dsq);
+  return;
+}
+
 /* The "generation" test scores sequences generated by the same profile.
  * Each Viterbi and Forward score should be >= the trace score of the emitted seq.
  * The expectation of Forward scores should be positive.
@@ -676,6 +906,7 @@ main(int argc, char **argv)
   if (p7_profile_Validate(gm,  errbuf, 0.0001)      != eslOK) esl_fatal("whoops, profile is bad!: %s", errbuf);
 
   utest_forward    (go, r, abc, bg, gm, nseq, L);
+  utest_backward_decoding(go, r, abc, bg, gm, nseq, L);
   utest_generation (go, r, abc, gm, hmm, bg, nseq);
   utest_enumeration(go, r, abc, 4);	/* can't go much higher than 5; enumeration test is cpu-intensive. */
 

@@ -96,6 +96,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   int          status;
 
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
+  pli->fs_ppx = NULL;
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
@@ -110,11 +111,12 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    if ((pli->oxf  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
    if ((pli->oxb  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
 
-   /* Create full memory forward and backward optimized matrices for use in the
-   * non-frameshift pipeline branch
+   /* Create the matrices for domain rescoring in the non-frameshift
+   * pipeline branch: a full matrix for Forward, posteriors and OA, and
+   * a one-row parsing matrix for Backward
    */
    if ((pli->fwd  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-   if ((pli->bck  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
+   if ((pli->bck  = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
 
   /* Create sparse memory forward and backward generic frameshift aware matrices 
    * for use in the frameshift pipeline filters
@@ -124,11 +126,12 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
     if ((pli->ov3     = p7_oivx_Create(M_hint, p7P_3CODONS))                              == NULL) goto ERROR;
     if ((pli->ov5     = p7_oivx_Create(M_hint, p7P_5CODONS))                              == NULL) goto ERROR;
 
-  /* Create full memory forward, backward and posterior generic frameshift aware matrices
-   * for use in the frameshift pipeline alignment
+  /* Create the frameshift matrices for the frameshift pipeline alignment: a full
+   * Forward matrix, which then holds the posteriors and the OA alignment, and a
+   * Backward matrix with PARSER_ROWS_BWD rows
    */ 
    if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-   if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS))    == NULL) goto ERROR;
+   if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
@@ -276,6 +279,7 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxb_fs);
   p7_omx_Destroy(pli->fwd_fs);
   p7_omx_Destroy(pli->bck_fs);
+  if (pli->fs_ppx != NULL) free(pli->fs_ppx);
   p7_oivx_Destroy(pli->ov3);
   p7_oivx_Destroy(pli->ov5);
   p7_omx_Destroy(pli->oxf);

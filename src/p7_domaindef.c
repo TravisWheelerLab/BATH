@@ -967,7 +967,10 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
  * also obtained in unilocal mode.
  * 
  * The Forward and Backward calculations for this domain use the
- * pipeline's frameshift DP matrices <pli->fwd_fs> and <pli->bck_fs>.
+ * pipeline's frameshift DP matrices <pli->fwd_fs> (full) and
+ * <pli->bck_fs> (PARSER_ROWS_BWD rows). The Backward pass writes the
+ * posteriors over the Forward matrix, and the OA alignment is written
+ * over the posteriors.
  *
  * The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
@@ -988,7 +991,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;
-  float          envsc, oasc;
+  float          envsc, bcksc, oasc;
   float          nullsc, seqscore;
   double         P;
   int            codon_idx;  
@@ -1027,18 +1030,22 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
     return eslOK;
   }
 
-  /* Backward */
-  p7_omx_GrowTo_dpf(ox2, om_fs5->M, Ld, Ld);
-  if ((status = p7_Backward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, NULL)) == eslERANGE) return eslOK;
+  /* Backward in a ring of rows, writing the posteriors over the Forward matrix */
+  p7_omx_GrowTo_dpf(ox2, om_fs5->M, PARSER_ROWS_BWD, Ld);
+  status = p7_BackwardDecoding_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, &bcksc);
+  if (status == eslERANGE && bcksc == -eslINFINITY) return eslOK;   /* Backward score underflow */
+  if (status == eslERANGE) return eslFAIL;                          /* posterior overflow; domain treated as garbage */
   if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
-  /* Posterior Probabilities */
-  status = p7_Decoding_Frameshift(om_fs5, ox1, ox2);
-  if (status == eslERANGE) return eslFAIL; /* numeric overflow; domain treated as garbage */
+  /* Compute bias correction, from the posteriors before the OA overwrites them */
+  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
 
-  /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox2, &oasc);
-  p7_OATrace_Frameshift(om_fs5, ox1, ox2, ddef->tr);
+  /* Find an optimal accuracy alignment, written over the posteriors; the
+   * trace reads the posteriors of the special states from a copy */
+  ESL_REALLOC(pli->fs_ppx, sizeof(float) * (Ld+1) * p7X_NXCELLS);
+  esl_vec_FCopy(ox1->xmx, (Ld+1) * p7X_NXCELLS, pli->fs_ppx);
+  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox1, &oasc);
+  p7_OATrace_Frameshift(om_fs5, pli->fs_ppx, ox1, ddef->tr);
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1068,9 +1075,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
     p7_trace_Reuse(ddef->tr);
     return eslFAIL;
   }
-
-  /* Compute bias correction */
-  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
 
   t = u = v = w = x = -1;
   z = 0;
@@ -1197,11 +1201,12 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
  * also obtained in unilocal mode.
  * 
- * The caller provides DP matrices <ox1> and <ox2> with sufficient
- * space to hold Forward and Backward calculations for this domain
- * against the model. (The caller will typically already have matrices
- * sufficient for the complete sequence lying around, and can just use
- * those.) The caller also provides a <P7_DOMAINDEF> object (ddef)
+ * The caller provides DP matrices <ox1> and <ox2>. <ox1> is grown to a
+ * full matrix for this domain: it holds the Forward matrix, then the
+ * posterior decoding (written over it by p7_BackwardDecoding()), then
+ * the OA matrix (written over the posteriors). <ox2> is grown to a
+ * one-row parsing matrix for the Backward calculation. The caller
+ * also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
  * working space and heuristic thresholds.
  *
@@ -1232,18 +1237,19 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
 
   p7_oprofile_ReconfigLength(om, Ld);
   p7_omx_GrowTo(ox1, om->M, Ld, Ld); 
-  p7_omx_GrowTo(ox2, om->M, Ld, Ld); 
+  p7_omx_GrowTo(ox2, om->M, 0,  Ld);
 	
   p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
-  p7_Backward(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc);
-   
-  status = p7_Decoding(om, ox1, ox2, ox2);      /* <ox2> is now overwritten with post probabilities     */
+  status = p7_BackwardDecoding(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc); /* <ox1> is now overwritten with post probabilities */
   if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
+
+  /* null2 reads the posteriors, so it comes before the OA fill overwrites them */
+  if (!null2_is_done) p7_Null2_ByExpectation(om, ox1, null2);
    
   /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy(om, ox2, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
+  p7_OptimalAccuracy(om, ox1, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
 
-  p7_OATrace        (om, ox2, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  p7_OATrace        (om, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
     
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)
@@ -1286,7 +1292,6 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
   if (!null2_is_done) {
-    p7_Null2_ByExpectation(om, ox2, null2);
     for (pos = i; pos <= j; pos++) {
       ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
     }

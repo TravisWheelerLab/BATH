@@ -117,7 +117,7 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->fwd_alloc = 0;
   if ((pli->vit = p7_chkomx_Create(M_hint, L_hint, SPLICE_CHECKPOINT_ROWS, pli->min_intron + 6, p7X_NSCELLS)) == NULL) goto ERROR;
   if ((pli->fwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
-  if ((pli->bwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
+  if ((pli->bwd = p7_omx_Create_dpf(M_hint, 0,      L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
 
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;

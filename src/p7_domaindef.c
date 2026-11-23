@@ -533,7 +533,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
     {
         /* We have a region i..j to evaluate. */
         p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
-        p7_omx_GrowTo(bck, om->M, j-i+1, j-i+1);
+        p7_omx_GrowTo(bck, om->M, 0, j-i+1);   /* one core row: BackwardDecoding and Null2_ByTrace need no more */
         ddef->nregions++;
         
         if (is_multidomain_region(ddef, i, j))

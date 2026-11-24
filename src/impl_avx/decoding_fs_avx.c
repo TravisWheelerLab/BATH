@@ -7,6 +7,8 @@
  */
 #include "p7_config.h"
 
+#include <string.h>
+
 #ifdef eslENABLE_AVX
 
 #include <stdio.h>
@@ -19,6 +21,94 @@
 
 #include "hmmer.h"
 #include "impl_avx.h"
+
+
+/* Function:  p7_DecodingRow_Frameshift_avx()
+ * Synopsis:  Posterior decoding of one frameshift row.
+ *
+ * Purpose:   Posterior probabilities of row <i> (1..L) into <ppv> and the
+ *            special states <ppx> (E, N, J, B, C of the row), from Forward
+ *            row <i> in <fv>, Backward row <i> in <bv>, the Backward
+ *            special states <bxmx>, the Forward special states of row
+ *            i-3 in <fx3> (read for i > 2), the cumulative log scale
+ *            products <log_sfwd> and <log_sbck>, and <log_inv_Z>, as
+ *            <p7_Decoding_Frameshift_avx()> computes them. <ppv> may be
+ *            <fv>. Same calculation as each row of
+ *            <p7_Decoding_Frameshift_avx()>, which calls it.
+ *
+ * Returns:   <eslOK> on success; <eslERANGE> if a scale factor or the
+ *            special states' posteriors overflow.
+ */
+int
+p7_DecodingRow_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *bxmx, const float *fx3, const float *log_sfwd, const float *log_sbck,
+                         float log_inv_Z, const __m256 *fv, const __m256 *bv, __m256 *ppv, float *ppx, int i)
+{
+  int    Q = p7O_NQF_AVX(om_fs->M);
+  int    q, c;
+  float  factor_mdi, factor_njc;
+  __m256 scv;
+  __m256 zerov    = _mm256_setzero_ps();
+  __m256  fI, fC[6], bM, bI;
+  float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
+  float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
+  float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
+  float  bck_N, bck_J, bck_C;
+  float  N_pp, J_pp, C_pp;
+
+  /* Backward special states at row i */
+  bck_N = bxmx[i*p7X_NXCELLS + p7X_N];
+  bck_J = bxmx[i*p7X_NXCELLS + p7X_J];
+  bck_C = bxmx[i*p7X_NXCELLS + p7X_C];
+
+  /* Scale factor for same-row M/I products */
+  factor_mdi = expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
+
+  if (isinf(factor_mdi)) return eslERANGE;
+
+  /* M/I products f * b; scaled to posteriors below */
+  for (q = 0; q < Q; q++)
+    {
+      bM = bv[q * p7X_NSCELLS + p7X_M];
+      bI = bv[q * p7X_NSCELLS + p7X_I];
+
+      fI = fv[q * p7X_NSCELLS_FS + p7X_FS_I];
+      for (c = 0; c < 6; c++)
+        fC[c] = fv[q * p7X_NSCELLS_FS + p7X_FS_M + c];
+
+      ppv[q * p7X_NSCELLS_FS + p7X_FS_D] = zerov;
+      ppv[q * p7X_NSCELLS_FS + p7X_FS_I] = _mm256_mul_ps(fI, bI);
+      for (c = 0; c < 6; c++)
+        ppv[q * p7X_NSCELLS_FS + p7X_FS_M + c] = _mm256_mul_ps(fC[c], bM);
+    }
+
+  /* N, J, C posteriors */
+  if (i > 2) {
+    factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
+    N_pp = fx3[p7X_N] * bck_N * N_odds * factor_njc;
+    J_pp = fx3[p7X_J] * bck_J * J_odds * factor_njc;
+    C_pp = fx3[p7X_C] * bck_C * C_odds * factor_njc;
+  } else {
+    float factor_nsmall = expf(log_sbck[i] + log_inv_Z);
+    N_pp = bck_N * factor_nsmall;
+    J_pp = 0.0f;
+    C_pp = 0.0f;
+  }
+  if (isinf(N_pp + J_pp + C_pp)) return eslERANGE;
+
+  /* Scale the M/I products by the row factor to get posteriors */
+  scv = _mm256_set1_ps(factor_mdi);
+  for (q = 0; q < Q; q++)
+    for (c = 0; c < p7X_NSCELLS_FS; c++)
+      ppv[q * p7X_NSCELLS_FS + c] = _mm256_mul_ps(ppv[q * p7X_NSCELLS_FS + c], scv);
+
+  /* Special states */
+  ppx[p7X_E] = 0.0f;
+  ppx[p7X_B] = 0.0f;
+  ppx[p7X_N] = N_pp;
+  ppx[p7X_J] = J_pp;
+  ppx[p7X_C] = C_pp;
+  return eslOK;
+}
 
 
 /* Function:  p7_Decoding_Frameshift_avx()
@@ -43,23 +133,13 @@ p7_Decoding_Frameshift_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
   int    L = fwd->L;
   int    M = om_fs->M;
   int    Q = p7O_NQF_AVX(M);
-  int    i, q, c;
+  int    i, q;
   float *log_sfwd = NULL;
   float *log_sbck = NULL;
   float  log_inv_Z;
-  float  factor_mdi, factor_njc;
-  __m256 scv;
   __m256 zerov    = _mm256_setzero_ps();
-  __m256 *dpc, *dbv;
-  __m256  fI, fC[6], bM, bI;
-  /* Circular lag buffer depth 4: nlag[i%4] = fwd_N(i) saved before overwrite */
-  float  nlag[4], jlag[4], clag[4];
-  float  fN3, fJ3, fC3;
-  float  bck_N, bck_J, bck_C;
-  float  N_odds = om_fs->xf[p7O_N][p7O_LOOP];
-  float  J_odds = om_fs->xf[p7O_J][p7O_LOOP];
-  float  C_odds = om_fs->xf[p7O_C][p7O_LOOP];
-  float  N_pp, J_pp, C_pp;
+  __m256 *dpc;
+  float  lagx[4][p7X_NXCELLS];          /* fwd special states of the last 4 rows, saved before overwrite */
   int    status;
 
   ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
@@ -81,12 +161,7 @@ p7_Decoding_Frameshift_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
                    logf(bck->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
 
   /* Save fwd row 0 special states before zeroing row 0 */
-  nlag[0] = fwd->xmx[p7X_N];
-  jlag[0] = fwd->xmx[p7X_J];
-  clag[0] = fwd->xmx[p7X_C];
-  nlag[1] = nlag[2] = nlag[3] = 0.0f;
-  jlag[1] = jlag[2] = jlag[3] = 0.0f;
-  clag[1] = clag[2] = clag[3] = 0.0f;
+  memcpy(lagx[0], fwd->xmx, sizeof(float) * p7X_NXCELLS);
 
   /* Zero row 0 of the output PP matrix */
   dpc = fwd->dpf_avx[0];
@@ -96,70 +171,12 @@ p7_Decoding_Frameshift_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OM
   for (i = 1; i <= L; i++)
     {
       /* Save current fwd special states into lag buffer before overwriting */
-      nlag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_N];
-      jlag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_J];
-      clag[i % 4] = fwd->xmx[i*p7X_NXCELLS + p7X_C];
+      memcpy(lagx[i % 4], fwd->xmx + i*p7X_NXCELLS, sizeof(float) * p7X_NXCELLS);
 
       /* fwd special states 3 rows back: (i-3+4)%4 == (i+1)%4 */
-      fN3 = nlag[(i + 1) % 4];
-      fJ3 = jlag[(i + 1) % 4];
-      fC3 = clag[(i + 1) % 4];
-
-      /* Backward special states at row i */
-      bck_N = bck->xmx[i*p7X_NXCELLS + p7X_N];
-      bck_J = bck->xmx[i*p7X_NXCELLS + p7X_J];
-      bck_C = bck->xmx[i*p7X_NXCELLS + p7X_C];
-
-      /* Scale factor for same-row M/I products */
-      factor_mdi = expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
-
-      if (isinf(factor_mdi)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
-
-      /* M/I products f * b; scaled to posteriors below */
-      dpc = fwd->dpf_avx[i];
-      dbv = bck->dpf_avx[i];
-
-      for (q = 0; q < Q; q++)
-        {
-          bM = dbv[q * p7X_NSCELLS + p7X_M];
-          bI = dbv[q * p7X_NSCELLS + p7X_I];
-
-          fI = dpc[q * p7X_NSCELLS_FS + p7X_FS_I];
-          for (c = 0; c < 6; c++)
-            fC[c] = dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c];
-
-          dpc[q * p7X_NSCELLS_FS + p7X_FS_D] = zerov;
-          dpc[q * p7X_NSCELLS_FS + p7X_FS_I] = _mm256_mul_ps(fI, bI);
-          for (c = 0; c < 6; c++)
-            dpc[q * p7X_NSCELLS_FS + p7X_FS_M + c] = _mm256_mul_ps(fC[c], bM);
-        }
-
-      /* N, J, C posteriors */
-      if (i > 2) {
-        factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
-        N_pp = fN3 * bck_N * N_odds * factor_njc;
-        J_pp = fJ3 * bck_J * J_odds * factor_njc;
-        C_pp = fC3 * bck_C * C_odds * factor_njc;
-      } else {
-        float factor_nsmall = expf(log_sbck[i] + log_inv_Z);
-        N_pp = bck_N * factor_nsmall;
-        J_pp = 0.0f;
-        C_pp = 0.0f;
-      }
-      if (isinf(N_pp + J_pp + C_pp)) { free(log_sfwd); free(log_sbck); return eslERANGE; }
-
-      /* Scale the M/I products by the row factor to get posteriors */
-      scv = _mm256_set1_ps(factor_mdi);
-      for (q = 0; q < Q; q++)
-        for (c = 0; c < p7X_NSCELLS_FS; c++)
-          fwd->dpf_avx[i][q * p7X_NSCELLS_FS + c] = _mm256_mul_ps(fwd->dpf_avx[i][q * p7X_NSCELLS_FS + c], scv);
-
-      /* Special states */
-      fwd->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
-      fwd->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
-      fwd->xmx[i*p7X_NXCELLS + p7X_N] = N_pp;
-      fwd->xmx[i*p7X_NXCELLS + p7X_J] = J_pp;
-      fwd->xmx[i*p7X_NXCELLS + p7X_C] = C_pp;
+      if ((status = p7_DecodingRow_Frameshift_avx(om_fs, bck->xmx, lagx[(i + 1) % 4], log_sfwd, log_sbck, log_inv_Z,
+                                              fwd->dpf_avx[i], bck->dpf_avx[i], fwd->dpf_avx[i], fwd->xmx + i*p7X_NXCELLS, i)) != eslOK)
+        { free(log_sfwd); free(log_sbck); return status; }
     }
 
   free(log_sfwd);

@@ -51,24 +51,10 @@
 int
 p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
 {
-  int           M    = om_fs->M;
-  int           Ld   = pp->L;
-  int           Q    = p7O_NQF(M);
-  float        *xmx  = pp->xmx;   /* enables use of XMXo(i,s) macro */
-  float         norm;
-  float         nemit;   /* expected number of emissions in the envelope */
-  float32x4_t  *rp;
-  float32x4_t   sv;
-  float         xfactor;
-  int           amino_offset;
-  int           i, q, x, k;
-  union { float32x4_t v; float p[4]; } u;
-
-  /* Determine the amino acid emission row offset in rfv[] */
-  if      (om_fs->codon_lengths == 5) amino_offset = p7P_MAXCODONS5;
-  else if (om_fs->codon_lengths == 3) amino_offset = p7P_MAXCODONS3;
-  else if (om_fs->codon_lengths == 1) amino_offset = p7P_MAXCODONS1;
-  else    ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+  int      Q    = p7O_NQF(om_fs->M);
+  int      Ld   = pp->L;
+  float   *xmx  = pp->xmx;   /* enables use of XMXo(i,s) macro */
+  int      i, q;
 
   /* Calculate expected # of times that each emitting state was used
    * in generating the Ld residues in this domain.
@@ -94,42 +80,80 @@ p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2)
       XMXo(0, p7X_J) += XMXo(i, p7X_J);
     }
 
+  return p7_Null2_fs_FromCounts(om_fs, pp->dpf[0], pp->xmx, null2);
+}
+
+
+/* Function:  p7_Null2_fs_FromCounts()
+ * Synopsis:  Frameshift null2 odds ratios from expected state usage.
+ *
+ * Purpose:   The second half of <p7_Null2_fs_ByExpectation()>: from the
+ *            posterior probabilities of M (C0) and I summed over the
+ *            rows of an envelope (<cnt>, one row in the frameshift
+ *            layout), and those of N, C and J (<cntx>, indexed by
+ *            p7X_N etc.), calculate the null2 odds ratios into <null2>
+ *            (<0..Kp-1>, caller allocated). <cnt> and <cntx> are
+ *            overwritten.
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if <om_fs> has an unsupported number of codon lengths.
+ */
+int
+p7_Null2_fs_FromCounts(const P7_FS_OPROFILE *om_fs, float32x4_t *cnt, float *cntx, float *null2)
+{
+  int           M    = om_fs->M;
+  int           Q    = p7O_NQF(M);
+  float         norm;
+  float         nemit;   /* expected number of emissions in the envelope */
+  float32x4_t  *rp;
+  float32x4_t   sv;
+  float         xfactor;
+  int           amino_offset;
+  int           q, x, k;
+  union { float32x4_t v; float p[4]; } u;
+
+  /* Determine the amino acid emission row offset in rfv[] */
+  if      (om_fs->codon_lengths == 5) amino_offset = p7P_MAXCODONS5;
+  else if (om_fs->codon_lengths == 3) amino_offset = p7P_MAXCODONS3;
+  else if (om_fs->codon_lengths == 1) amino_offset = p7P_MAXCODONS1;
+  else    ESL_EXCEPTION(eslEINVAL, "codon_lengths must be 1, 3, or 5");
+
   /* Convert those expected #'s to frequencies, to use as posterior weights.
    * Each emission ends at one nucleotide, so the expected #'s sum to the
    * expected number of emissions; it is summed over k = 1..M so that
    * stripe padding past M is not counted.
    */
-  nemit = XMXo(0, p7X_N) + XMXo(0, p7X_C) + XMXo(0, p7X_J);
+  nemit = cntx[p7X_N] + cntx[p7X_C] + cntx[p7X_J];
   for (k = 1; k <= M; k++)
     {
-      u.v = MMO_FS(pp->dpf[0], (k-1) % Q, p7X_FS_C0); nemit += u.p[(k-1) / Q];
-      u.v = IMO_FS(pp->dpf[0], (k-1) % Q);            nemit += u.p[(k-1) / Q];
+      u.v = MMO_FS(cnt, (k-1) % Q, p7X_FS_C0); nemit += u.p[(k-1) / Q];
+      u.v = IMO_FS(cnt, (k-1) % Q);            nemit += u.p[(k-1) / Q];
     }
   norm = 1.0f / nemit;
   sv   = vmovq_n_f32(norm);
   for (q = 0; q < Q; q++)
     {
-      MMO_FS(pp->dpf[0], q, p7X_FS_C0) = vmulq_f32(MMO_FS(pp->dpf[0], q, p7X_FS_C0), sv);
-      IMO_FS(pp->dpf[0], q)             = vmulq_f32(IMO_FS(pp->dpf[0], q),             sv);
+      MMO_FS(cnt, q, p7X_FS_C0) = vmulq_f32(MMO_FS(cnt, q, p7X_FS_C0), sv);
+      IMO_FS(cnt, q)             = vmulq_f32(IMO_FS(cnt, q),             sv);
     }
-  XMXo(0, p7X_N) *= norm;
-  XMXo(0, p7X_C) *= norm;
-  XMXo(0, p7X_J) *= norm;
+  cntx[p7X_N] *= norm;
+  cntx[p7X_C] *= norm;
+  cntx[p7X_J] *= norm;
 
   /* Calculate null2's emission odds, by taking posterior weighted sum
    * over all emission vectors used in paths explaining the domain.
    * Amino acid emission odds are in rfv[amino_offset + x].
    * Insert emission odds are implicitly 1.0.
    */
-  xfactor = XMXo(0, p7X_N) + XMXo(0, p7X_C) + XMXo(0, p7X_J);
+  xfactor = cntx[p7X_N] + cntx[p7X_C] + cntx[p7X_J];
   for (x = 0; x < om_fs->abc->K; x++)
     {
       sv = vdupq_n_f32(0.0f);
       rp = om_fs->rfv[amino_offset + x];
       for (q = 0; q < Q; q++)
         {
-          sv = vaddq_f32(sv, vmulq_f32(MMO_FS(pp->dpf[0], q, p7X_FS_C0), *rp)); rp++;
-          sv = vaddq_f32(sv, IMO_FS(pp->dpf[0], q));  /* insert odds implicitly 1.0 */
+          sv = vaddq_f32(sv, vmulq_f32(MMO_FS(cnt, q, p7X_FS_C0), *rp)); rp++;
+          sv = vaddq_f32(sv, IMO_FS(cnt, q));  /* insert odds implicitly 1.0 */
         }
       esl_neon_hsum_float((esl_neon_128f_t){ .f32x4 = sv }, &(null2[x]));
       null2[x] += xfactor;

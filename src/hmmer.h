@@ -1217,6 +1217,20 @@ typedef struct p7_hmm_window_list_s {
 
 
 
+#define PARSER_ROWS_FWD 4
+
+/* P7_FS_FWDRING: the N, B, J and C special states of the last
+ * PARSER_ROWS_FWD rows of a SIMD frameshift Forward, indexed by
+ * row % PARSER_ROWS_FWD, at the scale of the most recent row: when a
+ * row is rescaled, every entry is rescaled with it. */
+typedef struct {
+  float xN[PARSER_ROWS_FWD];
+  float xB[PARSER_ROWS_FWD];
+  float xJ[PARSER_ROWS_FWD];
+  float xC[PARSER_ROWS_FWD];
+} P7_FS_FWDRING;
+#define PARSER_ROWS_BWD 6
+
 /*****************************************************************
  * 14. Choice of vector implementation.
  *****************************************************************/
@@ -1327,8 +1341,6 @@ typedef struct p7_pipeline_s {
 
 } P7_PIPELINE;
 
-#define PARSER_ROWS_FWD 4
-#define PARSER_ROWS_BWD 6
 #define BACKWARD_DECODING_ROWS 2  /* core rows used by p7_GBackwardDecoding() */
 
 /*****************************************************************

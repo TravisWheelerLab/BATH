@@ -81,6 +81,54 @@ p7_OATrace_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const float *ppx,
   return eslENORESULT;
 #endif
 }
+/* Forward declarations of dispatchers */
+static int p7_OptimalAccuracySweep_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+static int p7_OATraceSweep_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr);
+
+/* Global function pointers, initially pointing at the dispatchers */
+int (*p7_OptimalAccuracySweep_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc) = p7_OptimalAccuracySweep_Frameshift_Dispatcher;
+int (*p7_OATraceSweep_Frameshift)(const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr) = p7_OATraceSweep_Frameshift_Dispatcher;
+
+/* Function:  p7_OptimalAccuracySweep_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the frameshift OA sweep over a
+ *            checkpointed Backward. See p7_OptimalAccuracySweep_Frameshift_avx().
+ */
+static int
+p7_OptimalAccuracySweep_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_OptimalAccuracySweep_Frameshift = p7_OptimalAccuracySweep_Frameshift_avx; return p7_OptimalAccuracySweep_Frameshift_avx(dsq, L, om_fs, cx, ov, ox, opt_null2, opt_fsc, ret_oasc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_OptimalAccuracySweep_Frameshift = p7_OptimalAccuracySweep_Frameshift_sse;
+  return p7_OptimalAccuracySweep_Frameshift_sse(dsq, L, om_fs, cx, ov, ox, opt_null2, opt_fsc, ret_oasc);
+#else
+  p7_Die("p7_OptimalAccuracySweep_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+/* Function:  p7_OATraceSweep_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the frameshift OA trace from what
+ *            the OA sweep stored. See p7_OATraceSweep_Frameshift_avx().
+ */
+static int
+p7_OATraceSweep_Frameshift_Dispatcher(const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_OATraceSweep_Frameshift = p7_OATraceSweep_Frameshift_avx; return p7_OATraceSweep_Frameshift_avx(om_fs, ox, tr); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_OATraceSweep_Frameshift = p7_OATraceSweep_Frameshift_sse;
+  return p7_OATraceSweep_Frameshift_sse(om_fs, ox, tr);
+#else
+  p7_Die("p7_OATraceSweep_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
 /*****************************************************************
  * 3. Benchmark driver.
  *****************************************************************/
@@ -224,6 +272,8 @@ main(int argc, char **argv)
  * 4. Unit tests
  *****************************************************************/
 #ifdef p7OPTACC_FS_TESTDRIVE
+#include <string.h>
+
 #include "esl_alphabet.h"
 #include "esl_getopts.h"
 #include "esl_gencode.h"
@@ -431,6 +481,199 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   p7_profile_fs_Destroy(gm_fs);
   p7_hmm_Destroy(hmm);
 }
+/* pp_cell_fs()
+ * Value of cell <s> (frameshift layout, e.g. p7X_FS_M + p7X_FS_C0) of
+ * model position <k> on row <i> of <ox>, with <use_sse> choosing the
+ * SSE or AVX rows.
+ */
+static float
+pp_cell_fs(const P7_OMX *ox, int i, int k, int s, int use_sse)
+{
+  int Q = use_sse ? p7O_NQF(ox->M) : p7O_NQF_AVX(ox->M);
+  int q = (k-1) % Q;
+  int r = (k-1) / Q;
+  const float *v = use_sse ? (const float *) (ox->dpf[i] + q * p7X_NSCELLS_FS + s) : (const float *) (ox->dpf_avx[i] + q * p7X_NSCELLS_FS + s);
+  return v[r];
+}
+
+/* utest_sweep_fs()
+ * The frameshift OA sweep over a checkpointed Backward against the
+ * full-matrix path on the same Backward: p7_Forward_Frameshift(), the
+ * checkpointed Backward filled in one block and copied into a Backward
+ * matrix, p7_Decoding_Frameshift(), p7_OptimalAccuracy_Frameshift(),
+ * p7_OATrace_Frameshift() and p7_Null2_fs_ByExpectation(). The sweep,
+ * with Backward blocks of 5..12 rows, must give the same Forward and OA
+ * scores, null2, states, k, i and codon lengths on the trace, and PP
+ * characters equal to those the posterior matrix gives. Sequences
+ * alternate random DNA and the back-translated consensus of a model
+ * with sharpened match emissions and M->M transitions between random
+ * flanks, so that rows are rescaled. With <use_sse>, the _sse versions
+ * are called directly, so an AVX CPU also tests the SSE engine.
+ */
+static void
+utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
+               int M, int L, int N, int use_sse)
+{
+  char           *msg  = "frameshift OA sweep unit test failed";
+  P7_CODONTABLE  *ct   = p7_codontable_Create(gcode);
+  P7_HMM         *hmm  = NULL;
+  P7_FS_PROFILE  *gm   = p7_profile_fs_Create(M, abcAA, p7P_5CODONS);
+  P7_FS_OPROFILE *om   = NULL;
+  P7_OIVX        *ov   = NULL;
+  ESL_SQ         *sq   = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
+  float          *n2a  = malloc(sizeof(float) * abcAA->Kp);
+  float          *n2b  = malloc(sizeof(float) * abcAA->Kp);
+  float          *ppx  = malloc(sizeof(float) * (L+1) * p7X_NXCELLS);
+  P7_OMX         *fwd  = NULL, *bck = NULL, *oa = NULL;
+  P7_CHKOMX      *cx1  = NULL, *cx2 = NULL;
+  P7_OATMX       *ox   = p7_oatmx_Create(M, L, p7OAT_NPLANES_FS, 1);
+  P7_TRACE       *tr1  = p7_trace_fs_CreateWithPP();
+  P7_TRACE       *tr2  = p7_trace_fs_CreateWithPP();
+  int             Q    = use_sse ? p7O_NQF(M) : p7O_NQF_AVX(M);
+  size_t          rowb = (use_sse ? 16 : 32) * p7X_NSCELLS * (size_t) Q;
+  float           fsc, fsc2, oasc1, oasc2, p;
+  int             n, Ln, blockR, i, j, k, x, z, ntested = 0;
+
+  if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+      esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+  p7_emit_SimpleConsensus(hmm, sq);
+
+  if (use_sse)
+    {
+      om  = p7_fs_oprofile_Create_sse(M, abcAA, p7P_5CODONS);  p7_fs_oprofile_Convert_sse(gm, om);
+      ov  = p7_oivx_Create_sse(M, p7P_5CODONS);
+      fwd = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS_FS); bck = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS); oa = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS_FS);
+      cx1 = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create_sse(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+  else
+    {
+      om  = p7_fs_oprofile_Create(M, abcAA, p7P_5CODONS);  p7_fs_oprofile_Convert(gm, om);
+      ov  = p7_oivx_Create(M, p7P_5CODONS);
+      fwd = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS); bck = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS); oa = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS);
+      cx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+
+  for (n = 0; n < N; n++)
+    {
+      Ln = 15 + esl_rnd_Roll(r, L - 14);
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+      if (n % 2 == 1 && 3*M <= L)
+        {
+          Ln = ESL_MAX(Ln, 3*M);
+          esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+          for (i = 1, j = 1 + esl_rnd_Roll(r, Ln - 3*M + 1); i <= M; i++, j += 3)
+            p7_codontable_GetCodon(ct, r, sq->dsq[i], dsq+j);
+        }
+      dsq[0] = dsq[Ln+1] = eslDSQ_SENTINEL;
+      blockR = 5 + esl_rnd_Roll(r, 8);
+      p7_trace_Reuse(tr1);
+      p7_trace_Reuse(tr2);
+
+      if (use_sse)
+        {
+          p7_fs_oprofile_ReconfigLength_sse(om, Ln/3);
+          if (p7_Forward_Frameshift_sse(dsq, Ln, om, fwd, ov, &fsc)       != eslOK) continue;
+          if (p7_chkomx_GrowTo_sse(cx1, M, Ln, Ln+1)                       != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift_sse(dsq, Ln, om, cx1, ov, NULL)    != eslOK) continue;
+          for (i = 0; i <= Ln; i++) memcpy(bck->dpf[i], cx1->dpf[i], rowb);
+        }
+      else
+        {
+          p7_fs_oprofile_ReconfigLength(om, Ln/3);
+          if (p7_Forward_Frameshift(dsq, Ln, om, fwd, ov, &fsc)           != eslOK) continue;
+          if (p7_chkomx_GrowTo(cx1, M, Ln, Ln+1)                           != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift(dsq, Ln, om, cx1, ov, NULL)        != eslOK) continue;
+          for (i = 0; i <= Ln; i++) memcpy(bck->dpf_avx[i], cx1->dpf_avx[i], rowb);
+        }
+      memcpy(bck->xmx, cx1->xmx, sizeof(float) * (Ln+1) * p7X_NXCELLS);
+      bck->M = M; bck->L = Ln;
+
+      if (use_sse)
+        {
+          if (p7_Decoding_Frameshift_sse(om, fwd, bck)                     != eslOK) esl_fatal(msg);
+          memcpy(ppx, fwd->xmx, sizeof(float) * (Ln+1) * p7X_NXCELLS);
+          p7_OptimalAccuracy_Frameshift_sse(om, fwd, oa, &oasc1);
+          if (p7_OATrace_Frameshift_sse(om, ppx, oa, tr1)                  != eslOK) esl_fatal(msg);
+          if (p7_chkomx_GrowTo_sse(cx2, M, Ln, blockR)                     != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift_sse(dsq, Ln, om, cx2, ov, NULL)    != eslOK) esl_fatal(msg);
+          if (p7_OptimalAccuracySweep_Frameshift_sse(dsq, Ln, om, cx2, ov, ox, n2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
+          if (p7_OATraceSweep_Frameshift_sse(om, ox, tr2)                  != eslOK) esl_fatal(msg);
+        }
+      else
+        {
+          if (p7_Decoding_Frameshift(om, fwd, bck)                         != eslOK) esl_fatal(msg);
+          memcpy(ppx, fwd->xmx, sizeof(float) * (Ln+1) * p7X_NXCELLS);
+          p7_OptimalAccuracy_Frameshift(om, fwd, oa, &oasc1);
+          if (p7_OATrace_Frameshift(om, ppx, oa, tr1)                      != eslOK) esl_fatal(msg);
+          if (p7_chkomx_GrowTo(cx2, M, Ln, blockR)                         != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift(dsq, Ln, om, cx2, ov, NULL)        != eslOK) esl_fatal(msg);
+          if (p7_OptimalAccuracySweep_Frameshift(dsq, Ln, om, cx2, ov, ox, n2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
+          if (p7_OATraceSweep_Frameshift(om, ox, tr2)                      != eslOK) esl_fatal(msg);
+        }
+
+      if (fsc2  != fsc)    esl_fatal("%s: Forward scores differ (%f %f)", msg, fsc2, fsc);
+      if (oasc2 != oasc1)  esl_fatal("%s: OA scores differ (%f %f)", msg, oasc2, oasc1);
+      if (tr1->N != tr2->N) esl_fatal("%s: trace lengths differ (%d %d)", msg, tr1->N, tr2->N);
+      for (z = 0; z < tr1->N; z++)
+        {
+          if (tr1->st[z] != tr2->st[z] || tr1->k[z] != tr2->k[z] || tr1->i[z] != tr2->i[z] || tr1->c[z] != tr2->c[z])
+            esl_fatal("%s: traces differ at %d", msg, z);
+          switch (tr1->st[z]) {
+          case p7T_M: p = pp_cell_fs(fwd, tr1->i[z], tr1->k[z], p7X_FS_M + p7X_FS_C0, use_sse); break;
+          case p7T_I: p = pp_cell_fs(fwd, tr1->i[z], tr1->k[z], p7X_FS_I,              use_sse); break;
+          case p7T_N: case p7T_C: case p7T_J:
+            /* an N, C or J emits residue i when the state before it is the same one */
+            p = (z > 0 && tr1->st[z-1] == tr1->st[z]) ? ppx[tr1->i[z]*p7X_NXCELLS + (tr1->st[z] == p7T_N ? p7X_N : tr1->st[z] == p7T_C ? p7X_C : p7X_J)] : 0.0;
+            break;
+          default: p = 0.0; break;
+          }
+          if (p7_alidisplay_EncodePostProb(tr2->pp[z]) != p7_alidisplay_EncodePostProb(p))
+            esl_fatal("%s: PP character differs at %d (state %d, i %d, k %d)", msg, z, tr1->st[z], tr1->i[z], tr1->k[z]);
+        }
+
+      /* null2 from the full posterior matrix, which it uses as workspace, so last */
+      if (use_sse) p7_Null2_fs_ByExpectation_sse(om, fwd, n2a);
+      else         p7_Null2_fs_ByExpectation    (om, fwd, n2a);
+      for (x = 0; x < abcAA->Kp; x++)
+        if (n2b[x] != n2a[x]) esl_fatal("%s: null2 differs for residue %d (%g %g)", msg, x, n2b[x], n2a[x]);
+      ntested++;
+    }
+  if (ntested == 0) esl_fatal("%s: no sequence was tested", msg);
+
+  free(dsq); free(n2a); free(n2b); free(ppx);
+  esl_sq_Destroy(sq);
+  p7_trace_fs_Destroy(tr1);
+  p7_trace_fs_Destroy(tr2);
+  p7_oatmx_Destroy(ox);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(fwd); p7_omx_Destroy_sse(bck); p7_omx_Destroy_sse(oa);
+      p7_chkomx_Destroy_sse(cx1); p7_chkomx_Destroy_sse(cx2);
+      p7_oivx_Destroy_sse(ov);
+      p7_fs_oprofile_Destroy_sse(om);
+    }
+  else
+    {
+      p7_omx_Destroy(fwd); p7_omx_Destroy(bck); p7_omx_Destroy(oa);
+      p7_chkomx_Destroy(cx1); p7_chkomx_Destroy(cx2);
+      p7_oivx_Destroy(ov);
+      p7_fs_oprofile_Destroy(om);
+    }
+  p7_profile_fs_Destroy(gm);
+  p7_hmm_Destroy(hmm);
+  p7_codontable_Destroy(ct);
+}
+
 #endif /*p7OPTACC_FS_TESTDRIVE*/
 /*------------------- end, unit tests ---------------------------*/
 
@@ -486,6 +729,12 @@ main(int argc, char **argv)
   utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N, FALSE);
 #ifdef eslENABLE_SSE
   utest_optacc_fs(go, r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, L, N, TRUE);
+#endif
+  utest_sweep_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, 3*M+150, N,  FALSE);
+  utest_sweep_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, 1, 60,      10, FALSE);
+#ifdef eslENABLE_SSE
+  utest_sweep_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, 3*M+150, N,  TRUE);
+  utest_sweep_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, 1, 60,      10, TRUE);
 #endif
 
   p7_bg_Destroy(bgAA);

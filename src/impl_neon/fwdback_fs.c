@@ -2036,8 +2036,23 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score overflow/underflow.
  */
-int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
+/* Function:  p7_ForwardRow_Frameshift()
+ * Synopsis:  One row of the frameshift Forward algorithm.
+ *
+ * Purpose:   Forward row <i> of the 5-codon profile <om_fs> against the
+ *            DNA sequence <dsq> into <dpc>, from rows i-1 (<dpp1>) and
+ *            i-3 (<dpp3>, read for i >= 3), the codon partial sums of
+ *            rows i-1..i-4 in <ivx> (<p7P_5CODONS> rows of a P7_OIVX)
+ *            and the special states of earlier rows in the ring <rg>.
+ *            Writes row <i>'s special states and scale factor into
+ *            <xmx>; when the row is rescaled, the log of its scale factor
+ *            is added to <*totscale>. Row 0 is the initialization, of
+ *            <dpc>, <ivx>, <rg> and row 0 of <xmx>. Same calculation as
+ *            each row of <p7_Forward_Frameshift()>, which calls it.
+ */
+void
+p7_ForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
+                       float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i)
 {
   register float32x4_t mpv1, dpv1, ipv1;
   register float32x4_t sv;
@@ -2047,140 +2062,208 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   register float32x4_t xBv1;
   float32x4_t   zerov;
   float    xN, xE, xB, xC, xJ;
-  float    xN_buf[PARSER_ROWS_FWD];
-  float    xB_buf[PARSER_ROWS_FWD];
-  float    xJ_buf[PARSER_ROWS_FWD];
-  float    xC_buf[PARSER_ROWS_FWD];
   int      b, b1, b3;
   int      ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
-  float32x4_t  *dpc, *dpp1, *dpp3;
   float32x4_t  *tp;
-  float32x4_t **ivx = ov->ivx;
   int      Q = p7O_NQF(om_fs->M);
-  int      i, q, j, r;
+  int      q, j, r;
   int      c1, c2, c3, c4, c5;
   int      t, u, v, w, x;
   float    insert_adj;
 
-  if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
-  fwd->M              = om_fs->M;
-  fwd->L              = L;
-  fwd->has_own_scales = TRUE;
-  fwd->totscale       = 0.0;
   zerov = vmovq_n_f32(0.0f);
 
-  { float32x4_t *drow = fwd->dpf[0];
-    for (q = 0; q < Q; q++)
-      MMO_FS(drow,q,p7X_FS_C0) = MMO_FS(drow,q,p7X_FS_C1) =
-      MMO_FS(drow,q,p7X_FS_C2) = MMO_FS(drow,q,p7X_FS_C3) =
-      MMO_FS(drow,q,p7X_FS_C4) = MMO_FS(drow,q,p7X_FS_C5) =
-      DMO_FS(drow,q)            = IMO_FS(drow,q)            = zerov; }
-
-  for (r = 0; r < p7P_5CODONS; r++)
-    for (q = 0; q < Q; q++)
-      IVX(r, q) = zerov;
-
-  for (r = 0; r < PARSER_ROWS_FWD; r++)
-    xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
-  xN_buf[0] = xN_buf[1] = xN_buf[2] = 1.0f;
-  xB_buf[0] = xB_buf[1] = xB_buf[2] = om_fs->xf[p7O_N][p7O_MOVE];
-
-  for (r = 0; r < 3; r++)
+  if (i == 0)
     {
-      fwd->xmx[r*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-      fwd->xmx[r*p7X_NXCELLS+p7X_E]     = 0.0f;
-      fwd->xmx[r*p7X_NXCELLS+p7X_N]     = 1.0f;
-      fwd->xmx[r*p7X_NXCELLS+p7X_J]     = 0.0f;
-      fwd->xmx[r*p7X_NXCELLS+p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
-      fwd->xmx[r*p7X_NXCELLS+p7X_C]     = 0.0f;
+      { float32x4_t *drow = dpc;
+        for (q = 0; q < Q; q++)
+          MMO_FS(drow,q,p7X_FS_C0) = MMO_FS(drow,q,p7X_FS_C1) =
+          MMO_FS(drow,q,p7X_FS_C2) = MMO_FS(drow,q,p7X_FS_C3) =
+          MMO_FS(drow,q,p7X_FS_C4) = MMO_FS(drow,q,p7X_FS_C5) =
+          DMO_FS(drow,q)            = IMO_FS(drow,q)            = zerov; }
+
+      for (r = 0; r < p7P_5CODONS; r++)
+        for (q = 0; q < Q; q++)
+          IVX(r, q) = zerov;
+
+      for (r = 0; r < PARSER_ROWS_FWD; r++)
+        rg->xN[r] = rg->xB[r] = rg->xJ[r] = rg->xC[r] = 0.0f;
+      rg->xN[0] = rg->xN[1] = rg->xN[2] = 1.0f;
+      rg->xB[0] = rg->xB[1] = rg->xB[2] = om_fs->xf[p7O_N][p7O_MOVE];
+
+      xmx[p7X_SCALE] = 1.0f;
+      xmx[p7X_E]     = 0.0f;
+      xmx[p7X_N]     = 1.0f;
+      xmx[p7X_J]     = 0.0f;
+      xmx[p7X_B]     = om_fs->xf[p7O_N][p7O_MOVE];
+      xmx[p7X_C]     = 0.0f;
+      return;
     }
 
-  t = u = v = w = p7P_MAXCODONS5;
-  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
+  x = (            dsq[i]   < p7P_MAXNUC) ? dsq[i]   : p7P_MAXCODONS5;
+  w = (i >= 2 && dsq[i-1] < p7P_MAXNUC) ? dsq[i-1] : p7P_MAXCODONS5;
+  v = (i >= 3 && dsq[i-2] < p7P_MAXNUC) ? dsq[i-2] : p7P_MAXCODONS5;
+  u = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? dsq[i-3] : p7P_MAXCODONS5;
+  t = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? dsq[i-4] : p7P_MAXCODONS5;
 
-  /*----------------------------------------------------------------
-   * Initialization: i=1 (only 1-nt codon c1)
-   *----------------------------------------------------------------*/
-  i = 1;
-  c1 = p7P_CODON1_FS5(x); c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-  ivx_1 = 1;
-  dpc  = fwd->dpf[1];
-  dpp1 = fwd->dpf[0];
-
-  xBv1 = vmovq_n_f32(xB_buf[0]);
-  tp   = om_fs->tfv;
-  dcv  = zerov; xEv = zerov;
-  mpv1 = dpv1 = ipv1 = zerov;
-
-  for (q = 0; q < Q; q++)
+  if (i == 1)
     {
-      sv  =                  vmulq_f32(xBv1, *tp); tp++;
-      sv  = vaddq_f32(sv,    vmulq_f32(mpv1, *tp)); tp++;
-      sv  = vaddq_f32(sv,    vmulq_f32(ipv1, *tp)); tp++;
-      sv  = vaddq_f32(sv,    vmulq_f32(dpv1, *tp)); tp++;
-      IVX(ivx_1, q) = sv;
-      msv = vmulq_f32(sv, om_fs->rfv[c1][q]);
-      MMO_FS(dpc,q,p7X_FS_C0) = msv; MMO_FS(dpc,q,p7X_FS_C1) = msv;
-      MMO_FS(dpc,q,p7X_FS_C2) = zerov; MMO_FS(dpc,q,p7X_FS_C3) = zerov;
-      MMO_FS(dpc,q,p7X_FS_C4) = zerov; MMO_FS(dpc,q,p7X_FS_C5) = zerov;
-      xEv = vaddq_f32(xEv, msv);
-      DMO_FS(dpc,q) = dcv;
-      dcv = vmulq_f32(msv, *tp); tp++;
-      IMO_FS(dpc,q) = zerov;
-      tp += 2;
+    c1 = p7P_CODON1_FS5(x); c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
+    ivx_1 = 1;
+
+    xBv1 = vmovq_n_f32(rg->xB[0]);
+    tp   = om_fs->tfv;
+    dcv  = zerov; xEv = zerov;
+    mpv1 = dpv1 = ipv1 = zerov;
+
+    for (q = 0; q < Q; q++)
+      {
+        sv  =                  vmulq_f32(xBv1, *tp); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(mpv1, *tp)); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(ipv1, *tp)); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(dpv1, *tp)); tp++;
+        IVX(ivx_1, q) = sv;
+        msv = vmulq_f32(sv, om_fs->rfv[c1][q]);
+        MMO_FS(dpc,q,p7X_FS_C0) = msv; MMO_FS(dpc,q,p7X_FS_C1) = msv;
+        MMO_FS(dpc,q,p7X_FS_C2) = zerov; MMO_FS(dpc,q,p7X_FS_C3) = zerov;
+        MMO_FS(dpc,q,p7X_FS_C4) = zerov; MMO_FS(dpc,q,p7X_FS_C5) = zerov;
+        xEv = vaddq_f32(xEv, msv);
+        DMO_FS(dpc,q) = dcv;
+        dcv = vmulq_f32(msv, *tp); tp++;
+        IMO_FS(dpc,q) = zerov;
+        tp += 2;
+      }
+
+    dcv = vextq_f32(zerov, dcv, 3); DMO_FS(dpc,0) = zerov;
+    tp  = om_fs->tfv + 7*Q;
+    for (q = 0; q < Q; q++)
+      { DMO_FS(dpc,q) = vaddq_f32(dcv, DMO_FS(dpc,q)); dcv = vmulq_f32(DMO_FS(dpc,q), *tp); tp++; }
+    if (om_fs->M < 100)
+      { for (j = 1; j < 4; j++) { dcv = vextq_f32(zerov,dcv,3); tp = om_fs->tfv+7*Q;
+          for (q = 0; q < Q; q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(dcv,*tp); tp++; } } }
+    else
+      { for (j = 1; j < 4; j++) { register uint32x4_t cv; dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q; cv=vdupq_n_u32(0);
+          for (q = 0; q < Q; q++) { sv=vaddq_f32(dcv,DMO_FS(dpc,q)); cv=vorrq_u32(cv,vcgtq_f32(sv,DMO_FS(dpc,q)));
+            DMO_FS(dpc,q)=sv; dcv=vmulq_f32(dcv,*tp); tp++; }
+          if (esl_neon_hmax_u8((esl_neon_128i_t)cv)==0) break; } }
+    for (q = 0; q < Q; q++) xEv = vaddq_f32(DMO_FS(dpc,q), xEv);
+    esl_neon_hsum_float((esl_neon_128f_t)xEv, &xE);
+
+    xN=1.0f; xJ=xE*om_fs->xf[p7O_E][p7O_LOOP]; xC=xE*om_fs->xf[p7O_E][p7O_MOVE];
+    xB=xN*om_fs->xf[p7O_N][p7O_MOVE]+xJ*om_fs->xf[p7O_J][p7O_MOVE];
+
+    if (xE > 1.0e4f)
+      { float sf = 1.0f/xE; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xEv=vmovq_n_f32(sf);
+        for (q = 0; q < Q; q++)
+          { MMO_FS(dpc,q,p7X_FS_C0)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C0),xEv);
+            MMO_FS(dpc,q,p7X_FS_C1)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C1),xEv);
+            MMO_FS(dpc,q,p7X_FS_C2)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C2),xEv);
+            MMO_FS(dpc,q,p7X_FS_C3)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C3),xEv);
+            MMO_FS(dpc,q,p7X_FS_C4)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C4),xEv);
+            MMO_FS(dpc,q,p7X_FS_C5)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C5),xEv);
+            DMO_FS(dpc,q)=vmulq_f32(DMO_FS(dpc,q),xEv); IMO_FS(dpc,q)=vmulq_f32(IMO_FS(dpc,q),xEv); }
+        for (r=0;r<p7P_5CODONS;r++) for (q=0;q<Q;q++) IVX(r,q)=vmulq_f32(IVX(r,q),xEv);
+        for (r=0;r<PARSER_ROWS_FWD;r++) { rg->xN[r]*=sf; rg->xB[r]*=sf; rg->xJ[r]*=sf; rg->xC[r]*=sf; }
+        xmx[1*p7X_NXCELLS+p7X_SCALE]=xE; *totscale += log(xE); xE=1.0f; }
+    else xmx[1*p7X_NXCELLS+p7X_SCALE]=1.0f;
+
+    rg->xN[1]=xN; rg->xB[1]=xB; rg->xJ[1]=xJ; rg->xC[1]=xC;
+    xmx[1*p7X_NXCELLS+p7X_E]=xE; xmx[1*p7X_NXCELLS+p7X_N]=xN;
+    xmx[1*p7X_NXCELLS+p7X_J]=xJ; xmx[1*p7X_NXCELLS+p7X_B]=xB; xmx[1*p7X_NXCELLS+p7X_C]=xC;
+
+  
+      return;
     }
 
-  dcv = vextq_f32(zerov, dcv, 3); DMO_FS(dpc,0) = zerov;
-  tp  = om_fs->tfv + 7*Q;
-  for (q = 0; q < Q; q++)
-    { DMO_FS(dpc,q) = vaddq_f32(dcv, DMO_FS(dpc,q)); dcv = vmulq_f32(DMO_FS(dpc,q), *tp); tp++; }
-  if (om_fs->M < 100)
-    { for (j = 1; j < 4; j++) { dcv = vextq_f32(zerov,dcv,3); tp = om_fs->tfv+7*Q;
-        for (q = 0; q < Q; q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(dcv,*tp); tp++; } } }
-  else
-    { for (j = 1; j < 4; j++) { register uint32x4_t cv; dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q; cv=vdupq_n_u32(0);
-        for (q = 0; q < Q; q++) { sv=vaddq_f32(dcv,DMO_FS(dpc,q)); cv=vorrq_u32(cv,vcgtq_f32(sv,DMO_FS(dpc,q)));
-          DMO_FS(dpc,q)=sv; dcv=vmulq_f32(dcv,*tp); tp++; }
-        if (esl_neon_hmax_u8((esl_neon_128i_t)cv)==0) break; } }
-  for (q = 0; q < Q; q++) xEv = vaddq_f32(DMO_FS(dpc,q), xEv);
-  esl_neon_hsum_float((esl_neon_128f_t)xEv, &xE);
+  if (i == 2)
+    {
+    c1=p7P_CODON1_FS5(x);    c1=p7P_MINIDX(c1,p7P_DEGEN5_QC2);
+    c2=p7P_CODON2_FS5(w,x);  c2=p7P_MINIDX(c2,p7P_DEGEN5_QC1);
+    ivx_1=2; ivx_2=1;
 
-  xN=1.0f; xJ=xE*om_fs->xf[p7O_E][p7O_LOOP]; xC=xE*om_fs->xf[p7O_E][p7O_MOVE];
-  xB=xN*om_fs->xf[p7O_N][p7O_MOVE]+xJ*om_fs->xf[p7O_J][p7O_MOVE];
+    xBv1=vmovq_n_f32(rg->xB[1]); tp=om_fs->tfv; dcv=zerov; xEv=zerov;
+    mpv1=vextq_f32(zerov,MMO_FS(dpp1,Q-1,p7X_FS_C0),3);
+    dpv1=vextq_f32(zerov,DMO_FS(dpp1,Q-1),3);
+    ipv1=vextq_f32(zerov,IMO_FS(dpp1,Q-1),3);
 
-  if (xE > 1.0e4f)
-    { float sf = 1.0f/xE; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xEv=vmovq_n_f32(sf);
-      for (q = 0; q < Q; q++)
-        { MMO_FS(dpc,q,p7X_FS_C0)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C0),xEv);
-          MMO_FS(dpc,q,p7X_FS_C1)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C1),xEv);
-          MMO_FS(dpc,q,p7X_FS_C2)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C2),xEv);
-          MMO_FS(dpc,q,p7X_FS_C3)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C3),xEv);
-          MMO_FS(dpc,q,p7X_FS_C4)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C4),xEv);
-          MMO_FS(dpc,q,p7X_FS_C5)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C5),xEv);
-          DMO_FS(dpc,q)=vmulq_f32(DMO_FS(dpc,q),xEv); IMO_FS(dpc,q)=vmulq_f32(IMO_FS(dpc,q),xEv); }
-      for (r=0;r<p7P_5CODONS;r++) for (q=0;q<Q;q++) IVX(r,q)=vmulq_f32(IVX(r,q),xEv);
-      for (r=0;r<PARSER_ROWS_FWD;r++) { xN_buf[r]*=sf; xB_buf[r]*=sf; xJ_buf[r]*=sf; xC_buf[r]*=sf; }
-      fwd->xmx[1*p7X_NXCELLS+p7X_SCALE]=xE; fwd->totscale+=log(xE); xE=1.0f; }
-  else fwd->xmx[1*p7X_NXCELLS+p7X_SCALE]=1.0f;
+    for (q = 0; q < Q; q++)
+      {
+        sv  =                  vmulq_f32(xBv1,*tp); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(mpv1,*tp)); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(ipv1,*tp)); tp++;
+        sv  = vaddq_f32(sv,    vmulq_f32(dpv1,*tp)); tp++;
+        IVX(ivx_1,q) = sv;
+        float32x4_t mc1 = vmulq_f32(sv,            om_fs->rfv[c1][q]);
+        float32x4_t mc2 = vmulq_f32(IVX(ivx_2,q),  om_fs->rfv[c2][q]);
+        msv = vaddq_f32(mc1, mc2); xEv = vaddq_f32(xEv, msv);
+        mpv1=MMO_FS(dpp1,q,p7X_FS_C0); dpv1=DMO_FS(dpp1,q); ipv1=IMO_FS(dpp1,q);
+        MMO_FS(dpc,q,p7X_FS_C0)=msv; MMO_FS(dpc,q,p7X_FS_C1)=mc1; MMO_FS(dpc,q,p7X_FS_C2)=mc2;
+        MMO_FS(dpc,q,p7X_FS_C3)=zerov; MMO_FS(dpc,q,p7X_FS_C4)=zerov; MMO_FS(dpc,q,p7X_FS_C5)=zerov;
+        DMO_FS(dpc,q)=dcv; dcv=vmulq_f32(msv,*tp); tp++;
+        IMO_FS(dpc,q)=zerov; tp+=2;
+      }
 
-  xN_buf[1]=xN; xB_buf[1]=xB; xJ_buf[1]=xJ; xC_buf[1]=xC;
-  fwd->xmx[1*p7X_NXCELLS+p7X_E]=xE; fwd->xmx[1*p7X_NXCELLS+p7X_N]=xN;
-  fwd->xmx[1*p7X_NXCELLS+p7X_J]=xJ; fwd->xmx[1*p7X_NXCELLS+p7X_B]=xB; fwd->xmx[1*p7X_NXCELLS+p7X_C]=xC;
+    dcv=vextq_f32(zerov,dcv,3); DMO_FS(dpc,0)=zerov; tp=om_fs->tfv+7*Q;
+    for (q=0;q<Q;q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(DMO_FS(dpc,q),*tp); tp++; }
+    if (om_fs->M < 100)
+      { for (j=1;j<4;j++) { dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q;
+          for (q=0;q<Q;q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(dcv,*tp); tp++; } } }
+    else
+      { for (j=1;j<4;j++) { register uint32x4_t cv; dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q; cv=vdupq_n_u32(0);
+          for (q=0;q<Q;q++) { sv=vaddq_f32(dcv,DMO_FS(dpc,q)); cv=vorrq_u32(cv,vcgtq_f32(sv,DMO_FS(dpc,q)));
+            DMO_FS(dpc,q)=sv; dcv=vmulq_f32(dcv,*tp); tp++; }
+          if (esl_neon_hmax_u8((esl_neon_128i_t)cv)==0) break; } }
+    for (q=0;q<Q;q++) xEv=vaddq_f32(DMO_FS(dpc,q),xEv);
+    esl_neon_hsum_float((esl_neon_128f_t)xEv, &xE);
 
-  /*----------------------------------------------------------------
-   * Initialization: i=2 (1-nt and 2-nt codons)
-   *----------------------------------------------------------------*/
-  i=2; t=u=v=p7P_MAXCODONS5; w=x;
-  if (dsq[2]<p7P_MAXNUC) x=dsq[2]; else x=p7P_MAXCODONS5;
-  c1=p7P_CODON1_FS5(x);    c1=p7P_MINIDX(c1,p7P_DEGEN5_QC2);
-  c2=p7P_CODON2_FS5(w,x);  c2=p7P_MINIDX(c2,p7P_DEGEN5_QC1);
-  ivx_1=2; ivx_2=1;
-  dpc=fwd->dpf[2]; dpp1=fwd->dpf[1];
-  xBv1=vmovq_n_f32(xB_buf[1]); tp=om_fs->tfv; dcv=zerov; xEv=zerov;
+    xN=1.0f; xJ=xE*om_fs->xf[p7O_E][p7O_LOOP]; xC=xE*om_fs->xf[p7O_E][p7O_MOVE];
+    xB=xN*om_fs->xf[p7O_N][p7O_MOVE]+xJ*om_fs->xf[p7O_J][p7O_MOVE];
+
+    if (xE > 1.0e4f)
+      { float sf=1.0f/xE; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xEv=vmovq_n_f32(sf);
+        for (q=0;q<Q;q++)
+          { MMO_FS(dpc,q,p7X_FS_C0)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C0),xEv);
+            MMO_FS(dpc,q,p7X_FS_C1)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C1),xEv);
+            MMO_FS(dpc,q,p7X_FS_C2)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C2),xEv);
+            MMO_FS(dpc,q,p7X_FS_C3)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C3),xEv);
+            MMO_FS(dpc,q,p7X_FS_C4)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C4),xEv);
+            MMO_FS(dpc,q,p7X_FS_C5)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C5),xEv);
+            DMO_FS(dpc,q)=vmulq_f32(DMO_FS(dpc,q),xEv); IMO_FS(dpc,q)=vmulq_f32(IMO_FS(dpc,q),xEv); }
+        for (r=0;r<p7P_5CODONS;r++) for (q=0;q<Q;q++) IVX(r,q)=vmulq_f32(IVX(r,q),xEv);
+        for (r=0;r<PARSER_ROWS_FWD;r++) { rg->xN[r]*=sf; rg->xB[r]*=sf; rg->xJ[r]*=sf; rg->xC[r]*=sf; }
+        xmx[2*p7X_NXCELLS+p7X_SCALE]=xE; *totscale += log(xE); xE=1.0f; }
+    else xmx[2*p7X_NXCELLS+p7X_SCALE]=1.0f;
+
+    rg->xN[2]=xN; rg->xB[2]=xB; rg->xJ[2]=xJ; rg->xC[2]=xC;
+    xmx[2*p7X_NXCELLS+p7X_E]=xE; xmx[2*p7X_NXCELLS+p7X_N]=xN;
+    xmx[2*p7X_NXCELLS+p7X_J]=xJ; xmx[2*p7X_NXCELLS+p7X_B]=xB; xmx[2*p7X_NXCELLS+p7X_C]=xC;
+
+  
+      return;
+    }
+
+  c1=p7P_CODON1_FS5(x);            c1=p7P_MINIDX(c1,p7P_DEGEN5_QC2);
+  c2=p7P_CODON2_FS5(w,x);          c2=p7P_MINIDX(c2,p7P_DEGEN5_QC1);
+  c3=p7P_CODON3_FS5(v,w,x);        c3=p7P_MINIDX(c3,p7P_DEGEN5_C);
+  c4=p7P_CODON4_FS5(u,v,w,x);      c4=p7P_MINIDX(c4,p7P_DEGEN5_QC1);
+  c5=p7P_CODON5_FS5(t,u,v,w,x);    c5=p7P_MINIDX(c5,p7P_DEGEN5_QC2);
+  ivx_1=i%p7P_5CODONS;
+  ivx_2=((i-1)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
+  ivx_3=((i-2)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
+  ivx_4=((i-3)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
+  ivx_5=((i-4)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
+  b =i%PARSER_ROWS_FWD;
+  b1=((i-1)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD;
+  b3=((i-3)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD;
+
+  insert_adj = 1.0f / (xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
+                     * xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
   mpv1=vextq_f32(zerov,MMO_FS(dpp1,Q-1,p7X_FS_C0),3);
   dpv1=vextq_f32(zerov,DMO_FS(dpp1,Q-1),3);
   ipv1=vextq_f32(zerov,IMO_FS(dpp1,Q-1),3);
+  xBv1=vmovq_n_f32(rg->xB[b1]); tp=om_fs->tfv; dcv=zerov; xEv=zerov;
+  register float32x4_t adj_v = vmovq_n_f32(insert_adj);
 
   for (q = 0; q < Q; q++)
     {
@@ -2189,14 +2272,19 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
       sv  = vaddq_f32(sv,    vmulq_f32(ipv1,*tp)); tp++;
       sv  = vaddq_f32(sv,    vmulq_f32(dpv1,*tp)); tp++;
       IVX(ivx_1,q) = sv;
-      float32x4_t mc1 = vmulq_f32(sv,            om_fs->rfv[c1][q]);
-      float32x4_t mc2 = vmulq_f32(IVX(ivx_2,q),  om_fs->rfv[c2][q]);
-      msv = vaddq_f32(mc1, mc2); xEv = vaddq_f32(xEv, msv);
+      float32x4_t mc1=vmulq_f32(sv,              om_fs->rfv[c1][q]);
+      float32x4_t mc2=vmulq_f32(IVX(ivx_2,q),   om_fs->rfv[c2][q]);
+      float32x4_t mc3=vmulq_f32(IVX(ivx_3,q),   om_fs->rfv[c3][q]);
+      float32x4_t mc4=vmulq_f32(IVX(ivx_4,q),   om_fs->rfv[c4][q]);
+      float32x4_t mc5=vmulq_f32(IVX(ivx_5,q),   om_fs->rfv[c5][q]);
+      msv=vaddq_f32(vaddq_f32(vaddq_f32(mc1,mc2),vaddq_f32(mc3,mc4)),mc5);
+      xEv=vaddq_f32(xEv,msv);
       mpv1=MMO_FS(dpp1,q,p7X_FS_C0); dpv1=DMO_FS(dpp1,q); ipv1=IMO_FS(dpp1,q);
       MMO_FS(dpc,q,p7X_FS_C0)=msv; MMO_FS(dpc,q,p7X_FS_C1)=mc1; MMO_FS(dpc,q,p7X_FS_C2)=mc2;
-      MMO_FS(dpc,q,p7X_FS_C3)=zerov; MMO_FS(dpc,q,p7X_FS_C4)=zerov; MMO_FS(dpc,q,p7X_FS_C5)=zerov;
+      MMO_FS(dpc,q,p7X_FS_C3)=mc3; MMO_FS(dpc,q,p7X_FS_C4)=mc4; MMO_FS(dpc,q,p7X_FS_C5)=mc5;
       DMO_FS(dpc,q)=dcv; dcv=vmulq_f32(msv,*tp); tp++;
-      IMO_FS(dpc,q)=zerov; tp+=2;
+      sv=vmulq_f32(vmulq_f32(MMO_FS(dpp3,q,p7X_FS_C0),adj_v),*tp); tp++;
+      IMO_FS(dpc,q)=vaddq_f32(sv,vmulq_f32(vmulq_f32(IMO_FS(dpp3,q),adj_v),*tp)); tp++;
     }
 
   dcv=vextq_f32(zerov,dcv,3); DMO_FS(dpc,0)=zerov; tp=om_fs->tfv+7*Q;
@@ -2209,10 +2297,13 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
         for (q=0;q<Q;q++) { sv=vaddq_f32(dcv,DMO_FS(dpc,q)); cv=vorrq_u32(cv,vcgtq_f32(sv,DMO_FS(dpc,q)));
           DMO_FS(dpc,q)=sv; dcv=vmulq_f32(dcv,*tp); tp++; }
         if (esl_neon_hmax_u8((esl_neon_128i_t)cv)==0) break; } }
+
   for (q=0;q<Q;q++) xEv=vaddq_f32(DMO_FS(dpc,q),xEv);
   esl_neon_hsum_float((esl_neon_128f_t)xEv, &xE);
 
-  xN=1.0f; xJ=xE*om_fs->xf[p7O_E][p7O_LOOP]; xC=xE*om_fs->xf[p7O_E][p7O_MOVE];
+  xN=rg->xN[b3]*om_fs->xf[p7O_N][p7O_LOOP];
+  xJ=rg->xJ[b3]*om_fs->xf[p7O_J][p7O_LOOP]+xE*om_fs->xf[p7O_E][p7O_LOOP];
+  xC=rg->xC[b3]*om_fs->xf[p7O_C][p7O_LOOP]+xE*om_fs->xf[p7O_E][p7O_MOVE];
   xB=xN*om_fs->xf[p7O_N][p7O_MOVE]+xJ*om_fs->xf[p7O_J][p7O_MOVE];
 
   if (xE > 1.0e4f)
@@ -2226,108 +2317,37 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
           MMO_FS(dpc,q,p7X_FS_C5)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C5),xEv);
           DMO_FS(dpc,q)=vmulq_f32(DMO_FS(dpc,q),xEv); IMO_FS(dpc,q)=vmulq_f32(IMO_FS(dpc,q),xEv); }
       for (r=0;r<p7P_5CODONS;r++) for (q=0;q<Q;q++) IVX(r,q)=vmulq_f32(IVX(r,q),xEv);
-      for (r=0;r<PARSER_ROWS_FWD;r++) { xN_buf[r]*=sf; xB_buf[r]*=sf; xJ_buf[r]*=sf; xC_buf[r]*=sf; }
-      fwd->xmx[2*p7X_NXCELLS+p7X_SCALE]=xE; fwd->totscale+=log(xE); xE=1.0f; }
-  else fwd->xmx[2*p7X_NXCELLS+p7X_SCALE]=1.0f;
+      for (r=0;r<PARSER_ROWS_FWD;r++) { rg->xN[r]*=sf; rg->xB[r]*=sf; rg->xJ[r]*=sf; rg->xC[r]*=sf; }
+      xmx[i*p7X_NXCELLS+p7X_SCALE]=xE; *totscale += log(xE); xE=1.0f; }
+  else xmx[i*p7X_NXCELLS+p7X_SCALE]=1.0f;
 
-  xN_buf[2]=xN; xB_buf[2]=xB; xJ_buf[2]=xJ; xC_buf[2]=xC;
-  fwd->xmx[2*p7X_NXCELLS+p7X_E]=xE; fwd->xmx[2*p7X_NXCELLS+p7X_N]=xN;
-  fwd->xmx[2*p7X_NXCELLS+p7X_J]=xJ; fwd->xmx[2*p7X_NXCELLS+p7X_B]=xB; fwd->xmx[2*p7X_NXCELLS+p7X_C]=xC;
+  rg->xN[b]=xN; rg->xB[b]=xB; rg->xJ[b]=xJ; rg->xC[b]=xC;
+  xmx[i*p7X_NXCELLS+p7X_E]=xE; xmx[i*p7X_NXCELLS+p7X_N]=xN;
+  xmx[i*p7X_NXCELLS+p7X_J]=xJ; xmx[i*p7X_NXCELLS+p7X_B]=xB; xmx[i*p7X_NXCELLS+p7X_C]=xC;
+}
 
-  /*----------------------------------------------------------------
-   * Main recurrence: i = 3..L
-   *----------------------------------------------------------------*/
-  for (i = 3; i <= L; i++)
-    {
-      t=u; u=v; v=w; w=x;
-      if (dsq[i]<p7P_MAXNUC) x=dsq[i]; else x=p7P_MAXCODONS5;
-      c1=p7P_CODON1_FS5(x);            c1=p7P_MINIDX(c1,p7P_DEGEN5_QC2);
-      c2=p7P_CODON2_FS5(w,x);          c2=p7P_MINIDX(c2,p7P_DEGEN5_QC1);
-      c3=p7P_CODON3_FS5(v,w,x);        c3=p7P_MINIDX(c3,p7P_DEGEN5_C);
-      c4=p7P_CODON4_FS5(u,v,w,x);      c4=p7P_MINIDX(c4,p7P_DEGEN5_QC1);
-      c5=p7P_CODON5_FS5(t,u,v,w,x);    c5=p7P_MINIDX(c5,p7P_DEGEN5_QC2);
-      ivx_1=i%p7P_5CODONS;
-      ivx_2=((i-1)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
-      ivx_3=((i-2)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
-      ivx_4=((i-3)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
-      ivx_5=((i-4)%p7P_5CODONS+p7P_5CODONS)%p7P_5CODONS;
-      b =i%PARSER_ROWS_FWD;
-      b1=((i-1)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD;
-      b3=((i-3)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD;
-      dpc=fwd->dpf[i]; dpp1=fwd->dpf[i-1]; dpp3=fwd->dpf[i-3];
-      insert_adj = 1.0f / (fwd->xmx[(i-2)*p7X_NXCELLS+p7X_SCALE]
-                         * fwd->xmx[(i-1)*p7X_NXCELLS+p7X_SCALE]);
-      mpv1=vextq_f32(zerov,MMO_FS(dpp1,Q-1,p7X_FS_C0),3);
-      dpv1=vextq_f32(zerov,DMO_FS(dpp1,Q-1),3);
-      ipv1=vextq_f32(zerov,IMO_FS(dpp1,Q-1),3);
-      xBv1=vmovq_n_f32(xB_buf[b1]); tp=om_fs->tfv; dcv=zerov; xEv=zerov;
-      register float32x4_t adj_v = vmovq_n_f32(insert_adj);
 
-      for (q = 0; q < Q; q++)
-        {
-          sv  =                  vmulq_f32(xBv1,*tp); tp++;
-          sv  = vaddq_f32(sv,    vmulq_f32(mpv1,*tp)); tp++;
-          sv  = vaddq_f32(sv,    vmulq_f32(ipv1,*tp)); tp++;
-          sv  = vaddq_f32(sv,    vmulq_f32(dpv1,*tp)); tp++;
-          IVX(ivx_1,q) = sv;
-          float32x4_t mc1=vmulq_f32(sv,              om_fs->rfv[c1][q]);
-          float32x4_t mc2=vmulq_f32(IVX(ivx_2,q),   om_fs->rfv[c2][q]);
-          float32x4_t mc3=vmulq_f32(IVX(ivx_3,q),   om_fs->rfv[c3][q]);
-          float32x4_t mc4=vmulq_f32(IVX(ivx_4,q),   om_fs->rfv[c4][q]);
-          float32x4_t mc5=vmulq_f32(IVX(ivx_5,q),   om_fs->rfv[c5][q]);
-          msv=vaddq_f32(vaddq_f32(vaddq_f32(mc1,mc2),vaddq_f32(mc3,mc4)),mc5);
-          xEv=vaddq_f32(xEv,msv);
-          mpv1=MMO_FS(dpp1,q,p7X_FS_C0); dpv1=DMO_FS(dpp1,q); ipv1=IMO_FS(dpp1,q);
-          MMO_FS(dpc,q,p7X_FS_C0)=msv; MMO_FS(dpc,q,p7X_FS_C1)=mc1; MMO_FS(dpc,q,p7X_FS_C2)=mc2;
-          MMO_FS(dpc,q,p7X_FS_C3)=mc3; MMO_FS(dpc,q,p7X_FS_C4)=mc4; MMO_FS(dpc,q,p7X_FS_C5)=mc5;
-          DMO_FS(dpc,q)=dcv; dcv=vmulq_f32(msv,*tp); tp++;
-          sv=vmulq_f32(vmulq_f32(MMO_FS(dpp3,q,p7X_FS_C0),adj_v),*tp); tp++;
-          IMO_FS(dpc,q)=vaddq_f32(sv,vmulq_f32(vmulq_f32(IMO_FS(dpp3,q),adj_v),*tp)); tp++;
-        }
+int
+p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
+{
+  P7_FS_FWDRING rg;
+  int           i;
 
-      dcv=vextq_f32(zerov,dcv,3); DMO_FS(dpc,0)=zerov; tp=om_fs->tfv+7*Q;
-      for (q=0;q<Q;q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(DMO_FS(dpc,q),*tp); tp++; }
-      if (om_fs->M < 100)
-        { for (j=1;j<4;j++) { dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q;
-            for (q=0;q<Q;q++) { DMO_FS(dpc,q)=vaddq_f32(dcv,DMO_FS(dpc,q)); dcv=vmulq_f32(dcv,*tp); tp++; } } }
-      else
-        { for (j=1;j<4;j++) { register uint32x4_t cv; dcv=vextq_f32(zerov,dcv,3); tp=om_fs->tfv+7*Q; cv=vdupq_n_u32(0);
-            for (q=0;q<Q;q++) { sv=vaddq_f32(dcv,DMO_FS(dpc,q)); cv=vorrq_u32(cv,vcgtq_f32(sv,DMO_FS(dpc,q)));
-              DMO_FS(dpc,q)=sv; dcv=vmulq_f32(dcv,*tp); tp++; }
-            if (esl_neon_hmax_u8((esl_neon_128i_t)cv)==0) break; } }
+  if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
 
-      for (q=0;q<Q;q++) xEv=vaddq_f32(DMO_FS(dpc,q),xEv);
-      esl_neon_hsum_float((esl_neon_128f_t)xEv, &xE);
+  fwd->M              = om_fs->M;
+  fwd->L              = L;
+  fwd->has_own_scales = TRUE;
+  fwd->totscale       = 0.0;
 
-      xN=xN_buf[b3]*om_fs->xf[p7O_N][p7O_LOOP];
-      xJ=xJ_buf[b3]*om_fs->xf[p7O_J][p7O_LOOP]+xE*om_fs->xf[p7O_E][p7O_LOOP];
-      xC=xC_buf[b3]*om_fs->xf[p7O_C][p7O_LOOP]+xE*om_fs->xf[p7O_E][p7O_MOVE];
-      xB=xN*om_fs->xf[p7O_N][p7O_MOVE]+xJ*om_fs->xf[p7O_J][p7O_MOVE];
-
-      if (xE > 1.0e4f)
-        { float sf=1.0f/xE; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xEv=vmovq_n_f32(sf);
-          for (q=0;q<Q;q++)
-            { MMO_FS(dpc,q,p7X_FS_C0)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C0),xEv);
-              MMO_FS(dpc,q,p7X_FS_C1)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C1),xEv);
-              MMO_FS(dpc,q,p7X_FS_C2)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C2),xEv);
-              MMO_FS(dpc,q,p7X_FS_C3)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C3),xEv);
-              MMO_FS(dpc,q,p7X_FS_C4)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C4),xEv);
-              MMO_FS(dpc,q,p7X_FS_C5)=vmulq_f32(MMO_FS(dpc,q,p7X_FS_C5),xEv);
-              DMO_FS(dpc,q)=vmulq_f32(DMO_FS(dpc,q),xEv); IMO_FS(dpc,q)=vmulq_f32(IMO_FS(dpc,q),xEv); }
-          for (r=0;r<p7P_5CODONS;r++) for (q=0;q<Q;q++) IVX(r,q)=vmulq_f32(IVX(r,q),xEv);
-          for (r=0;r<PARSER_ROWS_FWD;r++) { xN_buf[r]*=sf; xB_buf[r]*=sf; xJ_buf[r]*=sf; xC_buf[r]*=sf; }
-          fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]=xE; fwd->totscale+=log(xE); xE=1.0f; }
-      else fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]=1.0f;
-
-      xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;
-      fwd->xmx[i*p7X_NXCELLS+p7X_E]=xE; fwd->xmx[i*p7X_NXCELLS+p7X_N]=xN;
-      fwd->xmx[i*p7X_NXCELLS+p7X_J]=xJ; fwd->xmx[i*p7X_NXCELLS+p7X_B]=xB; fwd->xmx[i*p7X_NXCELLS+p7X_C]=xC;
-    } /* end main loop i=3..L */
+  p7_ForwardRow_Frameshift(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[0], NULL, NULL, 0);
+  for (i = 1; i <= L; i++)
+    p7_ForwardRow_Frameshift(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[i], fwd->dpf[i-1], (i >= 3) ? fwd->dpf[i-3] : NULL, i);
 
   {
-    float xCL   = xC_buf[   L    % PARSER_ROWS_FWD];
-    float xCLm1 = xC_buf[((L-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
-    float xCLm2 = xC_buf[((L-2) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
+    float xCL   = rg.xC[   L    % PARSER_ROWS_FWD];
+    float xCLm1 = rg.xC[((L-1) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
+    float xCLm2 = rg.xC[((L-2) % PARSER_ROWS_FWD + PARSER_ROWS_FWD) % PARSER_ROWS_FWD];
     float xCtot = xCL + xCLm1*om_fs->xf[p7O_C][p7O_LOOP] + xCLm2*om_fs->xf[p7O_C][p7O_LOOP];
 
     if      (isnan(xCtot))           ESL_EXCEPTION(eslERANGE, "forward score is NaN");

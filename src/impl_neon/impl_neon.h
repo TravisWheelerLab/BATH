@@ -592,6 +592,7 @@ extern int p7_DomainDecoding(const P7_OPROFILE *om, const P7_OMX *oxf, const P7_
 
 /* decoding_fs.c */
 extern int p7_Decoding_Frameshift        (const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, const P7_OMX *bck);
+extern int p7_DecodingRow_Frameshift(const P7_FS_OPROFILE *om_fs, const float *bxmx, const float *fx3, const float *log_sfwd, const float *log_sbck, float log_inv_Z, const float32x4_t *fv, const float32x4_t *bv, float32x4_t *ppv, float *ppx, int i);
 extern int p7_DomainDecoding_Frameshift  (const P7_FS_OPROFILE *om_fs, const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 
 /* fwdback.c */
@@ -621,6 +622,7 @@ extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const
 extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern void p7_ForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i);
 extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_BackwardDecoding_Frameshift      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,       P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_BackwardChk_Frameshift           (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
@@ -633,6 +635,7 @@ extern int p7_Null2_ByTrace      (const P7_OPROFILE *om, const P7_TRACE *tr, int
 
 /* null2_fs.c */
 extern int p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);
+extern int p7_Null2_fs_FromCounts(const P7_FS_OPROFILE *om_fs, float32x4_t *cnt, float *cntx, float *null2);
 
 /* optacc.c */
 extern int p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
@@ -643,6 +646,8 @@ extern int p7_OATraceSweep        (const P7_OPROFILE *om, const P7_OATMX *ox, P7
 /* optacc_fs.c */
 extern int p7_OptimalAccuracy_Frameshift(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp, P7_OMX *ox, float *ret_e);
 extern int p7_OATrace_Frameshift(const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_OptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int p7_OATraceSweep_Frameshift        (const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr);
 
 /* stotrace.c */
 extern int p7_StochasticTrace(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);

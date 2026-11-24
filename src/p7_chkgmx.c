@@ -252,6 +252,35 @@ p7_chk_BlockRows(int M, int L, int saveR, int nscells)
   return ESL_MAX(blockR, saveR);
 }
 
+/* Function:  p7_chkgmx_SetDirection()
+ * Synopsis:  Change the direction of a checkpointed matrix.
+ *
+ * Purpose:   Set up <cx> for a computation that runs through the rows in
+ *            direction <dir> (<p7_CHK_FORWARD> or <p7_CHK_BACKWARD>),
+ *            saving <saveR> rows at each checkpoint, so that one
+ *            allocation can serve a Forward and a Backward computation
+ *            in turn. Afterwards no block is loaded and no checkpoints
+ *            are saved, and the caller must call <p7_chkgmx_GrowTo()> before the
+ *            next computation; that call also makes room for a larger
+ *            <saveR> and checks it against the block size.
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> on a bad direction or <saveR> < 1.
+ */
+int
+p7_chkgmx_SetDirection(P7_CHKGMX *cx, int dir, int saveR)
+{
+  if (dir != p7_CHK_FORWARD && dir != p7_CHK_BACKWARD) ESL_EXCEPTION(eslEINVAL, "bad direction %d", dir);
+  if (saveR < 1)                                       ESL_EXCEPTION(eslEINVAL, "saveR must be >= 1, not %d", saveR);
+  cx->dir   = dir;
+  cx->saveR = saveR;
+  cx->M     = 0;
+  cx->L     = 0;
+  cx->b     = -1;
+  cx->nK    = 0;
+  return eslOK;
+}
+
 /*****************************************************************
  *= 2. Loading blocks and checkpoints.
  *****************************************************************/
@@ -544,6 +573,16 @@ utest_chkgmx(void)
   utest_blocks_backward(cx, 30, 200);
   if (p7_chkgmx_GrowTo(cx, 30, 200, 5)  != eslOK) esl_fatal("backward GrowTo (block == saveR) failed");
   utest_blocks_backward(cx, 30, 200);
+
+  /* the same allocation turned around: forward, then backward with more saved rows */
+  if (p7_chkgmx_SetDirection(cx, p7_CHK_FORWARD, 3)  != eslOK) esl_fatal("SetDirection (forward) failed");
+  if (p7_chkgmx_GrowTo(cx, 13, 37, 8)                != eslOK) esl_fatal("GrowTo after SetDirection failed");
+  utest_blocks(cx, 13, 37);
+  if (p7_chkgmx_SetDirection(cx, p7_CHK_BACKWARD, 7) != eslOK) esl_fatal("SetDirection (backward) failed");
+  if (p7_chkgmx_GrowTo(cx, 30, 200, 9)               != eslOK) esl_fatal("GrowTo after SetDirection failed");
+  utest_blocks_backward(cx, 30, 200);
+  if (p7_chkgmx_SetDirection(cx, 2, 3)               != eslEINVAL) esl_fatal("SetDirection with bad direction accepted");
+  if (p7_chkgmx_SetDirection(cx, p7_CHK_FORWARD, 0)  != eslEINVAL) esl_fatal("SetDirection with saveR < 1 accepted");
   p7_chkgmx_Destroy(cx);
 
   if (p7_chkgmx_Create(7, 50, 4, 5, p7G_NSCELLS, p7_CHK_FORWARD)  != NULL) esl_fatal("saveR > blockR accepted");

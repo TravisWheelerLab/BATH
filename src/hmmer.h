@@ -1667,6 +1667,7 @@ extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L, int blockR);
 extern int        p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b);
 extern int        p7_chkgmx_LoadBlock (P7_CHKGMX *cx, int b);
 extern void       p7_chkgmx_Destroy   (P7_CHKGMX *cx);
+extern int        p7_chkgmx_SetDirection(P7_CHKGMX *cx, int dir, int saveR);
 extern int        p7_chk_BlockRows    (int M, int L, int saveR, int nscells);
 
 /* p7_oatmx.c */

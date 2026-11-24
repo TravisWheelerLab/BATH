@@ -522,6 +522,7 @@ extern int          p7_chkomx_StartBlock(P7_CHKOMX *cx, int b);
 extern int          p7_chkomx_LoadBlock (P7_CHKOMX *cx, int b);
 extern float        p7_chkomx_FGetMDI   (const P7_CHKOMX *cx, int s, int i, int k);
 extern void         p7_chkomx_Destroy   (P7_CHKOMX *cx);
+extern int          p7_chkomx_SetDirection(P7_CHKOMX *cx, int dir, int saveR);
 extern int          p7_omx_DumpFBRow(P7_OMX *ox, int logify, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 extern int           p7_omx_DumpFBRow_FS(P7_OMX *ox, int logify, int i, int rowi, int width, int precision, float xE, float xN, float xJ, float xB, float xC);
 

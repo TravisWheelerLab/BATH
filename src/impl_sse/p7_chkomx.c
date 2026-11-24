@@ -234,6 +234,35 @@ p7_chkomx_Destroy(P7_CHKOMX *cx)
 }
 
 
+/* Function:  p7_chkomx_SetDirection()
+ * Synopsis:  Change the direction of a checkpointed matrix.
+ *
+ * Purpose:   Set up <cx> for a computation that runs through the rows in
+ *            direction <dir> (<p7_CHK_FORWARD> or <p7_CHK_BACKWARD>),
+ *            saving <saveR> rows at each checkpoint, so that one
+ *            allocation can serve a Forward and a Backward computation
+ *            in turn. Afterwards no block is loaded and no checkpoints
+ *            are saved, and the caller must call <p7_chkomx_GrowTo()> before the
+ *            next computation; that call also makes room for a larger
+ *            <saveR> and checks it against the block size.
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> on a bad direction or <saveR> < 1.
+ */
+int
+p7_chkomx_SetDirection(P7_CHKOMX *cx, int dir, int saveR)
+{
+  if (dir != p7_CHK_FORWARD && dir != p7_CHK_BACKWARD) ESL_EXCEPTION(eslEINVAL, "bad direction %d", dir);
+  if (saveR < 1)                                       ESL_EXCEPTION(eslEINVAL, "saveR must be >= 1, not %d", saveR);
+  cx->dir   = dir;
+  cx->saveR = saveR;
+  cx->M     = 0;
+  cx->L     = 0;
+  cx->b     = -1;
+  cx->nK    = 0;
+  return eslOK;
+}
+
 /*****************************************************************
  * 2. Loading blocks and checkpoints.
  *****************************************************************/
@@ -563,6 +592,16 @@ utest_isa(const CHKOMX_ISA *isa)
   if (isa->GrowTo(cx, 70, 140, 13) != eslOK) esl_fatal("%s: backward GrowTo (bigger block, wider rows) failed", isa->name);
   utest_blocks_backward(cx, isa, 70, 140);
   if (isa->GrowTo(cx, 70, 140, 4)  != eslEINVAL) esl_fatal("%s: GrowTo with blockR < saveR accepted", isa->name);
+
+  /* the same allocation turned around: forward, then backward with more saved rows */
+  if (p7_chkomx_SetDirection(cx, p7_CHK_FORWARD, 3)  != eslOK) esl_fatal("%s: SetDirection (forward) failed", isa->name);
+  if (isa->GrowTo(cx, 13, 37, 8)                     != eslOK) esl_fatal("%s: GrowTo after SetDirection failed", isa->name);
+  utest_blocks(cx, isa, 13, 37);
+  if (p7_chkomx_SetDirection(cx, p7_CHK_BACKWARD, 7) != eslOK) esl_fatal("%s: SetDirection (backward) failed", isa->name);
+  if (isa->GrowTo(cx, 30, 200, 9)                    != eslOK) esl_fatal("%s: GrowTo after SetDirection failed", isa->name);
+  utest_blocks_backward(cx, isa, 30, 200);
+  if (p7_chkomx_SetDirection(cx, 2, 3)               != eslEINVAL) esl_fatal("%s: SetDirection with bad direction accepted", isa->name);
+  if (p7_chkomx_SetDirection(cx, p7_CHK_FORWARD, 0)  != eslEINVAL) esl_fatal("%s: SetDirection with saveR < 1 accepted", isa->name);
   isa->Destroy(cx);
 
   if (isa->Create(7, 50, 4, 5, p7X_NSCELLS, p7_CHK_FORWARD) != NULL) esl_fatal("%s: saveR > blockR accepted", isa->name);

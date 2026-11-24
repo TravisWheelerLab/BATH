@@ -66,12 +66,7 @@ p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
 {
   int      M      = gm->M;
   int      Ld     = pp->L;
-  float  **dp     = pp->dp;
-  float   *xmx    = pp->xmx;
-  float    xfactor;
-  int      x;			/* over symbols 0..K-1                       */
   int      i;			/* over offset envelope dsq positions 1..Ld  */
-  int      k;			/* over model M states 1..M, I states 1..M-1 */
 
   /* Calculate expected # of times that each emitting state was used
    * in generating the Ld residues in this domain.
@@ -84,33 +79,57 @@ p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2)
       esl_vec_FAdd(pp->dp[0], pp->dp[i],             (M+1)*p7G_NSCELLS);
       esl_vec_FAdd(pp->xmx,   pp->xmx+i*p7G_NXCELLS, p7G_NXCELLS); 
     }
-  
+  return p7_GNull2_FromCounts(gm, pp->dp[0], pp->xmx, Ld, null2);
+}
+
+
+/* Function:  p7_GNull2_FromCounts()
+ * Synopsis:  Calculate null2 model from expected state usage.
+ *
+ * Purpose:   The second half of <p7_GNull2_ByExpectation()>: from the
+ *            expected number of times each state was used in an
+ *            envelope of <Ld> residues, the posterior probabilities
+ *            summed over rows 1..Ld (<cnt>, one row of <(M+1)*p7G_NSCELLS>
+ *            cells, and <cntx>, <p7G_NXCELLS> special states), calculate
+ *            the null2 odds ratios into <null2> (<0..Kp-1>, caller
+ *            allocated). <cnt> and <cntx> are overwritten.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_GNull2_FromCounts(const P7_PROFILE *gm, float *cnt, float *cntx, int Ld, float *null2)
+{
+  int      M      = gm->M;
+  float    xfactor;
+  int      x;			/* over symbols 0..K-1                       */
+  int      k;			/* over model M states 1..M, I states 1..M-1 */
+
   /* Convert those expected #'s to log frequencies; these we'll use as
    * the log posterior weights.
    */
-  esl_vec_FLog(pp->dp[0], (M+1)*p7G_NSCELLS);
-  esl_vec_FLog(pp->xmx,   p7G_NXCELLS);  
+  esl_vec_FLog(cnt,  (M+1)*p7G_NSCELLS);
+  esl_vec_FLog(cntx, p7G_NXCELLS);  
 
-  esl_vec_FIncrement(pp->dp[0], (M+1)*p7G_NSCELLS, -log((float)Ld));
-  esl_vec_FIncrement(pp->xmx,   p7G_NXCELLS,       -log((float)Ld)); 
+  esl_vec_FIncrement(cnt,  (M+1)*p7G_NSCELLS, -log((float)Ld));
+  esl_vec_FIncrement(cntx, p7G_NXCELLS,       -log((float)Ld)); 
 
   /* Calculate null2's log odds emission probabilities, by taking
    * posterior weighted sum over all emission vectors used in paths
    * explaining the domain.
    * This is dog-slow; a point for future optimization.
    */
-  xfactor = XMX(0,p7G_N);
-  xfactor = p7_FLogsum(xfactor, XMX(0,p7G_C));
-  xfactor = p7_FLogsum(xfactor, XMX(0,p7G_J));
+  xfactor = cntx[p7G_N];
+  xfactor = p7_FLogsum(xfactor, cntx[p7G_C]);
+  xfactor = p7_FLogsum(xfactor, cntx[p7G_J]);
   esl_vec_FSet(null2, gm->abc->K, -eslINFINITY);
   for (x = 0; x < gm->abc->K; x++)
     { 
       for (k = 1; k < M; k++)
 	{
-	  null2[x] = p7_FLogsum(null2[x], MMX(0,k) + p7P_MSC(gm, k, x));
-	  null2[x] = p7_FLogsum(null2[x], IMX(0,k) + p7P_ISC(gm, k, x));
+	  null2[x] = p7_FLogsum(null2[x], cnt[k*p7G_NSCELLS + p7G_M] + p7P_MSC(gm, k, x));
+	  null2[x] = p7_FLogsum(null2[x], cnt[k*p7G_NSCELLS + p7G_I] + p7P_ISC(gm, k, x));
 	}
-      null2[x] = p7_FLogsum(null2[x], MMX(0,M) + p7P_MSC(gm, k, x));
+      null2[x] = p7_FLogsum(null2[x], cnt[M*p7G_NSCELLS + p7G_M] + p7P_MSC(gm, k, x));
       null2[x] = p7_FLogsum(null2[x], xfactor);
     }
 

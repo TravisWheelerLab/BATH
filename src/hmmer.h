@@ -719,13 +719,15 @@ typedef struct p7_chkivx_s {
  * of rows. For every cell (i,k) it holds a few bits, each bit in its
  * own bit plane: a row has <nplanes> planes of <rowbytes> bytes. The
  * cell fields (p7OAT_* planes) are:
- *   M predecessor: the state an M at (i',k+1) comes from when its
- *     predecessor row is i (i' = i+1, or i+c for codon length c):
- *     p7OAT_FROM_M, _I, _D or _B (2 bits);
- *   I predecessor: the state an I one row below comes from (row i+1,
- *     or i+3 for the frameshift model): p7OAT_FROM_M or _I (1 bit);
- *   D predecessor: the state a D at (i,k+1) comes from: p7OAT_FROM_M,
- *     or 1 for D (1 bit);
+ *   M predecessor: the state an M at (i',k) comes from when its
+ *     predecessor row is i (i' = i+1, or i+c for codon length c),
+ *     from the cells at (i,k-1) and B of row i: p7OAT_FROM_M, _I, _D
+ *     or _B (2 bits);
+ *   I predecessor: the state an I at (i',k) comes from, from the cells
+ *     at (i,k) (i' = i+1, or i+3 for the frameshift model):
+ *     p7OAT_FROM_M or _I (1 bit);
+ *   D predecessor: the state a D at (i,k) comes from, from the cells
+ *     at (i,k-1): p7OAT_FROM_M, or 1 for D (1 bit);
  *   posterior probability codes of M and I at (i,k), 0..10 as
  *     p7_alidisplay_EncodePostProb() prints them ('0'..'9', '*'; 4 bits
  *     each);
@@ -1456,10 +1458,12 @@ extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P
 
 /* generic_null2.c */
 extern int p7_GNull2_ByExpectation(const P7_PROFILE *gm, P7_GMX *pp, float *null2);
+extern int p7_GNull2_FromCounts   (const P7_PROFILE *gm, float *cnt, float *cntx, int Ld, float *null2);
 extern int p7_GNull2_ByTrace      (const P7_PROFILE *gm, const P7_TRACE *tr, int zstart, int zend, P7_GMX *wrk, float *null2);
 
 /* generic_null2_frameshift.c */
 extern int p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, float *null2);
+extern int p7_GNull2_fs_FromCounts   (const P7_FS_PROFILE *gm_fs5, float *cnt, float *cntx, float *null2);
 
 /* generic_optacc.c */
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
@@ -1631,6 +1635,14 @@ extern int p7_GBackwardChk              (const ESL_DSQ *dsq, int L, const P7_PRO
 extern int p7_GBackwardChkLoad          (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
 extern int p7_GBackwardChk_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
 extern int p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
+
+/* generic_optacc_sweep.c */
+extern int p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int p7_GOATraceSweep        (const P7_PROFILE *gm, const P7_OATMX *ox, P7_TRACE *tr);
+
+/* generic_optacc_sweep_frameshift.c */
+extern int p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int p7_GOATraceSweep_Frameshift        (const P7_FS_PROFILE *gm_fs5, const P7_OATMX *ox, P7_TRACE *tr);
 
 /* p7_chkgmx.c */
 extern P7_CHKGMX *p7_chkgmx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells, int dir);

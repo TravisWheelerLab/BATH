@@ -126,6 +126,8 @@ OBJS =  build.o\
     generic_viterbi_spliced.o\
     generic_viterbi_spliced_chk.o\
     generic_backward_chk.o\
+    generic_optacc_sweep.o\
+    generic_optacc_sweep_frameshift.o\
 	p7_tophits.o\
 	p7_trace.o\
 	p7_scoredata.o
@@ -164,6 +166,8 @@ UTESTS =\
 	generic_viterbi_spliced_utest\
 	generic_viterbi_spliced_chk_utest\
 	generic_backward_chk_utest\
+	generic_optacc_sweep_utest\
+	generic_optacc_sweep_frameshift_utest\
 	hmmer_utest\
 	logsum_utest\
 	modelconfig_utest\

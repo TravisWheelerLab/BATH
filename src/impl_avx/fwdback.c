@@ -1,6 +1,7 @@
 /* Forward/Backward dispatcher.
  * Provides the non-suffixed p7_Forward, p7_ForwardParser, p7_Backward,
- * p7_BackwardParser and p7_BackwardDecoding declared in impl_avx.h.
+ * p7_BackwardParser, p7_BackwardDecoding, p7_BackwardChk and
+ * p7_BackwardChkLoad declared in impl_avx.h.
  * Delegates to the fastest available ISA implementation at runtime.
  */
 
@@ -11,6 +12,7 @@
 
 #include "hmmer.h"
 #include "impl_avx.h"
+#include <string.h>
 
 /* Forward declaration of dispatcher */
 static int p7_Forward_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, float *opt_sc);
@@ -179,6 +181,58 @@ p7_BackwardDecoding_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
   return eslENORESULT;
 #endif
 }
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardChk_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardChk)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc) = p7_BackwardChk_Dispatcher;
+
+/* Function:  p7_BackwardChk_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the checkpointed Backward with its own scale factors.
+ */
+static int
+p7_BackwardChk_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_BackwardChk = p7_BackwardChk_avx; return p7_BackwardChk_avx(dsq, L, om, cx, opt_sc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardChk = p7_BackwardChk_sse;
+  return p7_BackwardChk_sse(dsq, L, om, cx, opt_sc);
+#else
+  p7_Die("p7_BackwardChk: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardChkLoad_Dispatcher(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardChkLoad)(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b) = p7_BackwardChkLoad_Dispatcher;
+
+/* Function:  p7_BackwardChkLoad_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for loading one block of the checkpointed Backward again.
+ */
+static int
+p7_BackwardChkLoad_Dispatcher(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_BackwardChkLoad = p7_BackwardChkLoad_avx; return p7_BackwardChkLoad_avx(dsq, om, cx, b); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardChkLoad = p7_BackwardChkLoad_sse;
+  return p7_BackwardChkLoad_sse(dsq, om, cx, b);
+#else
+  p7_Die("p7_BackwardChkLoad: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
 /*****************************************************************
  * 4. Benchmark driver.
  *****************************************************************/
@@ -203,6 +257,7 @@ p7_BackwardDecoding_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,
 
 #include "hmmer.h"
 #include "impl_avx.h"
+#include <string.h>
 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
@@ -326,6 +381,7 @@ main(int argc, char **argv)
 #ifdef p7FWDBACK_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "esl_vectorops.h"
 
 /* 
  * compare to GForward() scores.
@@ -488,6 +544,175 @@ utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, 
   p7_profile_Destroy(gm);
 }
 
+/* utest_backward_chk()
+ * Checkpointed Backward with its own scale factors on random sequences
+ * and the model's consensus between random flanks, up to length <L>:
+ *   - a fill in one block and a fill in blocks of 1..8 rows give
+ *     identical scores, special states and scale factors;
+ *   - every block loaded again, in increasing order as a forward
+ *     sweep reads them, is identical to the one-block fill;
+ *   - scores and cells (with each matrix's own row scale factors
+ *     taken out) agree with p7_Backward() up to rounding.
+ * With <require_scaling>, fail if no row was rescaled. With <use_sse>,
+ * the _sse versions are called directly, so an AVX CPU also tests the
+ * SSE engine.
+ */
+static void
+utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N, int require_scaling, int use_sse)
+{
+  char        *msg   = "checkpointed backward unit test failed";
+  P7_HMM      *hmm   = NULL;
+  P7_PROFILE  *gm    = NULL;
+  P7_OPROFILE *om    = NULL;
+  ESL_SQ      *sq    = esl_sq_CreateDigital(abc);
+  ESL_DSQ     *dsq   = malloc(sizeof(ESL_DSQ) * (L+2));
+  double      *lsf1  = malloc(sizeof(double) * (L+2));
+  double      *lsf2  = malloc(sizeof(double) * (L+2));
+  P7_OMX      *oxf   = NULL;
+  P7_OMX      *oxb   = NULL;
+  P7_CHKOMX   *cx1   = NULL;
+  P7_CHKOMX   *cx2   = NULL;
+  int        (*chk_growto)(P7_CHKOMX *, int, int, int)             = use_sse ? p7_chkomx_GrowTo_sse    : p7_chkomx_GrowTo;
+  float      (*chk_get)   (const P7_CHKOMX *, int, int, int)       = use_sse ? p7_chkomx_FGetMDI_sse   : p7_chkomx_FGetMDI;
+  float      (*omx_get)   (const P7_OMX *, int, int, int)          = use_sse ? p7_omx_FGetMDI_sse      : p7_omx_FGetMDI;
+  int        (*bck_chk)   (const ESL_DSQ *, int, const P7_OPROFILE *, P7_CHKOMX *, float *) = use_sse ? p7_BackwardChk_sse     : p7_BackwardChk;
+  int        (*bck_load)  (const ESL_DSQ *, const P7_OPROFILE *, P7_CHKOMX *, int)          = use_sse ? p7_BackwardChkLoad_sse : p7_BackwardChkLoad;
+  float        bsc, sc1, sc2;
+  float        a, c;
+  double       d;
+  int          nscaled = 0;
+  int          n, Ln, blockR, b, i, k, s, x;
+
+  /* a sampled model with sharpened match emissions and M->M transitions,
+   * so its consensus scores high */
+  if (p7_hmm_Sample(r, M, abc, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abc->K);
+      esl_vec_FSet(hmm->mat[k], abc->K, 0.15 / (abc->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  gm = p7_profile_Create(M, abc);
+  if (p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL) != eslOK) esl_fatal(msg);
+  if (use_sse)
+    {
+      om  = p7_oprofile_Create_sse(M, abc);
+      p7_oprofile_Convert_sse(gm, om);
+      oxf = p7_omx_Create_sse(M, L, L);
+      oxb = p7_omx_Create_sse(M, L, L);
+      cx1 = p7_chkomx_Create_sse(M, L, L+1, 1, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create_sse(M, L, 1,   1, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+  else
+    {
+      om  = p7_oprofile_Create(M, abc);
+      p7_oprofile_Convert(gm, om);
+      oxf = p7_omx_Create(M, L, L);
+      oxb = p7_omx_Create(M, L, L);
+      cx1 = p7_chkomx_Create(M, L, L+1, 1, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create(M, L, 1,   1, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+
+  for (n = 0; n < N; n++)
+    {
+      /* alternate random sequences and the model's consensus between
+       * random flanks, which scores high enough for rows to be rescaled */
+      Ln = 1 + esl_rnd_Roll(r, L);
+      esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+      if (n % 2 == 1 && M <= L)
+        {
+          esl_sq_Reuse(sq);
+          p7_emit_SimpleConsensus(hmm, sq);
+          Ln = ESL_MAX(Ln, M);
+          esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+          memcpy(dsq + 1 + esl_rnd_Roll(r, Ln - M + 1), sq->dsq + 1, sizeof(ESL_DSQ) * M);
+        }
+
+      if (use_sse)
+        {
+          if (p7_Forward_sse (dsq, Ln, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+          if (p7_Backward_sse(dsq, Ln, om, oxf, oxb, &bsc) != eslOK) esl_fatal(msg);
+        }
+      else
+        {
+          if (p7_Forward (dsq, Ln, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+          if (p7_Backward(dsq, Ln, om, oxf, oxb, &bsc) != eslOK) esl_fatal(msg);
+        }
+
+      blockR = 1 + esl_rnd_Roll(r, 8);
+      if (chk_growto(cx1, M, Ln, Ln+1)  != eslOK) esl_fatal(msg);
+      if (chk_growto(cx2, M, Ln, blockR) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om, cx1, &sc1) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om, cx2, &sc2) != eslOK) esl_fatal(msg);
+
+      if (sc1 != sc2)                esl_fatal("%s: one-block and blocked scores differ (%f %f)", msg, sc1, sc2);
+      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward() %f", msg, sc1, bsc);
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states differ", msg);
+
+      for (b = 0; b <= Ln; b += blockR)
+        {
+          if (bck_load(dsq, om, cx2, b) != eslOK) esl_fatal(msg);
+          for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
+            for (k = 1; k <= M; k++)
+              for (s = 0; s < p7X_NSCELLS; s++)
+                if (chk_get(cx2, s, i, k) != chk_get(cx1, s, i, k))
+                  esl_fatal("%s: loaded block %d differs at row %d, k %d (%g %g)", msg, b, i, k, chk_get(cx2, s, i, k), chk_get(cx1, s, i, k));
+        }
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states changed by loading", msg);
+
+      /* log of the product of each matrix's scale factors for rows i..L */
+      lsf1[Ln+1] = lsf2[Ln+1] = 0.;
+      for (i = Ln; i >= 1; i--)
+        {
+          lsf1[i] = lsf1[i+1] + log(oxb->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          lsf2[i] = lsf2[i+1] + log(cx1->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          if (cx1->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0f) nscaled++;
+        }
+      /* Cells below 1e-25 are skipped: terms that fall below the smallest
+       * normal float are lost, which can be most of such a cell's value;
+       * above 1e-25 the lost terms are negligible. */
+      for (i = 1; i <= Ln; i++)
+        for (k = 1; k <= M; k++)
+          for (s = 0; s < p7X_NSCELLS; s++)
+            {
+              a = omx_get(oxb, s, i, k);
+              c = chk_get(cx1, s, i, k);
+              if (a < 1e-25 || c < 1e-25) continue;
+              d = (log(a) + lsf1[i]) - (log(c) + lsf2[i]);
+              if (fabs(d) > 0.001) esl_fatal("%s: row %d, k %d, state %d: log values differ by %g", msg, i, k, s, d);
+            }
+    }
+  if (require_scaling && nscaled == 0) esl_fatal("%s: no row was rescaled; test is too weak", msg);
+
+  free(dsq);
+  free(lsf1);
+  free(lsf2);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(oxf);
+      p7_omx_Destroy_sse(oxb);
+      p7_chkomx_Destroy_sse(cx1);
+      p7_chkomx_Destroy_sse(cx2);
+      p7_oprofile_Destroy_sse(om);
+    }
+  else
+    {
+      p7_omx_Destroy(oxf);
+      p7_omx_Destroy(oxb);
+      p7_chkomx_Destroy(cx1);
+      p7_chkomx_Destroy(cx2);
+      p7_oprofile_Destroy(om);
+    }
+}
+
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
 /* utest_sse_vs_avx_fwdback()
  *
@@ -582,6 +807,7 @@ utest_sse_vs_avx_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M,
 
 #include "hmmer.h"
 #include "impl_avx.h"
+#include <string.h>
 
 static ESL_OPTIONS options[] = {
   /* name           type      default  env  range toggles reqs incomp  help                                       docgroup*/
@@ -618,11 +844,17 @@ main(int argc, char **argv)
   utest_backward_decoding(r, abc, bg, M, L, N,  FALSE);
   utest_backward_decoding(r, abc, bg, 1, L, 10, FALSE);
   utest_backward_decoding(r, abc, bg, M, 1, 10, FALSE);
+  utest_backward_chk(r, abc, bg, M, L, N,  TRUE,  FALSE);
+  utest_backward_chk(r, abc, bg, 1, L, 10, FALSE, FALSE);
+  utest_backward_chk(r, abc, bg, M, 1, 10, FALSE, FALSE);
 #ifdef eslENABLE_SSE
   if (esl_cpu_has_sse()) {
     utest_backward_decoding(r, abc, bg, M, L, N,  TRUE);
     utest_backward_decoding(r, abc, bg, 1, L, 10, TRUE);
     utest_backward_decoding(r, abc, bg, M, 1, 10, TRUE);
+    utest_backward_chk(r, abc, bg, M, L, N,  TRUE,  TRUE);
+    utest_backward_chk(r, abc, bg, 1, L, 10, FALSE, TRUE);
+    utest_backward_chk(r, abc, bg, M, 1, 10, FALSE, TRUE);
   }
 #endif
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
@@ -644,11 +876,17 @@ main(int argc, char **argv)
   utest_backward_decoding(r, abc, bg, M, L, N,  FALSE);
   utest_backward_decoding(r, abc, bg, 1, L, 10, FALSE);
   utest_backward_decoding(r, abc, bg, M, 1, 10, FALSE);
+  utest_backward_chk(r, abc, bg, M, L, N,  TRUE,  FALSE);
+  utest_backward_chk(r, abc, bg, 1, L, 10, FALSE, FALSE);
+  utest_backward_chk(r, abc, bg, M, 1, 10, FALSE, FALSE);
 #ifdef eslENABLE_SSE
   if (esl_cpu_has_sse()) {
     utest_backward_decoding(r, abc, bg, M, L, N,  TRUE);
     utest_backward_decoding(r, abc, bg, 1, L, 10, TRUE);
     utest_backward_decoding(r, abc, bg, M, 1, 10, TRUE);
+    utest_backward_chk(r, abc, bg, M, L, N,  TRUE,  TRUE);
+    utest_backward_chk(r, abc, bg, 1, L, 10, FALSE, TRUE);
+    utest_backward_chk(r, abc, bg, M, 1, 10, FALSE, TRUE);
   }
 #endif
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
@@ -691,6 +929,7 @@ main(int argc, char **argv)
 
 #include "hmmer.h"
 #include "impl_avx.h"
+#include <string.h>
 
 #define STYLES     "--fs,--sw,--ls,--s"	               /* Exclusive choice for alignment mode     */
 

@@ -2216,4 +2216,226 @@ backward_frameshift_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_
   return status;
 }
 
+
+/*****************************************************************
+ * Checkpointed frameshift Backward, SSE
+ *****************************************************************/
+
+/* bwd_fs_ring_load()
+ * Ring entries before row <top> (< L) is computed again: rows <top>+1
+ * .. <top>+3, the ones rows <top> .. <top>-2 read, from the special
+ * states stored in <xmx> (the starting values of bwd_fs_ring_init()
+ * for rows past <L>), each multiplied by the inverse scale factors of
+ * the rows computed after it down to <top>+1, in the same order as when
+ * the rows were first computed, so the entries are identical.
+ */
+static void
+bwd_fs_ring_load(BWD_FS_RING *rg, const P7_FS_OPROFILE *om_fs, const float *xmx, int L, int top)
+{
+  float sf;
+  int   j, r, s;
+
+  bwd_fs_ring_init(rg, om_fs, L);
+  for (j = top+1; j <= top+3; j++)
+    {
+      s = j % PARSER_ROWS_BWD;
+      if (j <= L)
+        {
+          rg->xN[s] = xmx[j*p7X_NXCELLS+p7X_N];
+          rg->xB[s] = xmx[j*p7X_NXCELLS+p7X_B];
+          rg->xJ[s] = xmx[j*p7X_NXCELLS+p7X_J];
+          rg->xC[s] = xmx[j*p7X_NXCELLS+p7X_C];
+        }
+      for (r = ESL_MIN(j-1, L); r > top; r--)
+        if (xmx[r*p7X_NXCELLS+p7X_SCALE] > 1.0f)
+          {
+            sf = 1.0f / xmx[r*p7X_NXCELLS+p7X_SCALE];
+            rg->xN[s] *= sf; rg->xB[s] *= sf; rg->xJ[s] *= sf; rg->xC[s] *= sf;
+          }
+    }
+}
+
+
+/* backward_frameshift_chk_block_sse()
+ * Compute rows <b> .. <b>+<blockR>-1 (up to <cx->L>) of the loaded
+ * block <b> of the checkpointed frameshift Backward matrix <cx>, top
+ * row first, with scale factors chosen by <scale_mode>. <rg> must hold
+ * the ring entries for the block's top row (bwd_fs_ring_init() for the
+ * block holding row L, else the state left by the block above or
+ * bwd_fs_ring_load()). <zero_row> is a row of zeros for rows past L;
+ * <ivxf> is workspace. For block 0 this includes row 0, whose core
+ * cells are set to 0. If <totscale> is non-NULL the logs of the scale
+ * factors are added to it. Returns the sum of the N values of rows 0,
+ * 1 and 2 at row 0's scale (the Backward score before scaling) for
+ * block 0, else 0.
+ */
+static float
+backward_frameshift_chk_block_sse(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, BWD_FS_RING *rg,
+                                  __m128 *zero_row, __m128 *ivxf, int b, float *totscale, int scale_mode)
+{
+  __m128 *dp[6];
+  int     L    = cx->L;
+  int     top  = ESL_MIN(L, b + cx->blockR - 1);
+  int     Q    = p7O_NQF(om_fs->M);
+  float   xN   = 0.0f;
+  int     i, d, q;
+
+  for (i = top; i >= ESL_MAX(b, 1); i--)
+    {
+      if (i == L)
+        backward_frameshift_row_L_sse(om_fs, NULL, cx->xmx, totscale, rg, cx->dpf[L], L, scale_mode);
+      else
+        {
+          for (d = 0; d < 6; d++) dp[d] = (i+d <= L) ? cx->dpf[i+d] : zero_row;
+          backward_frameshift_row_sse(dsq, L, om_fs, NULL, cx->xmx, totscale, NULL, rg, dp, ivxf, i, scale_mode);
+        }
+    }
+
+  if (b == 0)
+    {
+      dp[0] = NULL;
+      for (d = 1; d < 6; d++) dp[d] = (d <= L) ? cx->dpf[d] : zero_row;
+      xN  = backward_frameshift_row_0_sse(dsq, L, om_fs, cx->xmx, rg, dp, ivxf);
+      xN += rg->xN[1%PARSER_ROWS_BWD] + rg->xN[2%PARSER_ROWS_BWD];
+      for (q = 0; q < Q * p7X_NSCELLS; q++) cx->dpf[0][q] = _mm_setzero_ps();
+    }
+  return xN;
+}
+
+
+/* Function:  p7_BackwardChk_Frameshift_sse()
+ * Synopsis:  Frameshift Backward in a checkpointed matrix, with its own scale factors.
+ *
+ * Purpose:   The Backward algorithm of <p7_Backward_Frameshift_sse()> for
+ *            the 5-codon profile <om_fs> and sequence <dsq> of length
+ *            <L>, computed in the checkpointed matrix <cx>, with <ov>
+ *            as workspace.
+ *
+ *            This version is meant to be run before Forward, and it uses
+ *            its own scale factors: each row is scaled by xB when xB >
+ *            1e4 (else not scaled), not by the Forward matrix's factor for
+ *            the row, so no Forward matrix is needed. The factors are
+ *            stored in <cx->xmx> with the special states. Values and
+ *            score equal those of <p7_Backward_Frameshift_sse()> up to
+ *            rounding.
+ *
+ *            Rows are computed from <L> down to 0, one block at a time;
+ *            checkpoints of the 5 rows after each block are saved, so
+ *            <p7_BackwardChkLoad_Frameshift_sse()> can compute any block
+ *            again, with identical values. On return block 0 is loaded
+ *            and the special states and scale factors of all rows are in
+ *            <cx->xmx>. Row 0 holds only special states; its core cells
+ *            are set to 0.
+ *
+ *            The caller creates <cx> with <p7_CHK_BACKWARD>, <p7X_NSCELLS>
+ *            vectors per stripe and at least 5 saved rows, and grows it
+ *            for <om_fs->M> by <L> with the block size it wants
+ *            (<p7_chkomx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq (>= 1)
+ *            om_fs  - 5-codon frameshift profile
+ *            cx     - checkpointed DP matrix
+ *            ov     - workspace for the profile's M
+ *            opt_sc - optRETURN: Backward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation or
+ *            <om_fs> isn't a 5-codon profile.
+ *            <eslERANGE> if the score is NaN, underflows to 0 or overflows.
+ *            <eslEMEM> on allocation failure.
+ */
+int
+p7_BackwardChk_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+{
+  BWD_FS_RING rg;
+  __m128     *zero_mem = NULL;
+  __m128     *zero_row;
+  int         Q        = p7O_NQF(om_fs->M);
+  float       totscale = 0.0f;
+  float       xNtot    = 0.0f;
+  int         b, q;
+  int         status;
+
+  if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
+  if (cx->dir != p7_CHK_BACKWARD || cx->saveR < 5 || cx->nscells != p7X_NSCELLS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed frameshift Backward");
+  if (L < 1) ESL_EXCEPTION(eslEINVAL, "sequence length must be >= 1");
+
+  ESL_ALLOC(zero_mem, sizeof(__m128) * Q * p7X_NSCELLS + 15);
+  zero_row = (__m128 *) (((unsigned long int) zero_mem + 15) & (~0xf));
+  for (q = 0; q < Q * p7X_NSCELLS; q++) zero_row[q] = _mm_setzero_ps();
+
+  cx->M = om_fs->M;
+  cx->L = L;
+
+  bwd_fs_ring_init(&rg, om_fs, L);
+  for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
+    {
+      if ((status = p7_chkomx_StartBlock_sse(cx, b)) != eslOK) goto ERROR;
+      xNtot = backward_frameshift_chk_block_sse(dsq, om_fs, cx, &rg, zero_row, ov->ivx[0], b, &totscale, BWD_SCALE_OWN);
+    }
+  free(zero_mem);
+
+  if      (isnan(xNtot))      ESL_EXCEPTION(eslERANGE, "backward score is NaN");
+  else if (xNtot == 0.0f)     ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
+  else if (isinf(xNtot) == 1) ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
+
+  if (opt_sc != NULL) *opt_sc = totscale + logf(xNtot);
+  return eslOK;
+
+ ERROR:
+  free(zero_mem);
+  return status;
+}
+
+
+/* Function:  p7_BackwardChkLoad_Frameshift_sse()
+ * Synopsis:  Compute one block of a checkpointed frameshift Backward matrix again.
+ *
+ * Purpose:   Load block <b> (a multiple of <cx->blockR>) of the Backward
+ *            matrix that <p7_BackwardChk_Frameshift_sse()> filled in <cx>
+ *            for profile <om_fs> and sequence <dsq>, computing its rows
+ *            again from the checkpoint after it with the scale factors
+ *            stored in <cx->xmx>, with <ov> as workspace. Afterwards rows
+ *            <b> .. <b>+<blockR>-1 (up to <cx->L>) hold the same values as
+ *            when <p7_BackwardChk_Frameshift_sse()> computed them. Blocks
+ *            can be loaded in any order.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <b> isn't the start of a block.
+ *            <eslEMEM> on allocation failure.
+ */
+int
+p7_BackwardChkLoad_Frameshift_sse(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+{
+  BWD_FS_RING rg;
+  __m128     *zero_mem = NULL;
+  __m128     *zero_row;
+  int         Q        = p7O_NQF(om_fs->M);
+  int         top;
+  int         q;
+  int         status;
+
+  if ((status = p7_chkomx_LoadBlock_sse(cx, b)) != eslOK) return status;
+
+  ESL_ALLOC(zero_mem, sizeof(__m128) * Q * p7X_NSCELLS + 15);
+  zero_row = (__m128 *) (((unsigned long int) zero_mem + 15) & (~0xf));
+  for (q = 0; q < Q * p7X_NSCELLS; q++) zero_row[q] = _mm_setzero_ps();
+
+  top = ESL_MIN(cx->L, b + cx->blockR - 1);
+  if (top == cx->L) bwd_fs_ring_init(&rg, om_fs, cx->L);
+  else              bwd_fs_ring_load(&rg, om_fs, cx->xmx, cx->L, top);
+
+  backward_frameshift_chk_block_sse(dsq, om_fs, cx, &rg, zero_row, ov->ivx[0], b, NULL, BWD_SCALE_STORED);
+  free(zero_mem);
+  return eslOK;
+
+ ERROR:
+  free(zero_mem);
+  return status;
+}
+
 #endif /* eslENABLE_SSE */

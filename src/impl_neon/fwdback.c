@@ -973,6 +973,135 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
     }
   return eslOK;
 }
+
+
+/*****************************************************************
+ * Checkpointed Backward, NEON
+ *****************************************************************/
+
+/* backward_chk_block()
+ * Compute rows <b> .. <b>+<blockR>-1 (up to <cx->L>) of the loaded
+ * block <b> of the checkpointed Backward matrix <cx>, top row first,
+ * with scale factors chosen by <scale_mode>. For block 0 this includes
+ * row 0, whose core cells are set to 0. If <totscale> is non-NULL the
+ * logs of the scale factors are added to it. Returns row 0's N value
+ * for block 0, else 0.
+ */
+static float
+backward_chk_block(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b, float *totscale, int scale_mode)
+{
+  int   L   = cx->L;
+  int   top = ESL_MIN(L, b + cx->blockR - 1);
+  int   Q   = p7O_NQF(om->M);
+  float xN  = 0.0f;
+  int   i, q;
+
+  for (i = top; i >= ESL_MAX(b, 1); i--)
+    {
+      if (i == L) backward_row_L(om, NULL, cx->xmx, totscale, cx->dpf[L], L, scale_mode);
+      else        backward_row(dsq, om, NULL, cx->xmx, totscale, NULL, cx->dpf[i], cx->dpf[i+1], i, scale_mode);
+    }
+
+  if (b == 0)
+    {
+      xN = backward_row_0(dsq, om, cx->xmx, cx->dpf[1]);
+      for (q = 0; q < Q * p7X_NSCELLS; q++) cx->dpf[0][q] = vmovq_n_f32(0.0f);
+    }
+  return xN;
+}
+
+
+/* Function:  p7_BackwardChk()
+ * Synopsis:  Backward in a checkpointed matrix, with its own scale factors.
+ *
+ * Purpose:   The Backward algorithm of <p7_Backward()> for profile
+ *            <om> and sequence <dsq> of length <L>, computed in the
+ *            checkpointed matrix <cx>.
+ *
+ *            This version is meant to be run before Forward, and it uses
+ *            its own scale factors: each row is scaled by xB when xB >
+ *            1e4 (else not scaled), not by the Forward matrix's factor for
+ *            the row, so no Forward matrix is needed. The factors are
+ *            stored in <cx->xmx> with the special states. Values and
+ *            score equal those of <p7_Backward()> up to rounding.
+ *
+ *            Rows are computed from <L> down to 0, one block at a time;
+ *            checkpoints of the row after each block are saved, so
+ *            <p7_BackwardChkLoad()> can compute any block again, with
+ *            identical values. On return block 0 is loaded and the special
+ *            states and scale factors of all rows are in <cx->xmx>. Row 0
+ *            holds only special states; its core cells are set to 0.
+ *
+ *            The caller creates <cx> with <p7_CHK_BACKWARD>, <p7X_NSCELLS>
+ *            vectors per stripe and at least 1 saved row, and grows it for
+ *            <om->M> by <L> with the block size it wants
+ *            (<p7_chkomx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq (>= 1)
+ *            om     - profile
+ *            cx     - checkpointed DP matrix
+ *            opt_sc - optRETURN: Backward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation.
+ *            <eslERANGE> if the score is NaN, underflows to 0 or overflows.
+ */
+int
+p7_BackwardChk(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc)
+{
+  float totscale = 0.0f;
+  float xN       = 0.0f;
+  int   b;
+  int   status;
+
+  if (cx->dir != p7_CHK_BACKWARD || cx->saveR < 1 || cx->nscells != p7X_NSCELLS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed Backward");
+  if (L < 1) ESL_EXCEPTION(eslEINVAL, "sequence length must be >= 1");
+
+  cx->M = om->M;
+  cx->L = L;
+
+  for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
+    {
+      if ((status = p7_chkomx_StartBlock(cx, b)) != eslOK) return status;
+      xN = backward_chk_block(dsq, om, cx, b, &totscale, BWD_SCALE_OWN);
+    }
+
+  if      (isnan(xN))      ESL_EXCEPTION(eslERANGE, "backward score is NaN");
+  else if (xN == 0.0f)     ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
+  else if (isinf(xN) == 1) ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
+
+  if (opt_sc != NULL) *opt_sc = totscale + log(xN);
+  return eslOK;
+}
+
+
+/* Function:  p7_BackwardChkLoad()
+ * Synopsis:  Compute one block of a checkpointed Backward matrix again.
+ *
+ * Purpose:   Load block <b> (a multiple of <cx->blockR>) of the Backward
+ *            matrix that <p7_BackwardChk()> filled in <cx> for profile
+ *            <om> and sequence <dsq>, computing its rows again from the
+ *            checkpoint after it with the scale factors stored in
+ *            <cx->xmx>. Afterwards rows <b> .. <b>+<blockR>-1 (up to
+ *            <cx->L>) hold the same values as when <p7_BackwardChk()>
+ *            computed them. Blocks can be loaded in any order.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <b> isn't the start of a block.
+ */
+int
+p7_BackwardChkLoad(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b)
+{
+  int status;
+
+  if ((status = p7_chkomx_LoadBlock(cx, b)) != eslOK) return status;
+  backward_chk_block(dsq, om, cx, b, NULL, BWD_SCALE_STORED);
+  return eslOK;
+}
 /*-------------- end, forward/backward engines  -----------------*/
 
 
@@ -1128,6 +1257,8 @@ main(int argc, char **argv)
 #ifdef p7FWDBACK_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "esl_vectorops.h"
+#include <string.h>
 
 /*
  * compare to GForward() scores.
@@ -1242,6 +1373,142 @@ utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, 
   p7_profile_Destroy(gm);
   p7_oprofile_Destroy(om);
 }
+
+/* utest_backward_chk()
+ * Checkpointed Backward with its own scale factors on random sequences
+ * and the model's consensus between random flanks, up to length <L>:
+ *   - a fill in one block and a fill in blocks of 1..8 rows give
+ *     identical scores, special states and scale factors;
+ *   - every block loaded again, in increasing order as a forward
+ *     sweep reads them, is identical to the one-block fill;
+ *   - scores and cells (with each matrix's own row scale factors
+ *     taken out) agree with p7_Backward() up to rounding.
+ * With <require_scaling>, fail if no row was rescaled.
+ */
+static void
+utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N, int require_scaling)
+{
+  char        *msg   = "checkpointed backward unit test failed";
+  P7_HMM      *hmm   = NULL;
+  P7_PROFILE  *gm    = NULL;
+  P7_OPROFILE *om    = NULL;
+  ESL_SQ      *sq    = esl_sq_CreateDigital(abc);
+  ESL_DSQ     *dsq   = malloc(sizeof(ESL_DSQ) * (L+2));
+  double      *lsf1  = malloc(sizeof(double) * (L+2));
+  double      *lsf2  = malloc(sizeof(double) * (L+2));
+  P7_OMX      *oxf   = NULL;
+  P7_OMX      *oxb   = NULL;
+  P7_CHKOMX   *cx1   = NULL;
+  P7_CHKOMX   *cx2   = NULL;
+  int        (*chk_growto)(P7_CHKOMX *, int, int, int)             = p7_chkomx_GrowTo;
+  float      (*chk_get)   (const P7_CHKOMX *, int, int, int)       = p7_chkomx_FGetMDI;
+  float      (*omx_get)   (const P7_OMX *, int, int, int)          = p7_omx_FGetMDI;
+  int        (*bck_chk)   (const ESL_DSQ *, int, const P7_OPROFILE *, P7_CHKOMX *, float *) = p7_BackwardChk;
+  int        (*bck_load)  (const ESL_DSQ *, const P7_OPROFILE *, P7_CHKOMX *, int)          = p7_BackwardChkLoad;
+  float        bsc, sc1, sc2;
+  float        a, c;
+  double       d;
+  int          nscaled = 0;
+  int          n, Ln, blockR, b, i, k, s, x;
+
+  /* a sampled model with sharpened match emissions and M->M transitions,
+   * so its consensus scores high */
+  if (p7_hmm_Sample(r, M, abc, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abc->K);
+      esl_vec_FSet(hmm->mat[k], abc->K, 0.15 / (abc->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  gm = p7_profile_Create(M, abc);
+  if (p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL) != eslOK) esl_fatal(msg);
+  om  = p7_oprofile_Create(M, abc);
+  p7_oprofile_Convert(gm, om);
+  oxf = p7_omx_Create(M, L, L);
+  oxb = p7_omx_Create(M, L, L);
+  cx1 = p7_chkomx_Create(M, L, L+1, 1, p7X_NSCELLS, p7_CHK_BACKWARD);
+  cx2 = p7_chkomx_Create(M, L, 1,   1, p7X_NSCELLS, p7_CHK_BACKWARD);
+
+  for (n = 0; n < N; n++)
+    {
+      /* alternate random sequences and the model's consensus between
+       * random flanks, which scores high enough for rows to be rescaled */
+      Ln = 1 + esl_rnd_Roll(r, L);
+      esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+      if (n % 2 == 1 && M <= L)
+        {
+          esl_sq_Reuse(sq);
+          p7_emit_SimpleConsensus(hmm, sq);
+          Ln = ESL_MAX(Ln, M);
+          esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+          memcpy(dsq + 1 + esl_rnd_Roll(r, Ln - M + 1), sq->dsq + 1, sizeof(ESL_DSQ) * M);
+        }
+
+      if (p7_Forward (dsq, Ln, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+      if (p7_Backward(dsq, Ln, om, oxf, oxb, &bsc) != eslOK) esl_fatal(msg);
+
+      blockR = 1 + esl_rnd_Roll(r, 8);
+      if (chk_growto(cx1, M, Ln, Ln+1)  != eslOK) esl_fatal(msg);
+      if (chk_growto(cx2, M, Ln, blockR) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om, cx1, &sc1) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om, cx2, &sc2) != eslOK) esl_fatal(msg);
+
+      if (sc1 != sc2)                esl_fatal("%s: one-block and blocked scores differ (%f %f)", msg, sc1, sc2);
+      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward() %f", msg, sc1, bsc);
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states differ", msg);
+
+      for (b = 0; b <= Ln; b += blockR)
+        {
+          if (bck_load(dsq, om, cx2, b) != eslOK) esl_fatal(msg);
+          for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
+            for (k = 1; k <= M; k++)
+              for (s = 0; s < p7X_NSCELLS; s++)
+                if (chk_get(cx2, s, i, k) != chk_get(cx1, s, i, k))
+                  esl_fatal("%s: loaded block %d differs at row %d, k %d (%g %g)", msg, b, i, k, chk_get(cx2, s, i, k), chk_get(cx1, s, i, k));
+        }
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states changed by loading", msg);
+
+      /* log of the product of each matrix's scale factors for rows i..L */
+      lsf1[Ln+1] = lsf2[Ln+1] = 0.;
+      for (i = Ln; i >= 1; i--)
+        {
+          lsf1[i] = lsf1[i+1] + log(oxb->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          lsf2[i] = lsf2[i+1] + log(cx1->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          if (cx1->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0f) nscaled++;
+        }
+      /* Cells below 1e-25 are skipped: terms that fall below the smallest
+       * normal float are lost, which can be most of such a cell's value;
+       * above 1e-25 the lost terms are negligible. */
+      for (i = 1; i <= Ln; i++)
+        for (k = 1; k <= M; k++)
+          for (s = 0; s < p7X_NSCELLS; s++)
+            {
+              a = omx_get(oxb, s, i, k);
+              c = chk_get(cx1, s, i, k);
+              if (a < 1e-25 || c < 1e-25) continue;
+              d = (log(a) + lsf1[i]) - (log(c) + lsf2[i]);
+              if (fabs(d) > 0.001) esl_fatal("%s: row %d, k %d, state %d: log values differ by %g", msg, i, k, s, d);
+            }
+    }
+  if (require_scaling && nscaled == 0) esl_fatal("%s: no row was rescaled; test is too weak", msg);
+
+  free(dsq);
+  free(lsf1);
+  free(lsf2);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_profile_Destroy(gm);
+  p7_omx_Destroy(oxf);
+  p7_omx_Destroy(oxb);
+  p7_chkomx_Destroy(cx1);
+  p7_chkomx_Destroy(cx2);
+  p7_oprofile_Destroy(om);
+}
 #endif /*p7FWDBACK_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
@@ -1298,6 +1565,9 @@ main(int argc, char **argv)
   utest_backward_decoding(r, abc, bg, M, L, N);
   utest_backward_decoding(r, abc, bg, 1, L, 10);
   utest_backward_decoding(r, abc, bg, M, 1, 10);
+  utest_backward_chk(r, abc, bg, M, L, N,  TRUE);
+  utest_backward_chk(r, abc, bg, 1, L, 10, FALSE);
+  utest_backward_chk(r, abc, bg, M, 1, 10, FALSE);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);
@@ -1312,6 +1582,9 @@ main(int argc, char **argv)
   utest_backward_decoding(r, abc, bg, M, L, N);
   utest_backward_decoding(r, abc, bg, 1, L, 10);
   utest_backward_decoding(r, abc, bg, M, 1, 10);
+  utest_backward_chk(r, abc, bg, M, L, N,  TRUE);
+  utest_backward_chk(r, abc, bg, 1, L, 10, FALSE);
+  utest_backward_chk(r, abc, bg, M, 1, 10, FALSE);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);

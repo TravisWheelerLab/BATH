@@ -260,6 +260,58 @@ p7_BackwardDecoding_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS
   return eslENORESULT;
 #endif
 }
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardChk_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc) = p7_BackwardChk_Frameshift_Dispatcher;
+
+/* Function:  p7_BackwardChk_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the checkpointed 5-codon frameshift Backward with its own scale factors.
+ */
+static int
+p7_BackwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_BackwardChk_Frameshift = p7_BackwardChk_Frameshift_avx; return p7_BackwardChk_Frameshift_avx(dsq, L, om_fs, cx, ov, opt_sc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardChk_Frameshift = p7_BackwardChk_Frameshift_sse;
+  return p7_BackwardChk_Frameshift_sse(dsq, L, om_fs, cx, ov, opt_sc);
+#else
+  p7_Die("p7_BackwardChk_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+
+/* Forward declaration of dispatcher */
+static int p7_BackwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_BackwardChkLoad_Frameshift)(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b) = p7_BackwardChkLoad_Frameshift_Dispatcher;
+
+/* Function:  p7_BackwardChkLoad_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for loading one block of the checkpointed frameshift Backward again.
+ */
+static int
+p7_BackwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_BackwardChkLoad_Frameshift = p7_BackwardChkLoad_Frameshift_avx; return p7_BackwardChkLoad_Frameshift_avx(dsq, om_fs, cx, ov, b); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_BackwardChkLoad_Frameshift = p7_BackwardChkLoad_Frameshift_sse;
+  return p7_BackwardChkLoad_Frameshift_sse(dsq, om_fs, cx, ov, b);
+#else
+  p7_Die("p7_BackwardChkLoad_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
 /*****************************************************************
  * 2. Benchmark driver.
  *****************************************************************/
@@ -849,6 +901,185 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   p7_gmx_Destroy(gx);
 }
 
+/* utest_backward_chk_fs()
+ * Checkpointed frameshift Backward with its own scale factors on random
+ * DNA and the back-translated model consensus between random flanks,
+ * DNA lengths 15..<L>:
+ *   - a fill in one block and a fill in blocks of 5..12 rows give
+ *     identical scores, special states and scale factors;
+ *   - every block loaded again, in increasing order as a forward
+ *     sweep reads them, is identical to the one-block fill;
+ *   - scores and cells (with each matrix's own row scale factors
+ *     taken out) agree with p7_Backward_Frameshift() up to rounding.
+ * With <require_scaling>, fail if no row was rescaled. With <use_sse>,
+ * the _sse versions are called directly, so an AVX CPU also tests the
+ * SSE engine.
+ */
+static void
+utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
+                      P7_CODONTABLE *codon_table, int M, int L, int N, int require_scaling, int use_sse)
+{
+  char           *msg    = "checkpointed frameshift backward unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE *om_fs5 = NULL;
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  double         *lsf1   = malloc(sizeof(double) * (L+2));
+  double         *lsf2   = malloc(sizeof(double) * (L+2));
+  P7_OMX         *fwd    = NULL;
+  P7_OMX         *bck    = NULL;
+  P7_OIVX        *ov5    = NULL;
+  P7_CHKOMX      *cx1    = NULL;
+  P7_CHKOMX      *cx2    = NULL;
+  int           (*chk_growto)(P7_CHKOMX *, int, int, int)       = use_sse ? p7_chkomx_GrowTo_sse  : p7_chkomx_GrowTo;
+  float         (*chk_get)   (const P7_CHKOMX *, int, int, int) = use_sse ? p7_chkomx_FGetMDI_sse : p7_chkomx_FGetMDI;
+  float         (*omx_get)   (const P7_OMX *, int, int, int)    = use_sse ? p7_omx_FGetMDI_sse    : p7_omx_FGetMDI;
+  int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_BackwardChk_Frameshift_sse     : p7_BackwardChk_Frameshift;
+  int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_BackwardChkLoad_Frameshift_sse : p7_BackwardChkLoad_Frameshift;
+  float           bsc, sc1, sc2;
+  float           a, c;
+  double          d;
+  int             nscaled = 0;
+  int             n, Ln, blockR, b, i, j, k, s, x, start;
+
+  /* a sampled model with sharpened match emissions and M->M transitions,
+   * so its consensus scores high */
+  if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+      esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+  p7_emit_SimpleConsensus(hmm, sq);
+
+  if (use_sse)
+    {
+      om_fs5 = p7_fs_oprofile_Create_sse(M, abcAA, 5);
+      p7_fs_oprofile_Convert_sse(gm_fs5, om_fs5);
+      fwd = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS_FS);
+      bck = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS);
+      ov5 = p7_oivx_Create_sse(M, p7P_5CODONS);
+      cx1 = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create_sse(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+  else
+    {
+      om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
+      p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+      fwd = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS);
+      bck = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS);
+      ov5 = p7_oivx_Create(M, p7P_5CODONS);
+      cx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
+      cx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
+    }
+
+  for (n = 0; n < N; n++)
+    {
+      /* alternate random DNA and the back-translated consensus between
+       * random flanks, which scores high enough for rows to be rescaled */
+      Ln = 15 + esl_rnd_Roll(r, L - 14);
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+      if (n % 2 == 1 && 3*M <= L)
+        {
+          Ln    = ESL_MAX(Ln, 3*M);
+          esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+          start = 1 + esl_rnd_Roll(r, Ln - 3*M + 1);
+          for (i = 1, j = start; i <= M; i++, j += 3)
+            p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+        }
+
+      if (use_sse)
+        {
+          p7_fs_oprofile_ReconfigLength_sse(om_fs5, Ln/3);
+          if (p7_Forward_Frameshift_sse (dsq, Ln, om_fs5, fwd,      ov5, NULL) != eslOK) esl_fatal(msg);
+          if (p7_Backward_Frameshift_sse(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
+        }
+      else
+        {
+          p7_fs_oprofile_ReconfigLength(om_fs5, Ln/3);
+          if (p7_Forward_Frameshift (dsq, Ln, om_fs5, fwd,      ov5, NULL) != eslOK) esl_fatal(msg);
+          if (p7_Backward_Frameshift(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
+        }
+
+      blockR = 5 + esl_rnd_Roll(r, 8);
+      if (chk_growto(cx1, M, Ln, Ln+1)  != eslOK) esl_fatal(msg);
+      if (chk_growto(cx2, M, Ln, blockR) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om_fs5, cx1, ov5, &sc1) != eslOK) esl_fatal(msg);
+      if (bck_chk(dsq, Ln, om_fs5, cx2, ov5, &sc2) != eslOK) esl_fatal(msg);
+
+      if (sc1 != sc2)                                  esl_fatal("%s: one-block and blocked scores differ (%f %f)", msg, sc1, sc2);
+      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward_Frameshift() %f", msg, sc1, bsc);
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states differ", msg);
+
+      for (b = 0; b <= Ln; b += blockR)
+        {
+          if (bck_load(dsq, om_fs5, cx2, ov5, b) != eslOK) esl_fatal(msg);
+          for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
+            for (k = 1; k <= M; k++)
+              for (s = 0; s < p7X_NSCELLS; s++)
+                if (chk_get(cx2, s, i, k) != chk_get(cx1, s, i, k))
+                  esl_fatal("%s: loaded block %d differs at row %d, k %d (%g %g)", msg, b, i, k, chk_get(cx2, s, i, k), chk_get(cx1, s, i, k));
+        }
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states changed by loading", msg);
+
+      /* log of the product of each matrix's scale factors for rows i..L */
+      lsf1[Ln+1] = lsf2[Ln+1] = 0.;
+      for (i = Ln; i >= 1; i--)
+        {
+          lsf1[i] = lsf1[i+1] + log(bck->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          lsf2[i] = lsf2[i+1] + log(cx1->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+          if (cx1->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0f) nscaled++;
+        }
+      /* Cells below 1e-25 are skipped: terms that fall below the smallest
+       * normal float are lost, which can be most of such a cell's value;
+       * above 1e-25 the lost terms are negligible. */
+      for (i = 1; i <= Ln; i++)
+        for (k = 1; k <= M; k++)
+          for (s = 0; s < p7X_NSCELLS; s++)
+            {
+              a = omx_get(bck, s, i, k);
+              c = chk_get(cx1, s, i, k);
+              if (a < 1e-25 || c < 1e-25) continue;
+              d = (log(a) + lsf1[i]) - (log(c) + lsf2[i]);
+              if (fabs(d) > 0.001) esl_fatal("%s: row %d, k %d, state %d: log values differ by %g", msg, i, k, s, d);
+            }
+    }
+  if (require_scaling && nscaled == 0) esl_fatal("%s: no row was rescaled; test is too weak", msg);
+
+  free(dsq);
+  free(lsf1);
+  free(lsf2);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_profile_fs_Destroy(gm_fs5);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(fwd);
+      p7_omx_Destroy_sse(bck);
+      p7_oivx_Destroy_sse(ov5);
+      p7_chkomx_Destroy_sse(cx1);
+      p7_chkomx_Destroy_sse(cx2);
+      p7_fs_oprofile_Destroy_sse(om_fs5);
+    }
+  else
+    {
+      p7_omx_Destroy(fwd);
+      p7_omx_Destroy(bck);
+      p7_oivx_Destroy(ov5);
+      p7_chkomx_Destroy(cx1);
+      p7_chkomx_Destroy(cx2);
+      p7_fs_oprofile_Destroy(om_fs5);
+    }
+}
+
 #if defined(eslENABLE_SSE) && defined(eslENABLE_AVX)
 /* utest_sse_vs_avx_fwdbackfs()
  *
@@ -1074,9 +1305,15 @@ main(int argc, char **argv)
 #endif
   utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N, FALSE);
   utest_backward_rowL_scale_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 10, FALSE);
+  utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 3*M+150, N,  TRUE,  FALSE);
+  utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, 1, 60,      10, FALSE, FALSE);
 #ifdef eslENABLE_SSE
-  if (esl_cpu_has_sse()) utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N, TRUE);
-  if (esl_cpu_has_sse()) utest_backward_rowL_scale_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 10, TRUE);
+  if (esl_cpu_has_sse()) {
+    utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N, TRUE);
+    utest_backward_rowL_scale_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 10, TRUE);
+    utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 3*M+150, N,  TRUE,  TRUE);
+    utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, 1, 60,      10, FALSE, TRUE);
+  }
 #endif
 
   esl_alphabet_Destroy(abcDNA);

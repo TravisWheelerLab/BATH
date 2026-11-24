@@ -462,6 +462,38 @@ extern float (*p7_omx_FGetMDI)(const P7_OMX *ox, int s, int i, int k);
 extern void  (*p7_omx_FSetMDI)(const P7_OMX *ox, int s, int i, int k, float val);
 
 
+/* OATO_*: cells of a P7_OATMX (hmmer.h) in the striped layout, where
+ * <ox->lanes> is the number of floats per vector. Cell k is bit
+ * q*lanes + r of each plane row, q = (k-1) % Q and r = (k-1) / Q with
+ * Q = p7OAT_NQ(M, lanes), the stripe count of the SIMD profile.
+ */
+#define OATO_BIT(ox,k)            ( (((k)-1) % p7OAT_NQ((ox)->M, (ox)->lanes)) * (ox)->lanes + ((k)-1) / p7OAT_NQ((ox)->M, (ox)->lanes) )
+#define OATO_MPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_MP,  2)
+#define OATO_IPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_IP,  1)
+#define OATO_DPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_DP,  1)
+#define OATO_PPM(ox,i,k)          p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_PPM, 4)
+#define OATO_PPI(ox,i,k)          p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_PPI, 4)
+#define OATO_CODON(ox,i,k)        p7_oatmx_GetField((ox), (i), OATO_BIT(ox,k), p7OAT_COD, 3)
+#define OATO_SET_MPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_MP,  2, (v))
+#define OATO_SET_IPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_IP,  1, (v))
+#define OATO_SET_DPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_DP,  1, (v))
+#define OATO_SET_PPM(ox,i,k,v)    p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_PPM, 4, (v))
+#define OATO_SET_PPI(ox,i,k,v)    p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_PPI, 4, (v))
+#define OATO_SET_CODON(ox,i,k,v)  p7_oatmx_SetField((ox), (i), OATO_BIT(ox,k), p7OAT_COD, 3, (v))
+
+/* Writing one plane's bits for all lanes of stripe q at once, from a
+ * lane mask <m> (bit r = lane r):
+ */
+/* AVX, 8 lanes: the stripe is byte q of the plane row. */
+#define OATO_STRIPE8(ox,i,p,q)    ( p7OAT_ROW(ox,i,p)[q] )
+/* 4 lanes (SSE): the stripe is half of byte q/2 of the plane row. */
+#define OATO_SET_STRIPE4(ox,i,p,q,m) do {                                              \
+    uint8_t *oato_c = p7OAT_ROW(ox,i,p) + ((q) >> 1);                                  \
+    int      oato_s = ((q) & 1) * 4;                                                   \
+    *oato_c = (uint8_t) ((*oato_c & ~(0xf << oato_s)) | (((m) & 0xf) << oato_s));      \
+  } while (0)
+
+
 /* P7_CHKOMX: checkpointed float dynamic programming matrix
  *
  * Rows are computed in blocks of <blockR> rows; the block starting at

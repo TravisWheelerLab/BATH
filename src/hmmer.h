@@ -712,6 +712,123 @@ typedef struct p7_chkivx_s {
   int   *cki;           /* [allocK][(allocM+1)*allocCI] saved ints                 */
 } P7_CHKIVX;
 
+/* P7_OATMX: everything the optimal accuracy (OA) trace reads.
+ *
+ * Filled one row at a time while the OA scores are computed, so that
+ * the OA and posterior rows themselves only need to be kept in rings
+ * of rows. For every cell (i,k) it holds a few bits, each bit in its
+ * own bit plane: a row has <nplanes> planes of <rowbytes> bytes. The
+ * cell fields (p7OAT_* planes) are:
+ *   M predecessor: the state an M at (i',k+1) comes from when its
+ *     predecessor row is i (i' = i+1, or i+c for codon length c):
+ *     p7OAT_FROM_M, _I, _D or _B (2 bits);
+ *   I predecessor: the state an I one row below comes from (row i+1,
+ *     or i+3 for the frameshift model): p7OAT_FROM_M or _I (1 bit);
+ *   D predecessor: the state a D at (i,k+1) comes from: p7OAT_FROM_M,
+ *     or 1 for D (1 bit);
+ *   posterior probability codes of M and I at (i,k), 0..10 as
+ *     p7_alidisplay_EncodePostProb() prints them ('0'..'9', '*'; 4 bits
+ *     each);
+ *   frameshift model only: the codon length 1..5 an M at (i,k) takes
+ *     (3 bits).
+ *
+ * Where a cell's bit lies in a plane depends on <lanes>: 1 for the
+ * generic code, where cell k is bit k-1 (OATX_* macros, below); the
+ * number of floats per vector for SIMD code, where cell k is bit
+ * q*lanes + r of the striped layout, q = (k-1) % Q and r = (k-1) / Q
+ * with Q = p7OAT_NQ(M, lanes) stripes (OATO_* macros, in impl_*.h).
+ *
+ * Per row, for every row 0..L:
+ *   xmx[i*p7OAT_NXCELLS + s]: the OA scores of N, J, C, B and E and the
+ *     posterior probabilities of N, J and C;
+ *   ek[i]: the cell an E at row i comes from, the best M or D of the
+ *     row in the OA trace's scan order: k for M, -k for D.
+ */
+enum p7_oatplanes_e {
+  p7OAT_MP  = 0,    /* M predecessor, planes 0..1                         */
+  p7OAT_IP  = 2,    /* I predecessor                                      */
+  p7OAT_DP  = 3,    /* D predecessor                                      */
+  p7OAT_PPM = 4,    /* posterior code of M, planes 4..7                   */
+  p7OAT_PPI = 8,    /* posterior code of I, planes 8..11                  */
+  p7OAT_COD = 12    /* codon length of M, planes 12..14 (frameshift only) */
+};
+#define p7OAT_NPLANES     12
+#define p7OAT_NPLANES_FS  15
+
+enum p7_oatfrom_e { p7OAT_FROM_M = 0, p7OAT_FROM_I = 1, p7OAT_FROM_D = 2, p7OAT_FROM_B = 3 };
+
+enum p7_oatxcells_e {
+  p7OAT_N = 0, p7OAT_J = 1, p7OAT_C = 2, p7OAT_B = 3, p7OAT_E = 4,   /* OA scores               */
+  p7OAT_PPN = 5, p7OAT_PPJ = 6, p7OAT_PPC = 7                        /* posterior probabilities */
+};
+#define p7OAT_NXCELLS 8
+
+/* p7OAT_NQ(): bits used per plane row are NQ*lanes: M for lanes = 1,
+ * else the stripes of the SIMD profile (same as p7O_NQF() and its
+ * kin). */
+#define p7OAT_NQ(M, lanes) ( (lanes) == 1 ? (M) : ESL_MAX(2, (((M)-1) / (lanes)) + 1) )
+
+typedef struct p7_oatmx_s {
+  int       M;
+  int       L;
+  int       nplanes;    /* p7OAT_NPLANES or p7OAT_NPLANES_FS                      */
+  int       lanes;      /* 1 (generic, k order) or floats per vector (striped)    */
+  int       rowbytes;   /* bytes per plane per row: ceil(p7OAT_NQ(M,lanes)*lanes/8) */
+
+  uint8_t  *mem;        /* planes: row i, plane p at mem + (i*nplanes + p)*rowbytes */
+  size_t    allocB;     /* bytes allocated in mem                                 */
+
+  float    *xmx;        /* [0..L][0..p7OAT_NXCELLS-1]; indexed [i*p7OAT_NXCELLS+s] */
+  int      *ek;         /* [0..L]: k for M, -k for D                              */
+  int       allocXR;    /* rows allocated in xmx and ek                           */
+} P7_OATMX;
+
+/* Bit-plane access for any layout, by bit index <b> within the row. */
+#define p7OAT_ROW(ox,i,p) ((ox)->mem + ((size_t) (i) * (ox)->nplanes + (p)) * (ox)->rowbytes)
+
+static inline int
+p7_oatmx_GetField(const P7_OATMX *ox, int i, int b, int p0, int nbits)
+{
+  int v = 0, n;
+  for (n = 0; n < nbits; n++)
+    v |= ((p7OAT_ROW(ox, i, p0+n)[b >> 3] >> (b & 7)) & 1) << n;
+  return v;
+}
+
+static inline void
+p7_oatmx_SetField(P7_OATMX *ox, int i, int b, int p0, int nbits, int v)
+{
+  uint8_t  m = (uint8_t) (1 << (b & 7));
+  uint8_t *c;
+  int      n;
+  for (n = 0; n < nbits; n++)
+    {
+      c  = p7OAT_ROW(ox, i, p0+n) + (b >> 3);
+      *c = ((v >> n) & 1) ? (*c | m) : (*c & (uint8_t) ~m);
+    }
+}
+
+/* Posterior codes: the character p7_alidisplay_EncodePostProb() prints
+ * for <p>, as 0..10 ('0'..'9', '*'), and a probability that prints as
+ * the same character. */
+#define p7OAT_PPCODE(p)  ( ((p) + 0.05 >= 1.0) ? 10 : ( ((p) + 0.05 <= 0.0) ? 0 : (int) (((p) + 0.05) * 10.0) ) )
+#define p7OAT_PPVALUE(c) ( (float) (c) / 10.0f )
+
+/* Generic layout (lanes = 1): cell k is bit k-1. */
+#define OATX_MPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_MP,  2)
+#define OATX_IPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_IP,  1)
+#define OATX_DPRED(ox,i,k)        p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_DP,  1)
+#define OATX_PPM(ox,i,k)          p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_PPM, 4)
+#define OATX_PPI(ox,i,k)          p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_PPI, 4)
+#define OATX_CODON(ox,i,k)        p7_oatmx_GetField((ox), (i), (k)-1, p7OAT_COD, 3)
+#define OATX_SET_MPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_MP,  2, (v))
+#define OATX_SET_IPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_IP,  1, (v))
+#define OATX_SET_DPRED(ox,i,k,v)  p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_DP,  1, (v))
+#define OATX_SET_PPM(ox,i,k,v)    p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_PPM, 4, (v))
+#define OATX_SET_PPI(ox,i,k,v)    p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_PPI, 4, (v))
+#define OATX_SET_CODON(ox,i,k,v)  p7_oatmx_SetField((ox), (i), (k)-1, p7OAT_COD, 3, (v))
+#define OATX_XMX(ox,i,s)          ((ox)->xmx[(i) * p7OAT_NXCELLS + (s)])
+
 /* Macros below implement indexing idioms for generic DP routines.
  * They require the following setup, for profile <gm> and matrix <gx>:
  *   float const *tsc = gm->tsc;
@@ -1521,6 +1638,12 @@ extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L, int blockR);
 extern int        p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b);
 extern int        p7_chkgmx_LoadBlock (P7_CHKGMX *cx, int b);
 extern void       p7_chkgmx_Destroy   (P7_CHKGMX *cx);
+
+/* p7_oatmx.c */
+extern P7_OATMX *p7_oatmx_Create (int allocM, int allocL, int nplanes, int lanes);
+extern int       p7_oatmx_GrowTo (P7_OATMX *ox, int M, int L);
+extern size_t    p7_oatmx_Sizeof (const P7_OATMX *ox);
+extern void      p7_oatmx_Destroy(P7_OATMX *ox);
 
 /* p7_ivx.c */
 extern P7_IVX *p7_ivx_Create(int allocM, int allocC);

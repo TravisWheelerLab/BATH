@@ -644,6 +644,9 @@ typedef struct p7_gmx_s {
   float  *dp_mem;
 } P7_GMX;
 
+/* A checkpointed matrix whose rows all fit in this many bytes is filled in one block */
+#define p7_CHK_ONEBLOCK_BYTES (32.0 * 1024.0 * 1024.0)
+
 /* P7_CHKGMX: checkpointed generic dynamic programming matrix.
  *
  * Rows are computed in blocks of <blockR> rows; the block starting at
@@ -1257,8 +1260,10 @@ typedef struct p7_pipeline_s {
   /* Dynamic programming matrices                                              */
   P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                    */
   P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                   */
-  P7_OMX     *fwd;    /* full Fwd matrix for domain envelopes                  */
-  P7_OMX     *bck;    /* one-row Bck parsing matrix for domain envelopes       */
+  P7_OMX     *fwd;    /* full Fwd matrix for stochastic traces of multidomain regions */
+  P7_OMX     *bck;    /* one-row workspace for null2 from those traces         */
+  P7_CHKOMX  *chk;    /* checkpointed Backward for domain rescoring            */
+  P7_OATMX   *oat;    /* what the OA trace reads, for domain rescoring         */
   P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
   P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
   P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for domain envelopes       */
@@ -1630,7 +1635,7 @@ extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode);
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells);
@@ -1662,6 +1667,7 @@ extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L, int blockR);
 extern int        p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b);
 extern int        p7_chkgmx_LoadBlock (P7_CHKGMX *cx, int b);
 extern void       p7_chkgmx_Destroy   (P7_CHKGMX *cx);
+extern int        p7_chk_BlockRows    (int M, int L, int saveR, int nscells);
 
 /* p7_oatmx.c */
 extern P7_OATMX *p7_oatmx_Create (int allocM, int allocL, int nplanes, int lanes);

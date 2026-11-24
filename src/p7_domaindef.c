@@ -25,7 +25,7 @@ static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
 static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
-static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done);
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j, int null2_is_done);
 
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
@@ -483,9 +483,13 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            matrices <oxf> and <oxb>; use posterior probability
  *            heuristics to determine an annotated domain structure;
  *            and for each domain found, score it (with null2
- *            calculations) and obtain an optimal accuracy alignment,
- *            using <fwd> and <bck> matrices as workspace for the
- *            necessary full-matrix DP calculations. Caller provides a
+ *            calculations) and obtain an optimal accuracy alignment.
+ *            Regions that look like more than one domain are split by
+ *            clustering stochastic traces, which use <fwd> as a full
+ *            Forward matrix and <bck> as one-row workspace. Each domain
+ *            is scored and aligned with a checkpointed Backward in <chk>
+ *            and an OA sweep that stores what the OA trace reads in
+ *            <oat>. Caller provides a
  *            new or reused <ddef> object to hold these results.
  *            Upon return, <ddef> contains the definitions of all the
  *            domains: their bounds, their null-corrected Forward
@@ -498,7 +502,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -532,8 +536,6 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
     else if (ddef->mocc[j] - (ddef->etot[j] - ddef->etot[j-1])  <  ddef->rt2)
     {
         /* We have a region i..j to evaluate. */
-        p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);
-        p7_omx_GrowTo(bck, om->M, 0, j-i+1);   /* one core row: BackwardDecoding and Null2_ByTrace need no more */
         ddef->nregions++;
         
         if (is_multidomain_region(ddef, i, j))
@@ -550,6 +552,8 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
              * here; we will consolidate later if null2 strategy
              * works
              */
+            p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);   /* full Forward matrix for the stochastic traces */
+            p7_omx_GrowTo(bck, om->M, 0, j-i+1);       /* one core row: Null2_ByTrace needs no more */
             p7_oprofile_ReconfigMultihit(om, saveL);
             p7_Forward(orfsq->dsq+i-1, j-i+1, om, fwd, NULL);
 		
@@ -581,7 +585,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
                  * happens. [xref J5/130].
               */
               ddef->nenvelopes++;
-              if (rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, fwd, bck, i2, j2, TRUE) == eslOK)
+              if (rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i2, j2, TRUE) == eslOK)
               last_j2 = j2;
           }
             p7_spensemble_Reuse(ddef->sp);
@@ -592,7 +596,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
 		
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
-            rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, fwd, bck, i, j, FALSE);
+            rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i, j, FALSE);
         }
         i     = -1;
         triggered = FALSE;
@@ -1201,12 +1205,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
  * also obtained in unilocal mode.
  * 
- * The caller provides DP matrices <ox1> and <ox2>. <ox1> is grown to a
- * full matrix for this domain: it holds the Forward matrix, then the
- * posterior decoding (written over it by p7_BackwardDecoding()), then
- * the OA matrix (written over the posteriors). <ox2> is grown to a
- * one-row parsing matrix for the Backward calculation. The caller
- * also provides a <P7_DOMAINDEF> object (ddef)
+ * The caller provides a checkpointed Backward matrix <cx> and the OA
+ * trace storage <ox>. The Backward is filled into <cx>, then one sweep
+ * through the rows computes the Forward, posterior and OA rows (and,
+ * unless <null2_is_done>, null2) and stores what the OA trace reads in
+ * <ox>. The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
  * working space and heuristic thresholds.
  *
@@ -1222,13 +1225,13 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * 
  */
 static int
-rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OMX *ox1, P7_OMX *ox2, int i, int j, int null2_is_done)
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j, int null2_is_done)
 {
 
   P7_DOMAIN *dom           = NULL;
   int        Ld            = j-i+1;
   float      domcorrection = 0.0;
-  float      envsc, oasc, bcksc;
+  float      envsc, oasc;
   int        z;
   int        z1, z2;
   int        pos;
@@ -1236,20 +1239,19 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
   int        status;
 
   p7_oprofile_ReconfigLength(om, Ld);
-  p7_omx_GrowTo(ox1, om->M, Ld, Ld); 
-  p7_omx_GrowTo(ox2, om->M, 0,  Ld);
-	
-  p7_Forward (orfsq->dsq + i-1, Ld, om,      ox1, &envsc);
-  status = p7_BackwardDecoding(orfsq->dsq + i-1, Ld, om, ox1, ox2, &bcksc); /* <ox1> is now overwritten with post probabilities */
-  if (status == eslERANGE) return eslFAIL;      /* rare: numeric overflow; domain is assumed to be repetitive garbage [J3/119-121] */
+  if ((status = p7_chkomx_GrowTo(cx, om->M, Ld, p7_chk_BlockRows(om->M, Ld, 1, p7X_NSCELLS))) != eslOK) return status;
 
-  /* null2 reads the posteriors, so it comes before the OA fill overwrites them */
-  if (!null2_is_done) p7_Null2_ByExpectation(om, ox1, null2);
-   
-  /* Find an optimal accuracy alignment */
-  p7_OptimalAccuracy(om, ox1, ox1, &oasc);      /* <ox1> is now overwritten with OA scores              */
+  /* rare: numeric overflow in Backward or the posteriors; domain is assumed to be repetitive garbage [J3/119-121] */
+  status = p7_BackwardChk(orfsq->dsq + i-1, Ld, om, cx, NULL);
+  if (status == eslERANGE) return eslFAIL;
+  if (status != eslOK)     return status;
 
-  p7_OATrace        (om, ox1, ddef->tr);   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
+  /* Forward score, null2 and the optimal accuracy alignment */
+  status = p7_OptimalAccuracySweep(orfsq->dsq + i-1, Ld, om, cx, ox, (null2_is_done ? NULL : null2), &envsc, &oasc);
+  if (status == eslERANGE) return eslFAIL;
+  if (status != eslOK)     return status;
+
+  if ((status = p7_OATraceSweep(om, ox, ddef->tr)) != eslOK) return status;   /* <tr>'s seq coords are offset by i-1, rel to orig dsq */
     
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)

@@ -8,6 +8,7 @@
  */
 #include "p7_config.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "easel.h"
@@ -227,6 +228,29 @@ p7_chkgmx_Destroy(P7_CHKGMX *cx)
   return;
 }
 
+
+/* Function:  p7_chk_BlockRows()
+ * Synopsis:  Rows per block for a checkpointed matrix.
+ *
+ * Purpose:   Return the number of rows per block for a checkpointed
+ *            matrix (<P7_CHKGMX> or <P7_CHKOMX>) for a model of length
+ *            <M>, a sequence of length <L>, <saveR> rows saved at each
+ *            checkpoint and <nscells> floats per cell: one block of all
+ *            <L>+1 rows if that block and its saved rows take at most
+ *            <p7_CHK_ONEBLOCK_BYTES>, else ceil(sqrt(saveR*L)) rows, which
+ *            keeps the block and the checkpoints at about
+ *            2*sqrt(saveR*L) rows together.
+ */
+int
+p7_chk_BlockRows(int M, int L, int saveR, int nscells)
+{
+  double bytes  = (double) (L + 1 + saveR) * (double) M * (double) nscells * sizeof(float);
+  int    blockR;
+
+  if (bytes <= p7_CHK_ONEBLOCK_BYTES) return L + 1;
+  blockR = (int) ceil(sqrt((double) saveR * (double) L));
+  return ESL_MAX(blockR, saveR);
+}
 
 /*****************************************************************
  *= 2. Loading blocks and checkpoints.

@@ -432,6 +432,10 @@ p7_BackwardParser_Frameshift_3Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_
   for (r = 0; r < PARSER_ROWS_BWD; r++)
     xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
 
+  /* C of rows L+1 and L+2, past the end, read by rows L-1 and L-2 */
+  xC_buf[(L+1) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
+  xC_buf[(L+2) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
+
   /* Initialization: rows L and L-1 */
   for (i = L; i >= L-1; i--)
     {
@@ -439,7 +443,7 @@ p7_BackwardParser_Frameshift_3Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_
       curr = b;
 
       if      (i == L)   xC = om_fs->xf[p7O_C][p7O_MOVE];
-      else if (i == L-1) xC = om_fs->xf[p7O_C][p7O_LOOP] * om_fs->xf[p7O_C][p7O_MOVE];
+      else if (i == L-1) xC = xC_buf[(L+2) % PARSER_ROWS_BWD] * om_fs->xf[p7O_C][p7O_LOOP];
 
       xN = xB = xJ = 0.0f;
       xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
@@ -480,6 +484,7 @@ p7_BackwardParser_Frameshift_3Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_
               { MMO(bck->dpf[r],q) = _mm_mul_ps(MMO(bck->dpf[r],q), xEv);
                 DMO(bck->dpf[r],q) = _mm_mul_ps(DMO(bck->dpf[r],q), xEv);
                 IMO(bck->dpf[r],q) = _mm_mul_ps(IMO(bck->dpf[r],q), xEv); }
+          for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
           bck->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
@@ -515,7 +520,7 @@ p7_BackwardParser_Frameshift_3Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_
   xBv = _mm_add_ps(xBv, _mm_shuffle_ps(xBv, xBv, _MM_SHUFFLE(1,0,3,2)));
   _mm_store_ss(&xB, xBv);
 
-  xC = om_fs->xf[p7O_C][p7O_LOOP] * om_fs->xf[p7O_C][p7O_MOVE];
+  xC = xC_buf[(L+1) % PARSER_ROWS_BWD] * om_fs->xf[p7O_C][p7O_LOOP];
   xJ = xB * om_fs->xf[p7O_J][p7O_MOVE];
   xN = xB * om_fs->xf[p7O_N][p7O_MOVE];
   xE = xJ * om_fs->xf[p7O_E][p7O_LOOP] + xC * om_fs->xf[p7O_E][p7O_MOVE];
@@ -1183,6 +1188,8 @@ p7_BackwardParser_Frameshift_5Codons_sse(const ESL_DSQ *dsq, int L, const P7_FS_
         { MMO(bck->dpf[r],q)=_mm_mul_ps(MMO(bck->dpf[r],q),xEv);
           DMO(bck->dpf[r],q)=_mm_mul_ps(DMO(bck->dpf[r],q),xEv);
           IMO(bck->dpf[r],q)=_mm_mul_ps(IMO(bck->dpf[r],q),xEv); }
+      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
+      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
       bck->totscale += log(scale); }
 
   xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;
@@ -1858,6 +1865,8 @@ backward_frameshift_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_
   if (scale>1.0f)
     { float sf=1.0f/scale; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xE*=sf; xEv=_mm_set1_ps(sf);
       for (q=0;q<Q;q++) { MMO(dpc,q)=_mm_mul_ps(MMO(dpc,q),xEv); DMO(dpc,q)=_mm_mul_ps(DMO(dpc,q),xEv); IMO(dpc,q)=_mm_mul_ps(IMO(dpc,q),xEv); }
+      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
+      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
       bck->totscale+=log(scale); }
 
   xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;

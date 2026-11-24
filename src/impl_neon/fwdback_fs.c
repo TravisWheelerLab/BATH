@@ -619,6 +619,10 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   for (r = 0; r < PARSER_ROWS_BWD; r++)
     xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
 
+  /* C of rows L+1 and L+2, past the end, read by rows L-1 and L-2 */
+  xC_buf[(L+1) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
+  xC_buf[(L+2) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
+
   /*----------------------------------------------------------------
    * Initialization: rows L and L-1
    * C(L)   = T_CM.  C(L-1) = T_CL * T_CM.
@@ -631,7 +635,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
       curr = b;
 
       if      (i == L)   xC = om_fs->xf[p7O_C][p7O_MOVE];
-      else if (i == L-1) xC = om_fs->xf[p7O_C][p7O_LOOP] * om_fs->xf[p7O_C][p7O_MOVE];
+      else if (i == L-1) xC = xC_buf[(L+2) % PARSER_ROWS_BWD] * om_fs->xf[p7O_C][p7O_LOOP];
 
       xN = xB = xJ = 0.0f;
       xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
@@ -675,6 +679,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
               { MMO(bck->dpf[r],q) = vmulq_f32(MMO(bck->dpf[r],q), xEv);
                 DMO(bck->dpf[r],q) = vmulq_f32(DMO(bck->dpf[r],q), xEv);
                 IMO(bck->dpf[r],q) = vmulq_f32(IMO(bck->dpf[r],q), xEv); }
+          for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
           bck->totscale += log(scale); }
 
       xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
@@ -722,7 +727,7 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
   for (q = 0; q < Q; q++) { xBv = vaddq_f32(xBv, vmulq_f32(ivxf[q], *tp7)); tp7 += 7; }
   esl_neon_hsum_float((esl_neon_128f_t)xBv, &xB);
 
-  xC = om_fs->xf[p7O_C][p7O_LOOP] * om_fs->xf[p7O_C][p7O_MOVE];
+  xC = xC_buf[(L+1) % PARSER_ROWS_BWD] * om_fs->xf[p7O_C][p7O_LOOP];
   xJ = xB * om_fs->xf[p7O_J][p7O_MOVE];
   xN = xB * om_fs->xf[p7O_N][p7O_MOVE];
   xE = xJ * om_fs->xf[p7O_E][p7O_LOOP] + xC * om_fs->xf[p7O_E][p7O_MOVE];
@@ -1764,6 +1769,8 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
           { MMO(bck->dpf[r],q) = vmulq_f32(MMO(bck->dpf[r],q), xEv);
             DMO(bck->dpf[r],q) = vmulq_f32(DMO(bck->dpf[r],q), xEv);
             IMO(bck->dpf[r],q) = vmulq_f32(IMO(bck->dpf[r],q), xEv); }
+      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
+      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
       bck->totscale += log(scale); }
 
   xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
@@ -2524,6 +2531,8 @@ backward_frameshift_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_O
   if (scale>1.0f)
     { float sf=1.0f/scale; xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xE*=sf; xEv=vmovq_n_f32(sf);
       for (q=0;q<Q;q++) { MMO(dpc,q)=vmulq_f32(MMO(dpc,q),xEv); DMO(dpc,q)=vmulq_f32(DMO(dpc,q),xEv); IMO(dpc,q)=vmulq_f32(IMO(dpc,q),xEv); }
+      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
+      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
       bck->totscale+=log(scale); }
   xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;
   bck->xmx[L*p7X_NXCELLS+p7X_E]=xE; bck->xmx[L*p7X_NXCELLS+p7X_N]=xN;
@@ -2910,6 +2919,7 @@ main(int argc, char **argv)
 #ifdef p7FWDBACK_FS_TESTDRIVE
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "esl_vectorops.h"
 
 /*
  * compare to GForward() scores.
@@ -3124,6 +3134,154 @@ utest_backward_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *
   p7_profile_fs_Destroy(gm_fs5);
   p7_fs_oprofile_Destroy(om_fs5);
 }
+
+/* rowL_compare_specials()
+ * Compare the special states of every row of SIMD Backward matrix <bck>,
+ * with its row scale factors taken out, to those of the generic matrix
+ * <gx>, for a sequence of length <L>. Fail if any differs by more than
+ * <tol> nats.
+ */
+static void
+rowL_compare_specials(const P7_OMX *bck, const P7_GMX *gx, int L, float tol, const char *msg, const char *what)
+{
+  int    sx[5]  = { p7X_N, p7X_J, p7X_C, p7X_B, p7X_E };
+  int    gsx[5] = { p7G_N, p7G_J, p7G_C, p7G_B, p7G_E };
+  double lsf    = 0.;
+  float  a, g;
+  int    i, s;
+
+  for (i = L; i >= 1; i--)
+    {
+      lsf += log(bck->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+      for (s = 0; s < 5; s++)
+        {
+          a = bck->xmx[i*p7X_NXCELLS+sx[s]];
+          g = gx->xmx[i*p7G_NXCELLS+gsx[s]];
+          if (g == -eslINFINITY || a < 1e-30) continue;
+          if (fabs(log(a) + lsf - g) > tol)
+            esl_fatal("%s: %s, row %d of %d, special state %d: %.3f vs generic %.3f", msg, what, i, L, s, log(a) + lsf, g);
+        }
+    }
+}
+
+/* utest_backward_rowL_scale_fs()
+ * The frameshift Backward variants (full matrix, 5-codon parser, 3-codon
+ * parser) when Forward rescales one of the last rows. Each sequence is
+ * the back-translated consensus of a model with sharpened match
+ * emissions and M->M transitions, followed by 0 or 1 random nucleotides,
+ * so the hit ends at row L or L-1, where Forward often rescales. The
+ * special states of every row, with the Backward scale factors taken
+ * out, must match the generic versions. Fails if Forward never rescaled
+ * row L (full matrix) or row L or L-1 (3-codon parser), so the case is
+ * exercised.
+ */
+static void
+utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
+                             P7_CODONTABLE *codon_table, int M, int nmodels)
+{
+  char            *msg    = "frameshift backward last-row scaling unit test failed";
+  P7_FS_OPROFILE *(*om_create) (int, const ESL_ALPHABET *, int)            = p7_fs_oprofile_Create;
+  int             (*om_convert)(const P7_FS_PROFILE *, P7_FS_OPROFILE *)    = p7_fs_oprofile_Convert;
+  int             (*om_reconf) (P7_FS_OPROFILE *, int)                     = p7_fs_oprofile_ReconfigLength;
+  void            (*om_destroy)(P7_FS_OPROFILE *)                          = p7_fs_oprofile_Destroy;
+  P7_OMX         *(*ox_create) (int, int, int, int)                        = p7_omx_Create_dpf;
+  void            (*ox_destroy)(P7_OMX *)                                  = p7_omx_Destroy;
+  P7_OIVX        *(*ov_create) (int, int)                                  = p7_oivx_Create;
+  void            (*ov_destroy)(P7_OIVX *)                                 = p7_oivx_Destroy;
+  int (*fwd_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_Forward_Frameshift;
+  int (*bck_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift;
+  int (*fwd_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_ForwardParser_Frameshift_5Codons;
+  int (*bck_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_BackwardParser_Frameshift_5Codons;
+  int (*fwd_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_ForwardParser_Frameshift_3Codons;
+  int (*bck_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_BackwardParser_Frameshift_3Codons;
+  int             Lmax   = 3*M + 1;
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (Lmax+2));
+  P7_FS_PROFILE  *gm5    = p7_profile_fs_Create(M, abcAA, p7P_5CODONS);
+  P7_FS_PROFILE  *gm3    = p7_profile_fs_Create(M, abcAA, p7P_3CODONS);
+  P7_FS_OPROFILE *om5    = om_create(M, abcAA, p7P_5CODONS);
+  P7_FS_OPROFILE *om3    = om_create(M, abcAA, p7P_3CODONS);
+  P7_OMX         *fwd    = ox_create(M, Lmax, Lmax, p7X_NSCELLS_FS);
+  P7_OMX         *bck    = ox_create(M, Lmax, Lmax, p7X_NSCELLS);
+  P7_OMX         *pf     = ox_create(M, PARSER_ROWS_FWD, Lmax, p7G_NSCELLS);
+  P7_OMX         *pb     = ox_create(M, PARSER_ROWS_BWD, Lmax, p7G_NSCELLS);
+  P7_OIVX        *ov5    = ov_create(M, p7P_5CODONS);
+  P7_OIVX        *ov3    = ov_create(M, p7P_3CODONS);
+  P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
+  P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
+  P7_GMX         *gx     = p7_gmx_Create(M, Lmax, Lmax, p7G_NSCELLS);
+  P7_HMM         *hmm    = NULL;
+  float           tol;
+  int             nfull  = 0;
+  int             np3    = 0;
+  int             n, tail, L, i, j, k, x;
+
+  p7_FLogsumInit();
+  tol = (p7_FLogsumError(-0.4, -0.5) > 0.0001) ? 1.0 : 0.01;
+
+  for (n = 0; n < nmodels; n++)
+    {
+      if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+      for (k = 1; k <= M; k++)
+        {
+          x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+          esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+          hmm->mat[k][x] = 0.85;
+          if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+        }
+      esl_sq_Reuse(sq);
+      p7_emit_SimpleConsensus(hmm, sq);
+
+      for (tail = 0; tail <= 1; tail++)
+        {
+          L = 3*M + tail;
+          esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
+          for (i = 1, j = 1; i <= M; i++, j += 3)
+            p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+
+          if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm5, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+          if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm3, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+          om_convert(gm5, om5);  om_reconf(om5, L/3);
+          om_convert(gm3, om3);  om_reconf(om3, L/3);
+
+          if (fwd_full(dsq, L, om5, fwd,      ov5, NULL) != eslOK) esl_fatal(msg);
+          if (bck_full(dsq, L, om5, fwd, bck, ov5, NULL) != eslOK) esl_fatal(msg);
+          if (fwd->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f) nfull++;
+          p7_GBackward_Frameshift(dsq, L, gm5, gx, iv5, NULL);
+          rowL_compare_specials(bck, gx, L, tol, msg, "full matrix");
+
+          if (fwd_p5(dsq, L, om5, pf,     ov5, NULL) != eslOK) esl_fatal(msg);
+          if (bck_p5(dsq, L, om5, pf, pb, ov5, NULL) != eslOK) esl_fatal(msg);
+          p7_GBackwardParser_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
+          rowL_compare_specials(pb, gx, L, tol, msg, "5-codon parser");
+
+          if (fwd_p3(dsq, L, om3, pf,     ov3, NULL) != eslOK) esl_fatal(msg);
+          if (pf->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f || pf->xmx[(L-1)*p7X_NXCELLS+p7X_SCALE] > 1.0f) np3++;
+          if (bck_p3(dsq, L, om3, pf, pb, ov3, NULL) != eslOK) esl_fatal(msg);
+          p7_GBackwardParser_Frameshift_3Codons(dsq, L, gm3, gx, iv3, NULL);
+          rowL_compare_specials(pb, gx, L, tol, msg, "3-codon parser");
+        }
+      p7_hmm_Destroy(hmm);
+    }
+  if (nfull == 0 || np3 == 0) esl_fatal("%s: Forward never rescaled the last rows; test is too weak", msg);
+
+  free(dsq);
+  esl_sq_Destroy(sq);
+  p7_profile_fs_Destroy(gm5);
+  p7_profile_fs_Destroy(gm3);
+  om_destroy(om5);
+  om_destroy(om3);
+  ox_destroy(fwd);
+  ox_destroy(bck);
+  ox_destroy(pf);
+  ox_destroy(pb);
+  ov_destroy(ov5);
+  ov_destroy(ov3);
+  p7_ivx_Destroy(iv5);
+  p7_ivx_Destroy(iv3);
+  p7_gmx_Destroy(gx);
+}
+
 #endif /*p7FWDBACK_FS_TESTDRIVE*/
 /*---------------------- end, unit tests ------------------------*/
 
@@ -3180,6 +3338,7 @@ main(int argc, char **argv)
 
   utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
   utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N);
+  utest_backward_rowL_scale_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 10);
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);

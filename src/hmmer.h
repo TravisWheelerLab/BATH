@@ -646,29 +646,37 @@ typedef struct p7_gmx_s {
 
 /* P7_CHKGMX: checkpointed generic dynamic programming matrix.
  *
- * Rows are computed in blocks of <blockR> rows; block j covers rows
- * j*blockR .. (j+1)*blockR-1. Only one block is stored at a time,
- * together with the <saveR> rows before it. dp[] has an entry for
- * every row 0..L: loaded rows point into dp_mem, all other rows are
- * NULL, so the {MDI}MX() macros work with dp = cx->dp. When the
- * computation moves from block j-1 into block j, the <saveR> rows
- * before block j are copied into checkpoint j-1 in ck_mem, so that
- * block j can be loaded again later. X states are kept for every row.
+ * Rows are computed in blocks of <blockR> rows; the block starting at
+ * row b covers rows b .. b+blockR-1, for b a multiple of blockR. Only
+ * one block is stored at a time, together with <saveR> rows next to
+ * it: the rows before it for a computation that runs forward through
+ * the rows (dir = p7_CHK_FORWARD, e.g. Forward, Viterbi), the rows
+ * after it for one that runs backward (dir = p7_CHK_BACKWARD, e.g.
+ * Backward). dp[] has an entry for every row 0..L: loaded rows point
+ * into dp_mem, all other rows are NULL, so the {MDI}MX() macros work
+ * with dp = cx->dp. When the computation moves into the next block,
+ * the <saveR> rows it needs from the block it leaves are copied into
+ * a checkpoint in ck_mem, so that the block can be loaded again
+ * later. X states are kept for every row.
  *
- * dp_mem holds <allocR> = <saveR> + <blockR> rows: slots 0..saveR-1
- * for the rows before the loaded block, then the block itself.
+ * dp_mem holds <allocR> >= <saveR> + <blockR> rows: forward, slots
+ * 0..saveR-1 for the rows before the loaded block, then the block;
+ * backward, the block in slots 0..blockR-1, then the rows after it.
  */
+enum p7_chkdir_e { p7_CHK_FORWARD = 0, p7_CHK_BACKWARD = 1 };
+
 typedef struct p7_chkgmx_s {
   int       M;
   int       L;
   int       nscells;    /* cells per model position, e.g. p7G_NSCELLS             */
+  int       dir;        /* p7_CHK_FORWARD or p7_CHK_BACKWARD                      */
   int       blockR;     /* rows per block                                         */
-  int       saveR;      /* rows saved at each checkpoint, before the block        */
+  int       saveR;      /* rows saved at each checkpoint, next to the block       */
   int       b;          /* first row of the loaded block; -1 if none              */
 
   float   **dp;         /* row pointers [0..L]; indexed [i][k*nscells+s]          */
   float    *dp_mem;     /* storage for allocR rows of allocW*nscells cells        */
-  int       allocR;     /* rows of storage in dp_mem: saveR + blockR              */
+  int       allocR;     /* rows of storage in dp_mem: >= saveR + blockR           */
   int       allocW;     /* allocated row width: M+1 <= allocW                     */
   int       allocP;     /* entries in dp[]; allocP >= L+1                         */
 
@@ -1502,8 +1510,8 @@ extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
 /* p7_chkgmx.c */
-extern P7_CHKGMX *p7_chkgmx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells);
-extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L);
+extern P7_CHKGMX *p7_chkgmx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells, int dir);
+extern int        p7_chkgmx_GrowTo    (P7_CHKGMX *cx, int M, int L, int blockR);
 extern int        p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b);
 extern int        p7_chkgmx_LoadBlock (P7_CHKGMX *cx, int b);
 extern void       p7_chkgmx_Destroy   (P7_CHKGMX *cx);

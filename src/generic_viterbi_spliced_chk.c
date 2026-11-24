@@ -933,7 +933,7 @@ static void
 utest_compare_chk(ESL_DSQ *dsq, P7_FS_PROFILE *gm_tr, P7_GMX *gx, float *signal_scores, int L, int M, int min_intron,
                   int global_start, int global_end, int blockR, char *msg)
 {
-  P7_CHKGMX *cx     = p7_chkgmx_Create(M, L, blockR, min_intron + 6, p7G_NSCELLS);
+  P7_CHKGMX *cx     = p7_chkgmx_Create(M, L, blockR, min_intron + 6, p7G_NSCELLS, p7_CHK_FORWARD);
   P7_CHKIVX *cv     = p7_chkivx_Create(M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / blockR);
   P7_IVX    *acc_iv = p7_ivx_Create(M, SPLICE_ROWS);
   P7_IVX    *don_iv = p7_ivx_Create(M, SIGNAL_MEM_SIZE);

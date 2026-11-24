@@ -29,9 +29,25 @@ ck_row(const P7_CHKGMX *cx, int k, int r)
   return cx->ck_mem + ((ptrdiff_t) k * cx->saveR + r) * (ptrdiff_t) cx->allocW * (ptrdiff_t) cx->nscells;
 }
 
+/* block_end(): last row of the block starting at row <b>. */
+static inline int
+block_end(const P7_CHKGMX *cx, int b)
+{
+  return ESL_MIN(cx->L, b + cx->blockR - 1);
+}
+
+/* top_block(): first row of the last block, the one a backward
+ * computation starts in. */
+static inline int
+top_block(const P7_CHKGMX *cx)
+{
+  return (cx->L / cx->blockR) * cx->blockR;
+}
+
 /* set_block_ptrs(): point the rows of block <b>, and the <saveR> rows
- * before it, at their storage slots. Rows of the previously loaded
- * block are set to NULL first. Uses <cx->L> to bound the last block.
+ * next to it (before it going forward, after it going backward), at
+ * their storage slots. Rows of the previously loaded block are set to
+ * NULL first. Uses <cx->L> to bound the rows.
  */
 static void
 set_block_ptrs(P7_CHKGMX *cx, int b)
@@ -39,13 +55,21 @@ set_block_ptrs(P7_CHKGMX *cx, int b)
   int i;
 
   if (cx->b >= 0)
-    for (i = ESL_MAX(0, cx->b - cx->saveR); i <= ESL_MIN(cx->L, cx->b + cx->blockR - 1); i++)
-      cx->dp[i] = NULL;
+    {
+      if (cx->dir == p7_CHK_FORWARD) for (i = ESL_MAX(0, cx->b - cx->saveR); i <= block_end(cx, cx->b);                         i++) cx->dp[i] = NULL;
+      else                           for (i = cx->b;                          i <= ESL_MIN(cx->L, cx->b + cx->blockR + cx->saveR - 1); i++) cx->dp[i] = NULL;
+    }
 
-  for (i = ESL_MAX(0, b - cx->saveR); i < b; i++)
-    cx->dp[i] = dp_row(cx, i - (b - cx->saveR));
-  for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
-    cx->dp[i] = dp_row(cx, cx->saveR + (i - b));
+  if (cx->dir == p7_CHK_FORWARD)
+    {
+      for (i = ESL_MAX(0, b - cx->saveR); i < b; i++)  cx->dp[i] = dp_row(cx, i - (b - cx->saveR));
+      for (i = b; i <= block_end(cx, b); i++)          cx->dp[i] = dp_row(cx, cx->saveR + (i - b));
+    }
+  else
+    {
+      for (i = b; i <= block_end(cx, b); i++)                                         cx->dp[i] = dp_row(cx, i - b);
+      for (i = b + cx->blockR; i <= ESL_MIN(cx->L, b + cx->blockR + cx->saveR - 1); i++) cx->dp[i] = dp_row(cx, i - b);
+    }
 
   cx->b = b;
 }
@@ -60,16 +84,22 @@ set_block_ptrs(P7_CHKGMX *cx, int b)
  *
  * Purpose:   Allocate a reusable, resizeable <P7_CHKGMX> for models up
  *            to size <allocM> and sequences up to length <allocL>, with
- *            <nscells> cells per model position. Rows are computed in
- *            blocks of <blockR> rows, and each checkpoint saves the
- *            <saveR> rows before a block; <saveR> must be <= <blockR>.
+ *            <nscells> cells per model position, for a computation that
+ *            runs through the rows in direction <dir>: <p7_CHK_FORWARD>
+ *            (rows 0..L, each row needing rows before it) or
+ *            <p7_CHK_BACKWARD> (rows L..0, each row needing rows after
+ *            it). Rows are computed in blocks of <blockR> rows, and each
+ *            checkpoint saves the <saveR> rows next to a block that the
+ *            computation of the block reads: before it going forward,
+ *            after it going backward. <saveR> must be <= <blockR>.
+ *            <p7_chkgmx_GrowTo()> can change <blockR> later.
  *
  * Returns:   a pointer to the new <P7_CHKGMX>.
  *
  * Throws:    <NULL> on allocation error or bad arguments.
  */
 P7_CHKGMX *
-p7_chkgmx_Create(int allocM, int allocL, int blockR, int saveR, int nscells)
+p7_chkgmx_Create(int allocM, int allocL, int blockR, int saveR, int nscells, int dir)
 {
   P7_CHKGMX *cx = NULL;
   int        i;
@@ -82,7 +112,9 @@ p7_chkgmx_Create(int allocM, int allocL, int blockR, int saveR, int nscells)
   cx->xmx    = NULL;
 
   if (blockR < 1 || saveR < 0 || saveR > blockR) ESL_XEXCEPTION(eslEINVAL, "bad block size %d or saved rows %d", blockR, saveR);
+  if (dir != p7_CHK_FORWARD && dir != p7_CHK_BACKWARD) ESL_XEXCEPTION(eslEINVAL, "bad direction %d", dir);
 
+  cx->dir     = dir;
   cx->nscells = nscells;
   cx->blockR  = blockR;
   cx->saveR   = saveR;
@@ -116,28 +148,35 @@ p7_chkgmx_Create(int allocM, int allocL, int blockR, int saveR, int nscells)
  * Synopsis:  Assure that a checkpointed DP matrix is big enough.
  *
  * Purpose:   Assures that <cx> can hold a comparison of a model of size
- *            up to <M> to a sequence of length up to <L>; reallocates
- *            if necessary. The block size, saved rows and cells per
- *            model position stay as they were set by p7_chkgmx_Create().
+ *            up to <M> to a sequence of length up to <L> in blocks of
+ *            <blockR> rows; reallocates if necessary. The direction,
+ *            saved rows and cells per model position stay as they were
+ *            set by p7_chkgmx_Create(); <saveR> must be <= <blockR>.
  *
  *            All row pointers are set to NULL and no block is loaded
  *            afterwards; any stored rows and checkpoints are invalid.
  *
  * Returns:   <eslOK> on success.
  *
- * Throws:    <eslEMEM> on allocation failure.
+ * Throws:    <eslEMEM> on allocation failure, <eslEINVAL> if <blockR>
+ *            is smaller than one row or than <saveR>.
  */
 int
-p7_chkgmx_GrowTo(P7_CHKGMX *cx, int M, int L)
+p7_chkgmx_GrowTo(P7_CHKGMX *cx, int M, int L, int blockR)
 {
   void *p;
   int   W = ESL_MAX(cx->allocW, M + 1);
-  int   K = L / cx->blockR;
+  int   R = ESL_MAX(cx->allocR, cx->saveR + blockR);
+  int   K = L / blockR;
   int   i;
   int   status;
 
-  if (W > cx->allocW) {
-    ESL_RALLOC(cx->dp_mem, p, sizeof(float) * cx->allocR * W * cx->nscells);
+  if (blockR < 1 || cx->saveR > blockR) ESL_EXCEPTION(eslEINVAL, "bad block size %d for %d saved rows", blockR, cx->saveR);
+  cx->blockR = blockR;
+
+  if (W > cx->allocW || R > cx->allocR) {
+    ESL_RALLOC(cx->dp_mem, p, sizeof(float) * R * W * cx->nscells);
+    cx->allocR = R;
   }
 
   if (K > cx->allocK || W > cx->allocW) {
@@ -194,22 +233,30 @@ p7_chkgmx_Destroy(P7_CHKGMX *cx)
  *****************************************************************/
 
 /* Function:  p7_chkgmx_StartBlock()
- * Synopsis:  Move a forward computation into the next block.
+ * Synopsis:  Move a computation into its next block.
  *
  * Purpose:   Make block <b> (a multiple of <cx->blockR>, <= <cx->L>) the
- *            loaded block, for a computation that runs forward through
- *            the rows. For <b> = 0 this just points rows 0..blockR-1
- *            at their storage. Otherwise block <b> - <blockR> must be
- *            the loaded block: the <saveR> rows before <b> are copied
- *            into checkpoint <b>/<blockR> - 1 and into the slots before
- *            the block, and the rows of block <b> are pointed at their
- *            storage, ready to be computed.
+ *            loaded block, ready to be computed, for a computation that
+ *            runs through the blocks in <cx->dir> order.
+ *
+ *            Forward: blocks go 0, blockR, 2*blockR, ... For <b> = 0
+ *            this just points the block's rows at their storage.
+ *            Otherwise block <b> - <blockR> must be the loaded block:
+ *            the <saveR> rows before <b> are copied into checkpoint
+ *            <b>/<blockR> - 1 and into the slots before the block.
+ *
+ *            Backward: blocks go from the last one (the block holding
+ *            row <L>) down to 0. For the last block this just points
+ *            its rows at their storage. Otherwise block <b> + <blockR>
+ *            must be the loaded block: the first <saveR> rows of it
+ *            (fewer if it ends at <L> sooner) are copied into checkpoint
+ *            <b>/<blockR> and into the slots after the block.
  *
  *            Caller sets <cx->M> and <cx->L> before the first call.
  *
  * Returns:   <eslOK> on success.
  *
- * Throws:    <eslEINVAL> if <b> isn't the block after the loaded one.
+ * Throws:    <eslEINVAL> if <b> isn't the next block in order.
  */
 int
 p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b)
@@ -218,19 +265,38 @@ p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b)
   int    k;
   int    r;
 
-  if (b == 0) { set_block_ptrs(cx, 0); cx->nK = 0; return eslOK; }
-
-  if (b % cx->blockR != 0 || b != cx->b + cx->blockR || b > cx->L)
-    ESL_EXCEPTION(eslEINVAL, "block %d doesn't follow loaded block %d", b, cx->b);
-
-  k = b / cx->blockR - 1;
-  for (r = 0; r < cx->saveR; r++)
+  if (cx->dir == p7_CHK_FORWARD)
     {
-      memcpy(ck_row(cx, k, r), cx->dp[b - cx->saveR + r], nbytes);
-      memcpy(dp_row(cx, r),    cx->dp[b - cx->saveR + r], nbytes);
+      if (b == 0) { set_block_ptrs(cx, 0); cx->nK = 0; return eslOK; }
+
+      if (b % cx->blockR != 0 || b != cx->b + cx->blockR || b > cx->L)
+        ESL_EXCEPTION(eslEINVAL, "block %d doesn't follow loaded block %d", b, cx->b);
+
+      k = b / cx->blockR - 1;
+      for (r = 0; r < cx->saveR; r++)
+        {
+          memcpy(ck_row(cx, k, r), cx->dp[b - cx->saveR + r], nbytes);
+          memcpy(dp_row(cx, r),    cx->dp[b - cx->saveR + r], nbytes);
+        }
+      set_block_ptrs(cx, b);
+      cx->nK = k + 1;
     }
-  set_block_ptrs(cx, b);
-  cx->nK = k + 1;
+  else
+    {
+      if (b == top_block(cx)) { set_block_ptrs(cx, b); cx->nK = 0; return eslOK; }
+
+      if (b % cx->blockR != 0 || b != cx->b - cx->blockR || b < 0)
+        ESL_EXCEPTION(eslEINVAL, "block %d doesn't follow loaded block %d", b, cx->b);
+
+      k = b / cx->blockR;
+      for (r = 0; r < cx->saveR && b + cx->blockR + r <= cx->L; r++)
+        {
+          memcpy(ck_row(cx, k, r),              cx->dp[b + cx->blockR + r], nbytes);
+          memcpy(dp_row(cx, cx->blockR + r),    cx->dp[b + cx->blockR + r], nbytes);
+        }
+      set_block_ptrs(cx, b);
+      cx->nK++;
+    }
   return eslOK;
 }
 
@@ -239,31 +305,48 @@ p7_chkgmx_StartBlock(P7_CHKGMX *cx, int b)
  * Synopsis:  Load a block again from its checkpoint.
  *
  * Purpose:   Make block <b> (a multiple of <cx->blockR>, <= <cx->L>) the
- *            loaded block, so it can be computed again. For <b> > 0 the
- *            <saveR> rows of checkpoint <b>/<blockR> - 1 are copied into
- *            the slots before the block. The rows of block <b> are
- *            pointed at their storage; their contents are left over
+ *            loaded block, so it can be computed again, in any order.
+ *            The block's checkpoint rows are copied into the slots next
+ *            to it: forward, checkpoint <b>/<blockR> - 1 before the
+ *            block (none for <b> = 0); backward, checkpoint <b>/<blockR>
+ *            after it (none for the last block). The rows of block <b>
+ *            are pointed at their storage; their contents are left over
  *            from earlier blocks until the caller computes them.
  *
  * Returns:   <eslOK> on success.
  *
- * Throws:    <eslEINVAL> if checkpoint <b>/<blockR> - 1 hasn't been saved.
+ * Throws:    <eslEINVAL> if the block's checkpoint hasn't been saved.
  */
 int
 p7_chkgmx_LoadBlock(P7_CHKGMX *cx, int b)
 {
   size_t nbytes = sizeof(float) * (cx->M + 1) * cx->nscells;
+  int    top    = top_block(cx);
   int    k;
   int    r;
 
-  if (b % cx->blockR != 0 || b > cx->L || b / cx->blockR > cx->nK)
-    ESL_EXCEPTION(eslEINVAL, "no checkpoint for block %d", b);
+  if (b % cx->blockR != 0 || b < 0 || b > cx->L)
+    ESL_EXCEPTION(eslEINVAL, "%d isn't the start of a block", b);
 
-  if (b > 0)
+  if (cx->dir == p7_CHK_FORWARD)
     {
-      k = b / cx->blockR - 1;
-      for (r = 0; r < cx->saveR; r++)
-        memcpy(dp_row(cx, r), ck_row(cx, k, r), nbytes);
+      if (b / cx->blockR > cx->nK) ESL_EXCEPTION(eslEINVAL, "no checkpoint for block %d", b);
+      if (b > 0)
+        {
+          k = b / cx->blockR - 1;
+          for (r = 0; r < cx->saveR; r++)
+            memcpy(dp_row(cx, r), ck_row(cx, k, r), nbytes);
+        }
+    }
+  else
+    {
+      if (b < top - cx->nK * cx->blockR) ESL_EXCEPTION(eslEINVAL, "no checkpoint for block %d", b);
+      if (b < top)
+        {
+          k = b / cx->blockR;
+          for (r = 0; r < cx->saveR && b + cx->blockR + r <= cx->L; r++)
+            memcpy(dp_row(cx, cx->blockR + r), ck_row(cx, k, r), nbytes);
+        }
     }
   set_block_ptrs(cx, b);
   return eslOK;
@@ -293,27 +376,45 @@ check_row(const P7_CHKGMX *cx, int i)
     if (cx->dp[i][n] != (float) (i * 10000 + n)) esl_fatal("row %d holds wrong values", i);
 }
 
-/* check_loaded(): rows b-saveR .. block end are loaded, all others NULL. */
+/* check_loaded(): the rows of block <b> and its saved rows (before it
+ * going forward, after it going backward) are loaded, all others NULL. */
 static void
 check_loaded(const P7_CHKGMX *cx, int b)
 {
-  int i;
+  int i, lo, hi;
+
+  if (cx->dir == p7_CHK_FORWARD) { lo = b - cx->saveR; hi = b + cx->blockR - 1;              }
+  else                           { lo = b;             hi = b + cx->blockR + cx->saveR - 1;  }
   for (i = 0; i <= cx->L; i++)
-    if ((i >= b - cx->saveR && i < b + cx->blockR) != (cx->dp[i] != NULL)) esl_fatal("row %d pointer wrong for block %d", i, b);
+    if ((i >= lo && i <= hi) != (cx->dp[i] != NULL)) esl_fatal("row %d pointer wrong for block %d", i, b);
+}
+
+/* check_macros(): the {MDI}MX() macros read row <i> through cx->dp. */
+static void
+check_macros(P7_CHKGMX *cx, int i)
+{
+  float **dp = cx->dp;
+  int     k;
+
+  for (k = 0; k <= cx->M; k++)
+    if (MMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_M) ||
+        DMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_D) ||
+        IMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_I))
+      esl_fatal("MDI macros wrong at i=%d k=%d", i, k);
 }
 
 /* utest_blocks():
- * Run forward through all blocks of an <M> by <L> comparison, writing
- * each row as it is "computed", then load the blocks again from last
- * to first, rewriting each block, and check that the saved rows before
- * each block and the block's own rows hold the right values. Also
- * checks that the {MDI}MX() macros read through cx->dp.
+ * Forward direction. Run forward through all blocks of an <M> by <L>
+ * comparison, writing each row as it is "computed", then load the
+ * blocks again from last to first, rewriting each block, and check that
+ * the saved rows before each block and the block's own rows hold the
+ * right values. Also checks that the {MDI}MX() macros read through
+ * cx->dp.
  */
 static void
 utest_blocks(P7_CHKGMX *cx, int M, int L)
 {
-  float **dp = cx->dp;
-  int     b, i, k;
+  int b, i;
 
   cx->M = M;
   cx->L = L;
@@ -334,17 +435,55 @@ utest_blocks(P7_CHKGMX *cx, int M, int L)
       for (i = ESL_MAX(0, b - cx->saveR); i < b; i++) check_row(cx, i);
       for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++) write_row(cx, i);
       for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++) check_row(cx, i);
-
-      i = b;
-      for (k = 0; k <= M; k++)
-        if (MMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_M) ||
-            DMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_D) ||
-            IMX(i,k) != (float) (i * 10000 + k * p7G_NSCELLS + p7G_I))
-          esl_fatal("MDI macros wrong at i=%d k=%d", i, k);
+      check_macros(cx, b);
     }
 
   /* A block that doesn't follow the loaded one is refused */
   if (L >= 2 * cx->blockR && p7_chkgmx_StartBlock(cx, 2 * cx->blockR) != eslEINVAL) esl_fatal("out-of-order StartBlock accepted");
+}
+
+/* utest_blocks_backward():
+ * Backward direction. Run backward through all blocks, from the one
+ * holding row L down to 0, writing each block's rows from its last row
+ * down, and check the saved rows after each block. Then load the blocks
+ * again from first to last, as a forward sweep reading the rows in
+ * increasing order would, rewriting each block, and check the saved rows
+ * and the block's own rows.
+ */
+static void
+utest_blocks_backward(P7_CHKGMX *cx, int M, int L)
+{
+  int top, b, i;
+
+  cx->M = M;
+  cx->L = L;
+  top   = (L / cx->blockR) * cx->blockR;
+
+  for (b = top; b >= 0; b -= cx->blockR)
+    {
+      if (p7_chkgmx_StartBlock(cx, b) != eslOK) esl_fatal("backward StartBlock(%d) failed", b);
+      check_loaded(cx, b);
+      for (i = b + cx->blockR; i <= ESL_MIN(L, b + cx->blockR + cx->saveR - 1); i++) check_row(cx, i);
+      for (i = ESL_MIN(L, b + cx->blockR - 1); i >= b; i--) write_row(cx, i);
+    }
+  if (cx->nK != L / cx->blockR) esl_fatal("%d checkpoints saved, expected %d", cx->nK, L / cx->blockR);
+
+  for (b = 0; b <= top; b += cx->blockR)
+    {
+      if (p7_chkgmx_LoadBlock(cx, b) != eslOK) esl_fatal("backward LoadBlock(%d) failed", b);
+      check_loaded(cx, b);
+      for (i = b + cx->blockR; i <= ESL_MIN(L, b + cx->blockR + cx->saveR - 1); i++) check_row(cx, i);
+      for (i = ESL_MIN(L, b + cx->blockR - 1); i >= b; i--) write_row(cx, i);
+      for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++) check_row(cx, i);
+      check_macros(cx, b);
+    }
+
+  /* A block that doesn't follow the loaded one is refused */
+  if (top >= 2 * cx->blockR)
+    {
+      if (p7_chkgmx_StartBlock(cx, top) != eslOK) esl_fatal("backward StartBlock(top) failed");
+      if (p7_chkgmx_StartBlock(cx, top - 2 * cx->blockR) != eslEINVAL) esl_fatal("out-of-order backward StartBlock accepted");
+    }
 }
 
 static void
@@ -352,22 +491,39 @@ utest_chkgmx(void)
 {
   P7_CHKGMX *cx = NULL;
 
-  if ((cx = p7_chkgmx_Create(13, 37, 8, 3, p7G_NSCELLS)) == NULL) esl_fatal("Create failed");
+  if ((cx = p7_chkgmx_Create(13, 37, 8, 3, p7G_NSCELLS, p7_CHK_FORWARD)) == NULL) esl_fatal("Create failed");
   utest_blocks(cx, 13, 37);
   utest_blocks(cx, 13, 32);                    /* L a multiple of the block size */
   utest_blocks(cx,  5,  6);                    /* a single block                 */
 
-  if (p7_chkgmx_GrowTo(cx, 70, 101) != eslOK) esl_fatal("GrowTo failed");
+  if (p7_chkgmx_GrowTo(cx, 70, 101, 8)  != eslOK) esl_fatal("GrowTo failed");
   utest_blocks(cx, 70, 101);
-  if (p7_chkgmx_GrowTo(cx, 20, 40)  != eslOK) esl_fatal("GrowTo (smaller) failed");
+  if (p7_chkgmx_GrowTo(cx, 20, 40, 8)   != eslOK) esl_fatal("GrowTo (smaller) failed");
   utest_blocks(cx, 20, 40);
+  if (p7_chkgmx_GrowTo(cx, 20, 140, 13) != eslOK) esl_fatal("GrowTo (bigger block) failed");
+  utest_blocks(cx, 20, 140);
+  if (p7_chkgmx_GrowTo(cx, 20, 140, 4)  != eslOK) esl_fatal("GrowTo (smaller block) failed");
+  utest_blocks(cx, 20, 140);
+  if (p7_chkgmx_GrowTo(cx, 20, 140, 2)  != eslEINVAL) esl_fatal("GrowTo with blockR < saveR accepted");
   p7_chkgmx_Destroy(cx);
 
-  if ((cx = p7_chkgmx_Create(7, 50, 8, 8, p7G_NSCELLS)) == NULL) esl_fatal("Create failed");
+  if ((cx = p7_chkgmx_Create(7, 50, 8, 8, p7G_NSCELLS, p7_CHK_FORWARD)) == NULL) esl_fatal("Create failed");
   utest_blocks(cx, 7, 50);                     /* saveR == blockR                */
   p7_chkgmx_Destroy(cx);
 
-  if (p7_chkgmx_Create(7, 50, 4, 5, p7G_NSCELLS) != NULL) esl_fatal("saveR > blockR accepted");
+  if ((cx = p7_chkgmx_Create(13, 40, 8, 5, p7G_NSCELLS_FS, p7_CHK_BACKWARD)) == NULL) esl_fatal("backward Create failed");
+  utest_blocks_backward(cx, 13, 37);           /* last block shorter than saveR  */
+  utest_blocks_backward(cx, 13, 40);           /* last block is the single row L */
+  utest_blocks_backward(cx, 13, 39);           /* last block one row short       */
+  utest_blocks_backward(cx,  5,  6);           /* a single block                 */
+  if (p7_chkgmx_GrowTo(cx, 30, 200, 32) != eslOK) esl_fatal("backward GrowTo failed");
+  utest_blocks_backward(cx, 30, 200);
+  if (p7_chkgmx_GrowTo(cx, 30, 200, 5)  != eslOK) esl_fatal("backward GrowTo (block == saveR) failed");
+  utest_blocks_backward(cx, 30, 200);
+  p7_chkgmx_Destroy(cx);
+
+  if (p7_chkgmx_Create(7, 50, 4, 5, p7G_NSCELLS, p7_CHK_FORWARD)  != NULL) esl_fatal("saveR > blockR accepted");
+  if (p7_chkgmx_Create(7, 50, 8, 5, p7G_NSCELLS, 2)               != NULL) esl_fatal("bad direction accepted");
 }
 
 #endif /*p7CHKGMX_TESTDRIVE*/

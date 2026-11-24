@@ -587,31 +587,38 @@ backward_decode_row(const P7_OPROFILE *om, const P7_OMX *fwd, const P7_OMX *bck,
   pp->xmx[i*p7X_NXCELLS+p7X_B] = 0.0;
 }
 
-static int
-backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc)
-{
-  register float32x4_t mpv, ipv, dpv;      /* previous row values                                       */
-  register float32x4_t mcv, dcv;           /* current row values                                        */
-  register float32x4_t tmmv, timv, tdmv;   /* tmp vars for accessing rotated transition scores          */
-  register float32x4_t xBv;		      /* collects B->Mk components of B(i)                         */
-  register float32x4_t xEv;	              /* splatted E(i)                                             */
-  register float32x4_t zerov;          /* zero vector: used for emulating logical shifts with VEXT  */
-  float         xN, xE, xB, xC, xJ;	      /* special states' scores                                    */
-  int           i;			      /* counter over sequence positions 0,1..L                    */
-  int           q;			      /* counter over quads 0..Q-1                                 */
-  int           Q       = p7O_NQF(om->M);  /* segment length: # of vectors                              */
-  int           j;			      /* DD segment iteration counter (4 = full serialization)     */
-  float32x4_t  *dpc;                       /* current DP row                                            */
-  float32x4_t  *dpp;			      /* next ("previous") DP row                                  */
-  float32x4_t  *rp;			      /* will point into om->rfv[x] for residue x[i+1]             */
-  float32x4_t  *tp;		              /* will point into (and step thru) om->tfv transition scores */
+/* Scale factor a Backward row takes, for backward_row_L() and
+ * backward_row():
+ *   BWD_SCALE_FORWARD: the Forward matrix's factor for the row, or the
+ *     row's own factor once its xB has exceeded 1e16 (p7_Backward());
+ *   BWD_SCALE_OWN:     the row's own factor, xB when xB > 1e4, else 1;
+ *   BWD_SCALE_STORED:  the factor already stored for the row, when a
+ *     row is computed again.
+ */
+enum bwd_scale_e { BWD_SCALE_FORWARD = 0, BWD_SCALE_OWN = 1, BWD_SCALE_STORED = 2 };
 
-  /* initialize the L row. */
+
+/* backward_row_L()
+ * Backward row <L> into <dpc>, special states and scale factor into
+ * row <L> of <xmx>. <fwd_xmx> holds the Forward special states and
+ * scale factors (needed only for BWD_SCALE_FORWARD). If <totscale> is
+ * non-NULL it is set to the log of the row's scale factor.
+ */
+static void
+backward_row_L(const P7_OPROFILE *om, const float *fwd_xmx, float *xmx, float *totscale, float32x4_t *dpc, int L, int scale_mode)
+{
+  register float32x4_t dpv;
+  register float32x4_t dcv;
+  register float32x4_t xEv;
+  register float32x4_t zerov;
+  float xN, xE, xB, xC, xJ;
+  int q;
+  int Q       = p7O_NQF(om->M);
+  int j;
+  float32x4_t *tp;
+  float    sc;
+
   zerov = vmovq_n_f32(0.0);
-  bck->M = om->M;
-  bck->L = L;
-  bck->has_own_scales = FALSE;	/* backwards scale factors are *usually* given by <fwd> */
-  dpc = bck->dpf[L * do_full];
   xJ  = 0.0;
   xB  = 0.0;
   xN  = 0.0;
@@ -652,56 +659,79 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
     }
 
   /* Sparse rescaling: same scale factors as fwd matrix */
-  if (fwd->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0)
+  if      (scale_mode == BWD_SCALE_FORWARD) sc = fwd_xmx[L*p7X_NXCELLS+p7X_SCALE];
+  else if (scale_mode == BWD_SCALE_OWN)     sc = (xB > 1.0e4) ? xB : 1.0;
+  else                                      sc = xmx[L*p7X_NXCELLS+p7X_SCALE];
+  if (sc > 1.0)
     {
-      xE  = xE / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-      xN  = xN / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-      xC  = xC / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-      xJ  = xJ / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-      xB  = xB / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-      xEv = vmovq_n_f32(1.0 / fwd->xmx[L*p7X_NXCELLS+p7X_SCALE]);
+      xE  = xE / sc;
+      xN  = xN / sc;
+      xC  = xC / sc;
+      xJ  = xJ / sc;
+      xB  = xB / sc;
+      xEv = vmovq_n_f32(1.0 / sc);
       for (q = 0; q < Q; q++) {
 	MMO(dpc,q) = vmulq_f32(MMO(dpc,q), xEv);
 	DMO(dpc,q) = vmulq_f32(DMO(dpc,q), xEv);
 	IMO(dpc,q) = vmulq_f32(IMO(dpc,q), xEv);
       }
     }
-  bck->xmx[L*p7X_NXCELLS+p7X_SCALE] = fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-  bck->totscale                     = log(bck->xmx[L*p7X_NXCELLS+p7X_SCALE]);
+  xmx[L*p7X_NXCELLS+p7X_SCALE] = sc;
+  if (totscale != NULL) *totscale = log(xmx[L*p7X_NXCELLS+p7X_SCALE]);
 
   /* Stores */
-  bck->xmx[L*p7X_NXCELLS+p7X_E] = xE;
-  bck->xmx[L*p7X_NXCELLS+p7X_N] = xN;
-  bck->xmx[L*p7X_NXCELLS+p7X_J] = xJ;
-  bck->xmx[L*p7X_NXCELLS+p7X_B] = xB;
-  bck->xmx[L*p7X_NXCELLS+p7X_C] = xC;
-  if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, L, Q);
+  xmx[L*p7X_NXCELLS+p7X_E] = xE;
+  xmx[L*p7X_NXCELLS+p7X_N] = xN;
+  xmx[L*p7X_NXCELLS+p7X_J] = xJ;
+  xmx[L*p7X_NXCELLS+p7X_B] = xB;
+  xmx[L*p7X_NXCELLS+p7X_C] = xC;
+}
 
-#if eslDEBUGLEVEL > 0
-  if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, L, 9, 4, xE, xN, xJ, xB, xC);	/* logify=TRUE, <rowi>=L, width=9, precision=4*/
-#endif
 
-  /* main recursion */
-  for (i = L-1; i >= 1; i--)	/* backwards stride */
-    {
-      /* phase 1. B(i) collected. Old row destroyed, new row contains
-       *    complete I(i,k), partial {MD}(i,k) w/ no {MD}->{DE} paths yet.
-       */
-      dpc = bck->dpf[i     * do_full];
-      dpp = bck->dpf[(i+1) * do_full];
-      rp  = om->rfv[dsq[i+1]] + Q-1; /* <*rp> is now the [4 8 12 x] match emission quad */
-      tp  = om->tfv + 7*Q - 1;	     /* <*tp> is now the [4 8 12 x] TII transition quad  */
+/* backward_row()
+ * Backward row <i> (1 <= i < L) into <dpc> from row <i>+1 in <dpp>,
+ * reading the special states of row <i>+1 from <xmx> and writing row
+ * <i>'s special states and scale factor into it. <fwd_xmx> holds the
+ * Forward special states and scale factors (needed only for
+ * BWD_SCALE_FORWARD). If <totscale> is non-NULL the log of a scale
+ * factor > 1 is added to it. <has_own_scales> is the flag that
+ * BWD_SCALE_FORWARD turns on once xB exceeds 1e16.
+ */
+static void
+backward_row(const ESL_DSQ *dsq, const P7_OPROFILE *om, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
+             float32x4_t *dpc, const float32x4_t *dpp, int i, int scale_mode)
+{
+  register float32x4_t mpv, ipv, dpv;
+  register float32x4_t mcv, dcv;
+  register float32x4_t tmmv, timv, tdmv;
+  register float32x4_t xBv;
+  register float32x4_t xEv;
+  register float32x4_t zerov;
+  float xN, xE, xB, xC, xJ;
+  int q;
+  int Q       = p7O_NQF(om->M);
+  int j;
+  float32x4_t *rp;
+  float32x4_t *tp;
 
-      /* leftshift the first transition quads */
-      tmmv = vextq_f32(om->tfv[1], zerov, 1);
-      timv = vextq_f32(om->tfv[2], zerov, 1);
-      tdmv = vextq_f32(om->tfv[3], zerov, 1);
+  zerov = vmovq_n_f32(0.0);
+  xN = xmx[(i+1)*p7X_NXCELLS+p7X_N];
+  xJ = xmx[(i+1)*p7X_NXCELLS+p7X_J];
+  xC = xmx[(i+1)*p7X_NXCELLS+p7X_C];
 
-      mpv = vmulq_f32(MMO(dpp,0), om->rfv[dsq[i+1]][0]); /* precalc M(i+1,k+1) * e(M_k+1, x_{i+1}) */
-      mpv = vextq_f32(mpv, zerov, 1);
+  rp  = om->rfv[dsq[i+1]] + Q-1; /* <*rp> is now the [4 8 12 x] match emission quad */
+  tp  = om->tfv + 7*Q - 1;	     /* <*tp> is now the [4 8 12 x] TII transition quad  */
 
-      xBv = vmovq_n_f32(0.0);
-      for (q = Q-1; q >= 0; q--)     /* backwards stride */
+  /* leftshift the first transition quads */
+  tmmv = vextq_f32(om->tfv[1], zerov, 1);
+  timv = vextq_f32(om->tfv[2], zerov, 1);
+  tdmv = vextq_f32(om->tfv[3], zerov, 1);
+
+  mpv = vmulq_f32(MMO(dpp,0), om->rfv[dsq[i+1]][0]); /* precalc M(i+1,k+1) * e(M_k+1, x_{i+1}) */
+  mpv = vextq_f32(mpv, zerov, 1);
+
+  xBv = vmovq_n_f32(0.0);
+  for (q = Q-1; q >= 0; q--)     /* backwards stride */
 	{
 	  ipv        = IMO(dpp,q); /* assumes emission odds ratio of 1.0; i+1's IMO(q) now free */
 	  IMO(dpc,q) = vaddq_f32(vmulq_f32(ipv, *tp), vmulq_f32(mpv, timv)); tp--;
@@ -718,22 +748,22 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 	  xBv = vaddq_f32(xBv, vmulq_f32(mpv, *tp)); tp--;
 	}
 
-      /* phase 2: now that we have accumulated the B->Mk transitions in xBv, we can do the specials */
-      esl_neon_hsum_float((esl_neon_128f_t) xBv, &xB);
-      xBv = vmovq_n_f32(xB);
+  /* phase 2: now that we have accumulated the B->Mk transitions in xBv, we can do the specials */
+  esl_neon_hsum_float((esl_neon_128f_t) xBv, &xB);
+  xBv = vmovq_n_f32(xB);
 
-      xC  =  xC * om->xf[p7O_C][p7O_LOOP];
-      xJ  = (xB * om->xf[p7O_J][p7O_MOVE]) + (xJ * om->xf[p7O_J][p7O_LOOP]); /* must come after xB */
-      xN  = (xB * om->xf[p7O_N][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_LOOP]); /* must come after xB */
-      xE  = (xC * om->xf[p7O_E][p7O_MOVE]) + (xJ * om->xf[p7O_E][p7O_LOOP]); /* must come after xJ, xC */
-      xEv = vmovq_n_f32(xE);	/* splat */
+  xC  =  xC * om->xf[p7O_C][p7O_LOOP];
+  xJ  = (xB * om->xf[p7O_J][p7O_MOVE]) + (xJ * om->xf[p7O_J][p7O_LOOP]); /* must come after xB */
+  xN  = (xB * om->xf[p7O_N][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_LOOP]); /* must come after xB */
+  xE  = (xC * om->xf[p7O_E][p7O_MOVE]) + (xJ * om->xf[p7O_E][p7O_LOOP]); /* must come after xJ, xC */
+  xEv = vmovq_n_f32(xE);	/* splat */
 
 
-      /* phase 3: {MD}->E paths and one step of the D->D paths */
-      tp  = om->tfv + 8*Q - 1;	/* <*tp> now the [4 8 12 x] TDD quad */
-      dpv = vaddq_f32(DMO(dpc,0), xEv);
-      dpv = vextq_f32(dpv, zerov, 1);
-      for (q = Q-1; q >= 0; q--)
+  /* phase 3: {MD}->E paths and one step of the D->D paths */
+  tp  = om->tfv + 8*Q - 1;	/* <*tp> now the [4 8 12 x] TDD quad */
+  dpv = vaddq_f32(DMO(dpc,0), xEv);
+  dpv = vextq_f32(dpv, zerov, 1);
+  for (q = Q-1; q >= 0; q--)
 	{
 	  dcv        = vmulq_f32(dpv, *tp); tp--;
 	  DMO(dpc,q) = vaddq_f32(DMO(dpc,q), vaddq_f32(dcv, xEv));
@@ -741,11 +771,11 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 	  MMO(dpc,q) = vaddq_f32(MMO(dpc,q), xEv);
 	}
 
-      /* phase 4: finish extending the DD paths */
-      /* fully serialized for now */
-      for (j = 1; j < 4; j++)	/* three passes: we've already done 1 segment, we need 4 total */
+  /* phase 4: finish extending the DD paths */
+  /* fully serialized for now */
+  for (j = 1; j < 4; j++)	/* three passes: we've already done 1 segment, we need 4 total */
 	{
-    dcv = vextq_f32(dcv, zerov, 1);
+dcv = vextq_f32(dcv, zerov, 1);
 	  tp  = om->tfv + 8*Q - 1;	/* <*tp> now the [4 8 12 x] TDD quad */
 	  for (q = Q-1; q >= 0; q--)
 	    {
@@ -754,62 +784,78 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 	    }
 	}
 
-      /* phase 5: add M->D paths */
-      dcv = vextq_f32(DMO(dpc,0), zerov, 1);
-      tp  = om->tfv + 7*Q - 3;	/* <*tp> is now the [4 8 12 x] Mk->Dk+1 quad */
-      for (q = Q-1; q >= 0; q--)
+  /* phase 5: add M->D paths */
+  dcv = vextq_f32(DMO(dpc,0), zerov, 1);
+  tp  = om->tfv + 7*Q - 3;	/* <*tp> is now the [4 8 12 x] Mk->Dk+1 quad */
+  for (q = Q-1; q >= 0; q--)
 	{
 	  MMO(dpc,q) = vaddq_f32(MMO(dpc,q), vmulq_f32(dcv, *tp)); tp -= 7;
 	  dcv        = DMO(dpc,q);
 	}
 
-      /* Sparse rescaling  */
+  /* Sparse rescaling  */
 
-      /* In rare cases [J3/119] scale factors from <fwd> are
-       * insufficient and backwards will overflow. In this case, we
-       * switch on the fly to using our own scale factors, different
-       * from those in <fwd>. This will complicate subsequent
-       * posterior decoding routines.
-       */
-      if (xB > 1.0e16) bck->has_own_scales = TRUE;
+  /* In rare cases [J3/119] scale factors from <fwd> are
+   * insufficient and backwards will overflow. In this case, we
+   * switch on the fly to using our own scale factors, different
+   * from those in <fwd>. This will complicate subsequent
+   * posterior decoding routines.
+   */
+  if (scale_mode == BWD_SCALE_FORWARD)
+    {
+      if (xB > 1.0e16) *has_own_scales = TRUE;
 
-      if      (bck->has_own_scales)  bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = (xB > 1.0e4) ? xB : 1.0;
-      else                           bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
+      if      (*has_own_scales)  xmx[i*p7X_NXCELLS+p7X_SCALE] = (xB > 1.0e4) ? xB : 1.0;
+      else                           xmx[i*p7X_NXCELLS+p7X_SCALE] = fwd_xmx[i*p7X_NXCELLS+p7X_SCALE];
+    }
+  else if (scale_mode == BWD_SCALE_OWN)
+    xmx[i*p7X_NXCELLS+p7X_SCALE] = (xB > 1.0e4) ? xB : 1.0;
 
-      if (bck->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0)
+  if (xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0)
 	{
-	  xE /= bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-	  xN /= bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-	  xJ /= bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-	  xB /= bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-	  xC /= bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-	  xBv = vmovq_n_f32(1.0 / bck->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+	  xE /= xmx[i*p7X_NXCELLS+p7X_SCALE];
+	  xN /= xmx[i*p7X_NXCELLS+p7X_SCALE];
+	  xJ /= xmx[i*p7X_NXCELLS+p7X_SCALE];
+	  xB /= xmx[i*p7X_NXCELLS+p7X_SCALE];
+	  xC /= xmx[i*p7X_NXCELLS+p7X_SCALE];
+	  xBv = vmovq_n_f32(1.0 / xmx[i*p7X_NXCELLS+p7X_SCALE]);
 	  for (q = 0; q < Q; q++) {
 	    MMO(dpc,q) = vmulq_f32(MMO(dpc,q), xBv);
 	    DMO(dpc,q) = vmulq_f32(DMO(dpc,q), xBv);
 	    IMO(dpc,q) = vmulq_f32(IMO(dpc,q), xBv);
 	  }
-	  bck->totscale += log(bck->xmx[i*p7X_NXCELLS+p7X_SCALE]);
+	  if (totscale != NULL) *totscale += log(xmx[i*p7X_NXCELLS+p7X_SCALE]);
 	}
 
-      /* Stores are separate only for pedagogical reasons: easy to
-       * turn this into a more memory efficient version just by
-       * deleting the stores.
-       */
-      bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
-      if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, i, Q);
+  /* Stores are separate only for pedagogical reasons: easy to
+   * turn this into a more memory efficient version just by
+   * deleting the stores.
+   */
+  xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  xmx[i*p7X_NXCELLS+p7X_C] = xC;
+}
 
-#if eslDEBUGLEVEL > 0
-      if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, xE, xN, xJ, xB, xC);	/* logify=TRUE, <rowi>=i, width=9, precision=4*/
-#endif
-    } /* thus ends the loop over sequence positions i */
 
-  /* Termination at i=0, where we can only reach N,B states. */
-  dpp = bck->dpf[1 * do_full];
+/* backward_row_0()
+ * Backward row 0: only the N and B states, from row 1 in <dpp> and the
+ * special states of row 1 in <xmx>. Writes row 0's special states into
+ * <xmx> and returns its N value.
+ */
+static float
+backward_row_0(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, const float32x4_t *dpp)
+{
+  register float32x4_t mpv;
+  register float32x4_t xBv;
+  float xN, xB;
+  int q;
+  int Q       = p7O_NQF(om->M);
+  float32x4_t *rp;
+  float32x4_t *tp;
+
+  xN = xmx[1*p7X_NXCELLS+p7X_N];
   tp  = om->tfv;          /* <*tp> is now the [1 5 9 13] TBMk transition quad  */
   rp  = om->rfv[dsq[1]];  /* <*rp> is now the [1 5 9 13] match emission quad   */
   xBv = vmovq_n_f32(0.0);
@@ -824,12 +870,57 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 
   xN = (xB * om->xf[p7O_N][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_LOOP]);
 
-  bck->xmx[p7X_B]     = xB;
-  bck->xmx[p7X_C]     = 0.0;
-  bck->xmx[p7X_J]     = 0.0;
-  bck->xmx[p7X_N]     = xN;
-  bck->xmx[p7X_E]     = 0.0;
-  bck->xmx[p7X_SCALE] = 1.0;
+  xmx[p7X_B]     = xB;
+  xmx[p7X_C]     = 0.0;
+  xmx[p7X_J]     = 0.0;
+  xmx[p7X_N]     = xN;
+  xmx[p7X_E]     = 0.0;
+  xmx[p7X_SCALE] = 1.0;
+  return xN;
+}
+
+
+static int
+backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc)
+{
+  float xN;
+  int i;
+  int q;
+  int Q       = p7O_NQF(om->M);
+  float32x4_t *dpc;
+  float32x4_t *dpp;
+
+  /* initialize the L row. */
+  bck->M = om->M;
+  bck->L = L;
+  bck->has_own_scales = FALSE;	/* backwards scale factors are *usually* given by <fwd> */
+  dpc = bck->dpf[L * do_full];
+  backward_row_L(om, fwd->xmx, bck->xmx, &bck->totscale, dpc, L, BWD_SCALE_FORWARD);
+  if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, L, Q);
+
+#if eslDEBUGLEVEL > 0
+  if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, L, 9, 4, bck->xmx[L*p7X_NXCELLS+p7X_E], bck->xmx[L*p7X_NXCELLS+p7X_N], bck->xmx[L*p7X_NXCELLS+p7X_J], bck->xmx[L*p7X_NXCELLS+p7X_B], bck->xmx[L*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=L, width=9, precision=4*/
+#endif
+
+  /* main recursion */
+  for (i = L-1; i >= 1; i--)	/* backwards stride */
+    {
+      /* phase 1. B(i) collected. Old row destroyed, new row contains
+       *    complete I(i,k), partial {MD}(i,k) w/ no {MD}->{DE} paths yet.
+       */
+      dpc = bck->dpf[i     * do_full];
+      dpp = bck->dpf[(i+1) * do_full];
+      backward_row(dsq, om, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, dpc, dpp, i, BWD_SCALE_FORWARD);
+      if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, i, Q);
+
+#if eslDEBUGLEVEL > 0
+      if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, bck->xmx[i*p7X_NXCELLS+p7X_E], bck->xmx[i*p7X_NXCELLS+p7X_N], bck->xmx[i*p7X_NXCELLS+p7X_J], bck->xmx[i*p7X_NXCELLS+p7X_B], bck->xmx[i*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=i, width=9, precision=4*/
+#endif
+    } /* thus ends the loop over sequence positions i */
+
+  /* Termination at i=0, where we can only reach N,B states. */
+  dpp = bck->dpf[1 * do_full];
+  xN  = backward_row_0(dsq, om, bck->xmx, dpp);
 
 #if eslDEBUGLEVEL > 0
   dpc = bck->dpf[0];

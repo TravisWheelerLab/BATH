@@ -42,15 +42,10 @@
 int
 p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2)
 {
-  int           M    = om->M;
-  int           Ld   = pp->L;
-  int           Q    = p7O_NQF(M);
-  float        *xmx  = pp->xmx;	/* enables use of XMXo(i,s) macro */
-  float         norm;
-  float32x4_t  *rp;
-  float32x4_t   sv;
-  float         xfactor;
-  int           i,q,x;
+  int      Ld   = pp->L;
+  int      Q    = p7O_NQF(om->M);
+  float   *xmx  = pp->xmx;	/* enables use of XMXo(i,s) macro */
+  int      i,q;
 
   /* Calculate expected # of times that each emitting state was used
    * in generating the Ld residues in this domain.
@@ -73,31 +68,58 @@ p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2)
       XMXo(0,p7X_J) += XMXo(i,p7X_J);
     }
 
+  return p7_Null2_FromCounts(om, pp->dpf[0], pp->xmx, Ld, null2);
+}
+
+
+/* Function:  p7_Null2_FromCounts()
+ * Synopsis:  Null2 odds ratios from expected state usage.
+ *
+ * Purpose:   The second half of <p7_Null2_ByExpectation()>: from the
+ *            posterior probabilities of M and I summed over rows 1..Ld
+ *            of an envelope of <Ld> residues (<cnt>, one row of striped
+ *            cells), and those of N, C and J (<cntx>, indexed by
+ *            p7X_N etc.), calculate the null2 odds ratios into <null2>
+ *            (<0..Kp-1>, caller allocated). <cnt> and <cntx> are
+ *            overwritten.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_Null2_FromCounts(const P7_OPROFILE *om, float32x4_t *cnt, float *cntx, int Ld, float *null2)
+{
+  int          Q    = p7O_NQF(om->M);
+  float        norm;
+  float32x4_t *rp;
+  float32x4_t  sv;
+  float        xfactor;
+  int          q,x;
+
   /* Convert those expected #'s to frequencies, to use as posterior weights. */
   norm = 1.0 / (float) Ld;
   sv   = vmovq_n_f32(norm);
   for (q = 0; q < Q; q++)
     {
-      pp->dpf[0][q*3 + p7X_M] = vmulq_f32(pp->dpf[0][q*3 + p7X_M], sv);
-      pp->dpf[0][q*3 + p7X_I] = vmulq_f32(pp->dpf[0][q*3 + p7X_I], sv);
+      cnt[q*3 + p7X_M] = vmulq_f32(cnt[q*3 + p7X_M], sv);
+      cnt[q*3 + p7X_I] = vmulq_f32(cnt[q*3 + p7X_I], sv);
     }
-  XMXo(0,p7X_N) *= norm;
-  XMXo(0,p7X_C) *= norm;
-  XMXo(0,p7X_J) *= norm;
+  cntx[p7X_N] *= norm;
+  cntx[p7X_C] *= norm;
+  cntx[p7X_J] *= norm;
 
   /* Calculate null2's emission odds, by taking posterior weighted sum
    * over all emission vectors used in paths explaining the domain.
    */
-  xfactor = XMXo(0, p7X_N) + XMXo(0, p7X_C) + XMXo(0, p7X_J);
+  xfactor = cntx[p7X_N] + cntx[p7X_C] + cntx[p7X_J];
   for (x = 0; x < om->abc->K; x++)
     {
       sv = vmovq_n_f32(0.0);
       rp = om->rfv[x];
       for (q = 0; q < Q; q++)
 	{
-	  sv = vaddq_f32(sv, vmulq_f32(pp->dpf[0][q*3 + p7X_M], *rp)); rp++;
-	  sv = vaddq_f32(sv,           pp->dpf[0][q*3 + p7X_I]);              /* insert odds implicitly 1.0 */
-	  //	  sv = _mm_add_ps(sv, _mm_mul_ps(pp->dpf[0][q*3 + p7X_I], *rp)); rp++;
+	  sv = vaddq_f32(sv, vmulq_f32(cnt[q*3 + p7X_M], *rp)); rp++;
+	  sv = vaddq_f32(sv,           cnt[q*3 + p7X_I]);              /* insert odds implicitly 1.0 */
+	  //	  sv = _mm_add_ps(sv, _mm_mul_ps(cnt[q*3 + p7X_I], *rp)); rp++;
 	}
       esl_neon_hsum_float((esl_neon_128f_t) sv, &(null2[x]));
       null2[x] += xfactor;

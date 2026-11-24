@@ -794,11 +794,13 @@ extern int (*p7_DomainDecoding)(const P7_OPROFILE *om, const P7_OMX *oxf, const 
 /* decoding_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Decoding_sse               (const P7_OPROFILE *om,    const P7_OMX *oxf,       P7_OMX *oxb,       P7_OMX *pp);
+extern void p7_DecodingRow_sse           (const P7_OPROFILE *om, const float *fxmx, const float *bxmx, const __m128 *fv, const __m128 *bv, __m128 *ppv, float *ppx, int i, float scaleproduct);
 extern int p7_DomainDecoding_sse         (const P7_OPROFILE *om,    const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 #endif
 /* decoding_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_Decoding_avx               (const P7_OPROFILE *om,    const P7_OMX *oxf,       P7_OMX *oxb,       P7_OMX *pp);
+extern void p7_DecodingRow_avx           (const P7_OPROFILE *om, const float *fxmx, const float *bxmx, const __m256 *fv, const __m256 *bv, __m256 *ppv, float *ppx, int i, float scaleproduct);
 extern int p7_DomainDecoding_avx         (const P7_OPROFILE *om,    const P7_OMX *oxf, const P7_OMX *oxb, P7_DOMAINDEF *ddef);
 #endif
 
@@ -834,6 +836,7 @@ extern int p7_ForwardParser_sse   (const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern int p7_Backward_sse        (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser_sse  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardDecoding_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,       P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern void p7_ForwardRow_sse      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m128 *dpc, const __m128 *dpp, int i);
 extern int p7_BackwardChk_sse     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_sse (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 #endif
@@ -845,6 +848,7 @@ extern int p7_ForwardParser_avx   (const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern int p7_Backward_avx        (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser_avx  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardDecoding_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,       P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
+extern void p7_ForwardRow_avx      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m256 *dpc, const __m256 *dpp, int i);
 extern int p7_BackwardChk_avx     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_avx (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 #endif
@@ -911,11 +915,13 @@ extern int (*p7_Null2_ByTrace)      (const P7_OPROFILE *om, const P7_TRACE *tr, 
 /* null2_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Null2_ByExpectation_sse    (const P7_OPROFILE    *om,    const P7_OMX *pp, float *null2);
+extern int p7_Null2_FromCounts_sse      (const P7_OPROFILE    *om,    __m128 *cnt, float *cntx, int Ld, float *null2);
 extern int p7_Null2_ByTrace_sse          (const P7_OPROFILE    *om,    const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 #endif
 /* null2_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_Null2_ByExpectation_avx   (const P7_OPROFILE    *om,    const P7_OMX *pp, float *null2);
+extern int p7_Null2_FromCounts_avx      (const P7_OPROFILE    *om,    __m256 *cnt, float *cntx, int Ld, float *null2);
 extern int p7_Null2_ByTrace_avx         (const P7_OPROFILE    *om,    const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 #endif
 
@@ -934,15 +940,21 @@ extern int p7_Null2_fs_ByExpectation_avx(const P7_FS_OPROFILE *om_fs, P7_OMX *pp
 /* optacc.c — self-patching dispatchers */
 extern int (*p7_OptimalAccuracy)(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int (*p7_OATrace)        (const P7_OPROFILE *om,                   const P7_OMX *ox, P7_TRACE *tr);
+extern int (*p7_OptimalAccuracySweep)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int (*p7_OATraceSweep)        (const P7_OPROFILE *om, const P7_OATMX *ox, P7_TRACE *tr);
 
 /* optacc_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_OptimalAccuracy_sse           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
+extern int p7_OptimalAccuracySweep_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int p7_OATraceSweep_sse              (const P7_OPROFILE    *om,    const P7_OATMX *ox, P7_TRACE *tr);
 extern int p7_OATrace_sse                   (const P7_OPROFILE    *om,                      const P7_OMX *ox, P7_TRACE *tr);
 #endif
 /* optacc_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_OptimalAccuracy_avx           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
+extern int p7_OptimalAccuracySweep_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
+extern int p7_OATraceSweep_avx              (const P7_OPROFILE    *om,    const P7_OATMX *ox, P7_TRACE *tr);
 extern int p7_OATrace_avx                   (const P7_OPROFILE    *om,                      const P7_OMX *ox, P7_TRACE *tr);
 #endif
 

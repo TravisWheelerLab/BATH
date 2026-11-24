@@ -123,154 +123,183 @@ p7_BackwardDecoding_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX
 
 #ifdef eslENABLE_SSE
 
-static int
-forward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
+/* Function:  p7_ForwardRow_sse()
+ * Synopsis:  One row of the SSE Forward algorithm.
+ *
+ * Purpose:   Forward row <i> of profile <om> against <dsq> into <dpc>,
+ *            from row i-1 in <dpp> (not used for <i> = 0), reading the
+ *            special states of row i-1 from <xmx> and writing row <i>'s
+ *            special states and scale factor into it. When the row is
+ *            rescaled, the log of its scale factor is added to
+ *            <*totscale>. Row 0 is the initialization. Same calculation
+ *            as each row of <p7_Forward_sse()>, which calls it.
+ */
+void
+p7_ForwardRow_sse(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m128 *dpc, const __m128 *dpp, int i)
 {
   register __m128 mpv, dpv, ipv;
   register __m128 sv;
   register __m128 dcv;
   register __m128 xEv;
   register __m128 xBv;
-  __m128   zerov;
+  __m128   zerov = _mm_setzero_ps();
   float    xN, xE, xB, xC, xJ;
-  int i;
-  int q;
-  int j;
-  int Q     = p7O_NQF(om->M);
-  __m128 *dpc = ox->dpf[0];
-  __m128 *dpp;
-  __m128 *rp;
-  __m128 *tp;
+  int      q;
+  int      j;
+  int      Q     = p7O_NQF(om->M);
+  __m128  *rp;
+  __m128  *tp;
+
+  if (i == 0)
+    {
+      for (q = 0; q < Q; q++)
+        MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
+      xmx[p7X_E]     = 0.0f;
+      xmx[p7X_N]     = 1.0f;
+      xmx[p7X_J]     = 0.0f;
+      xmx[p7X_B]     = om->xf[p7O_N][p7O_MOVE];
+      xmx[p7X_C]     = 0.0f;
+      xmx[p7X_SCALE] = 1.0f;
+      return;
+    }
+
+  xN = xmx[(i-1)*p7X_NXCELLS+p7X_N];
+  xJ = xmx[(i-1)*p7X_NXCELLS+p7X_J];
+  xB = xmx[(i-1)*p7X_NXCELLS+p7X_B];
+  xC = xmx[(i-1)*p7X_NXCELLS+p7X_C];
+
+  rp  = om->rfv[dsq[i]];
+  tp  = om->tfv;
+  dcv = _mm_setzero_ps();
+  xEv = _mm_setzero_ps();
+  xBv = _mm_set1_ps(xB);
+
+  mpv = esl_sse_rightshiftz_float(MMO(dpp,Q-1));
+  dpv = esl_sse_rightshiftz_float(DMO(dpp,Q-1));
+  ipv = esl_sse_rightshiftz_float(IMO(dpp,Q-1));
+
+  for (q = 0; q < Q; q++) {
+    sv   =                _mm_mul_ps(xBv, *tp);  tp++;
+    sv   = _mm_add_ps(sv, _mm_mul_ps(mpv, *tp)); tp++;
+    sv   = _mm_add_ps(sv, _mm_mul_ps(ipv, *tp)); tp++;
+    sv   = _mm_add_ps(sv, _mm_mul_ps(dpv, *tp)); tp++;
+    sv   = _mm_mul_ps(sv, *rp);                  rp++;
+    xEv  = _mm_add_ps(xEv, sv);
+
+    mpv = MMO(dpp,q);
+    dpv = DMO(dpp,q);
+    ipv = IMO(dpp,q);
+
+    MMO(dpc,q) = sv;
+    DMO(dpc,q) = dcv;
+
+    dcv = _mm_mul_ps(sv, *tp); tp++;
+
+    sv         =                _mm_mul_ps(mpv, *tp);  tp++;
+    IMO(dpc,q) = _mm_add_ps(sv, _mm_mul_ps(ipv, *tp)); tp++;
+  }
+
+  /* DD paths */
+  dcv        = esl_sse_rightshiftz_float(dcv);
+  DMO(dpc,0) = zerov;
+  tp         = om->tfv + 7*Q;
+  for (q = 0; q < Q; q++) {
+    DMO(dpc,q) = _mm_add_ps(dcv, DMO(dpc,q));
+    dcv        = _mm_mul_ps(DMO(dpc,q), *tp); tp++;
+  }
+
+  if (om->M < 100) {
+    for (j = 1; j < 4; j++) {
+      dcv = esl_sse_rightshiftz_float(dcv);
+      tp  = om->tfv + 7*Q;
+      for (q = 0; q < Q; q++) {
+        DMO(dpc,q) = _mm_add_ps(dcv, DMO(dpc,q));
+        dcv        = _mm_mul_ps(dcv, *tp); tp++;
+      }
+    }
+  } else {
+    for (j = 1; j < 4; j++) {
+      register __m128 cv;
+      dcv = esl_sse_rightshiftz_float(dcv);
+      tp  = om->tfv + 7*Q;
+      cv  = zerov;
+      for (q = 0; q < Q; q++) {
+        sv         = _mm_add_ps(dcv, DMO(dpc,q));
+        cv         = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc,q)));
+        DMO(dpc,q) = sv;
+        dcv        = _mm_mul_ps(dcv, *tp); tp++;
+      }
+      if (!_mm_movemask_ps(cv)) break;
+    }
+  }
+
+  /* D's contribute to xE in Forward */
+  for (q = 0; q < Q; q++) xEv = _mm_add_ps(DMO(dpc,q), xEv);
+
+  /* Horizontal sum of xEv */
+  xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(0, 3, 2, 1)));
+  xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(1, 0, 3, 2)));
+  _mm_store_ss(&xE, xEv);
+
+  xN = xN * om->xf[p7O_N][p7O_LOOP];
+  xC = (xC * om->xf[p7O_C][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_MOVE]);
+  xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_LOOP]);
+  xB = (xJ * om->xf[p7O_J][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_MOVE]);
+
+  /* Sparse rescaling */
+  if (xE > 1.0e4f) {
+    xN  = xN / xE;
+    xC  = xC / xE;
+    xJ  = xJ / xE;
+    xB  = xB / xE;
+    xEv = _mm_set1_ps(1.0f / xE);
+    for (q = 0; q < Q; q++) {
+      MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
+      DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
+      IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
+    }
+    xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
+    *totscale += log(xE);
+    xE = 1.0f;
+  } else {
+    xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  }
+
+  xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  xmx[i*p7X_NXCELLS+p7X_C] = xC;
+}
+
+
+static int
+forward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
+{
+  float    xC;
+  int      i;
+  __m128  *dpc = ox->dpf[0];
+  __m128  *dpp;
 
   ox->M  = om->M;
   ox->L  = L;
   ox->has_own_scales = TRUE;
-  zerov  = _mm_setzero_ps();
-  for (q = 0; q < Q; q++)
-    MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
-  xE = ox->xmx[p7X_E] = 0.0f;
-  xN = ox->xmx[p7X_N] = 1.0f;
-  xJ = ox->xmx[p7X_J] = 0.0f;
-  xB = ox->xmx[p7X_B] = om->xf[p7O_N][p7O_MOVE];
-  xC = ox->xmx[p7X_C] = 0.0f;
-
-  ox->xmx[p7X_SCALE] = 1.0f;
-  ox->totscale        = 0.0;
+  ox->totscale       = 0.0;
+  p7_ForwardRow_sse(dsq, om, ox->xmx, &ox->totscale, dpc, NULL, 0);
 
 #if eslDEBUGLEVEL > 0
-  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, xE, xN, xJ, xB, xC);
+  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, ox->xmx[p7X_E], ox->xmx[p7X_N], ox->xmx[p7X_J], ox->xmx[p7X_B], ox->xmx[p7X_C]);
 #endif
 
   for (i = 1; i <= L; i++) {
     dpp = dpc;
     dpc = ox->dpf[do_full * i];
-    rp  = om->rfv[dsq[i]];
-    tp  = om->tfv;
-    dcv = _mm_setzero_ps();
-    xEv = _mm_setzero_ps();
-    xBv = _mm_set1_ps(xB);
-
-    mpv = esl_sse_rightshiftz_float(MMO(dpp,Q-1));
-    dpv = esl_sse_rightshiftz_float(DMO(dpp,Q-1));
-    ipv = esl_sse_rightshiftz_float(IMO(dpp,Q-1));
-
-    for (q = 0; q < Q; q++) {
-      sv   =                _mm_mul_ps(xBv, *tp);  tp++;
-      sv   = _mm_add_ps(sv, _mm_mul_ps(mpv, *tp)); tp++;
-      sv   = _mm_add_ps(sv, _mm_mul_ps(ipv, *tp)); tp++;
-      sv   = _mm_add_ps(sv, _mm_mul_ps(dpv, *tp)); tp++;
-      sv   = _mm_mul_ps(sv, *rp);                  rp++;
-      xEv  = _mm_add_ps(xEv, sv);
-
-      mpv = MMO(dpp,q);
-      dpv = DMO(dpp,q);
-      ipv = IMO(dpp,q);
-
-      MMO(dpc,q) = sv;
-      DMO(dpc,q) = dcv;
-
-      dcv = _mm_mul_ps(sv, *tp); tp++;
-
-      sv         =                _mm_mul_ps(mpv, *tp);  tp++;
-      IMO(dpc,q) = _mm_add_ps(sv, _mm_mul_ps(ipv, *tp)); tp++;
-    }
-
-    /* DD paths */
-    dcv        = esl_sse_rightshiftz_float(dcv);
-    DMO(dpc,0) = zerov;
-    tp         = om->tfv + 7*Q;
-    for (q = 0; q < Q; q++) {
-      DMO(dpc,q) = _mm_add_ps(dcv, DMO(dpc,q));
-      dcv        = _mm_mul_ps(DMO(dpc,q), *tp); tp++;
-    }
-
-    if (om->M < 100) {
-      for (j = 1; j < 4; j++) {
-        dcv = esl_sse_rightshiftz_float(dcv);
-        tp  = om->tfv + 7*Q;
-        for (q = 0; q < Q; q++) {
-          DMO(dpc,q) = _mm_add_ps(dcv, DMO(dpc,q));
-          dcv        = _mm_mul_ps(dcv, *tp); tp++;
-        }
-      }
-    } else {
-      for (j = 1; j < 4; j++) {
-        register __m128 cv;
-        dcv = esl_sse_rightshiftz_float(dcv);
-        tp  = om->tfv + 7*Q;
-        cv  = zerov;
-        for (q = 0; q < Q; q++) {
-          sv         = _mm_add_ps(dcv, DMO(dpc,q));
-          cv         = _mm_or_ps(cv, _mm_cmpgt_ps(sv, DMO(dpc,q)));
-          DMO(dpc,q) = sv;
-          dcv        = _mm_mul_ps(dcv, *tp); tp++;
-        }
-        if (!_mm_movemask_ps(cv)) break;
-      }
-    }
-
-    /* D's contribute to xE in Forward */
-    for (q = 0; q < Q; q++) xEv = _mm_add_ps(DMO(dpc,q), xEv);
-
-    /* Horizontal sum of xEv */
-    xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(0, 3, 2, 1)));
-    xEv = _mm_add_ps(xEv, _mm_shuffle_ps(xEv, xEv, _MM_SHUFFLE(1, 0, 3, 2)));
-    _mm_store_ss(&xE, xEv);
-
-    xN = xN * om->xf[p7O_N][p7O_LOOP];
-    xC = (xC * om->xf[p7O_C][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_MOVE]);
-    xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_LOOP]);
-    xB = (xJ * om->xf[p7O_J][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_MOVE]);
-
-    /* Sparse rescaling */
-    if (xE > 1.0e4f) {
-      xN  = xN / xE;
-      xC  = xC / xE;
-      xJ  = xJ / xE;
-      xB  = xB / xE;
-      xEv = _mm_set1_ps(1.0f / xE);
-      for (q = 0; q < Q; q++) {
-        MMO(dpc,q) = _mm_mul_ps(MMO(dpc,q), xEv);
-        DMO(dpc,q) = _mm_mul_ps(DMO(dpc,q), xEv);
-        IMO(dpc,q) = _mm_mul_ps(IMO(dpc,q), xEv);
-      }
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
-      xE = 1.0f;
-    } else {
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-    }
-
-    ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-    ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-    ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-    ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-    ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
-
+    p7_ForwardRow_sse(dsq, om, ox->xmx, &ox->totscale, dpc, dpp, i);
 #if eslDEBUGLEVEL > 0
-    if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, xE, xN, xJ, xB, xC);
+    if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, ox->xmx[i*p7X_NXCELLS+p7X_E], ox->xmx[i*p7X_NXCELLS+p7X_N], ox->xmx[i*p7X_NXCELLS+p7X_J], ox->xmx[i*p7X_NXCELLS+p7X_B], ox->xmx[i*p7X_NXCELLS+p7X_C]);
 #endif
   }
+  xC = ox->xmx[L*p7X_NXCELLS+p7X_C];
 
   if      (isnan(xC))        ESL_EXCEPTION(eslERANGE, "forward score is NaN");
   else if (L > 0 && xC == 0.0f) ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");

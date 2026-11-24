@@ -99,144 +99,174 @@ p7_BackwardDecoding_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX
  * 2. Static engine implementations.
  *****************************************************************/
 
-static int
-forward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
+/* Function:  p7_ForwardRow_avx()
+ * Synopsis:  One row of the AVX Forward algorithm.
+ *
+ * Purpose:   Forward row <i> of profile <om> against <dsq> into <dpc>,
+ *            from row i-1 in <dpp> (not used for <i> = 0), reading the
+ *            special states of row i-1 from <xmx> and writing row <i>'s
+ *            special states and scale factor into it. When the row is
+ *            rescaled, the log of its scale factor is added to
+ *            <*totscale>. Row 0 is the initialization. Same calculation
+ *            as each row of <p7_Forward_avx()>, which calls it.
+ */
+void
+p7_ForwardRow_avx(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m256 *dpc, const __m256 *dpp, int i)
 {
   register __m256 mpv, dpv, ipv;
   register __m256 sv;
   register __m256 dcv;
   register __m256 xEv;
   register __m256 xBv;
-  __m256   zerov;
+  __m256   zerov = _mm256_setzero_ps();
   float    xN, xE, xB, xC, xJ;
-  int i;
-  int q;
-  int j;
-  int Q     = p7O_NQF_AVX(om->M);
-  __m256 *dpc = ox->dpf_avx[0];
-  __m256 *dpp;
-  __m256 *rp;
-  __m256 *tp;
+  int      q;
+  int      j;
+  int      Q     = p7O_NQF_AVX(om->M);
+  __m256  *rp;
+  __m256  *tp;
+
+  if (i == 0)
+    {
+      for (q = 0; q < Q; q++)
+        MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
+      xmx[p7X_E]     = 0.0f;
+      xmx[p7X_N]     = 1.0f;
+      xmx[p7X_J]     = 0.0f;
+      xmx[p7X_B]     = om->xf[p7O_N][p7O_MOVE];
+      xmx[p7X_C]     = 0.0f;
+      xmx[p7X_SCALE] = 1.0f;
+      return;
+    }
+
+  xN = xmx[(i-1)*p7X_NXCELLS+p7X_N];
+  xJ = xmx[(i-1)*p7X_NXCELLS+p7X_J];
+  xB = xmx[(i-1)*p7X_NXCELLS+p7X_B];
+  xC = xmx[(i-1)*p7X_NXCELLS+p7X_C];
+
+  rp  = om->rfv_avx[dsq[i]];
+  tp  = om->tfv_avx;
+  dcv = zerov;
+  xEv = zerov;
+  xBv = _mm256_set1_ps(xB);
+
+  mpv = esl_avx_rightshiftz_float(MMO(dpp,Q-1));
+  dpv = esl_avx_rightshiftz_float(DMO(dpp,Q-1));
+  ipv = esl_avx_rightshiftz_float(IMO(dpp,Q-1));
+
+  for (q = 0; q < Q; q++) {
+    sv   =                _mm256_mul_ps(xBv, *tp);  tp++;
+    sv   = _mm256_add_ps(sv, _mm256_mul_ps(mpv, *tp)); tp++;
+    sv   = _mm256_add_ps(sv, _mm256_mul_ps(ipv, *tp)); tp++;
+    sv   = _mm256_add_ps(sv, _mm256_mul_ps(dpv, *tp)); tp++;
+    sv   = _mm256_mul_ps(sv, *rp);                     rp++;
+    xEv  = _mm256_add_ps(xEv, sv);
+
+    mpv = MMO(dpp,q);
+    dpv = DMO(dpp,q);
+    ipv = IMO(dpp,q);
+
+    MMO(dpc,q) = sv;
+    DMO(dpc,q) = dcv;
+
+    dcv = _mm256_mul_ps(sv, *tp); tp++;
+
+    sv         =                _mm256_mul_ps(mpv, *tp);  tp++;
+    IMO(dpc,q) = _mm256_add_ps(sv, _mm256_mul_ps(ipv, *tp)); tp++;
+  }
+
+  /* DD paths */
+  dcv        = esl_avx_rightshiftz_float(dcv);
+  DMO(dpc,0) = zerov;
+  tp         = om->tfv_avx + 7*Q;
+  for (q = 0; q < Q; q++) {
+    DMO(dpc,q) = _mm256_add_ps(dcv, DMO(dpc,q));
+    dcv        = _mm256_mul_ps(DMO(dpc,q), *tp); tp++;
+  }
+
+  if (om->M < 100) {
+    for (j = 1; j < 8; j++) {
+      dcv = esl_avx_rightshiftz_float(dcv);
+      tp  = om->tfv_avx + 7*Q;
+      for (q = 0; q < Q; q++) {
+        DMO(dpc,q) = _mm256_add_ps(dcv, DMO(dpc,q));
+        dcv        = _mm256_mul_ps(dcv, *tp); tp++;
+      }
+    }
+  } else {
+    for (j = 1; j < 8; j++) {
+      register __m256 cv;
+      dcv = esl_avx_rightshiftz_float(dcv);
+      tp  = om->tfv_avx + 7*Q;
+      cv  = zerov;
+      for (q = 0; q < Q; q++) {
+        sv         = _mm256_add_ps(dcv, DMO(dpc,q));
+        cv         = _mm256_or_ps(cv, _mm256_cmp_ps(sv, DMO(dpc,q), _CMP_GT_OS));
+        DMO(dpc,q) = sv;
+        dcv        = _mm256_mul_ps(dcv, *tp); tp++;
+      }
+      if (!_mm256_movemask_ps(cv)) break;
+    }
+  }
+
+  /* D's contribute to xE in Forward */
+  for (q = 0; q < Q; q++) xEv = _mm256_add_ps(DMO(dpc,q), xEv);
+
+  /* Horizontal sum of xEv */
+  esl_avx_hsum_ps(xEv, &xE);
+
+  xN = xN * om->xf[p7O_N][p7O_LOOP];
+  xC = (xC * om->xf[p7O_C][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_MOVE]);
+  xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_LOOP]);
+  xB = (xJ * om->xf[p7O_J][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_MOVE]);
+
+  /* Sparse rescaling */
+  if (xE > 1.0e4f) {
+    xN  = xN / xE;
+    xC  = xC / xE;
+    xJ  = xJ / xE;
+    xB  = xB / xE;
+    xEv = _mm256_set1_ps(1.0f / xE);
+    for (q = 0; q < Q; q++) {
+      MMO(dpc,q) = _mm256_mul_ps(MMO(dpc,q), xEv);
+      DMO(dpc,q) = _mm256_mul_ps(DMO(dpc,q), xEv);
+      IMO(dpc,q) = _mm256_mul_ps(IMO(dpc,q), xEv);
+    }
+    xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
+    *totscale += log(xE);
+    xE = 1.0f;
+  } else {
+    xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
+  }
+
+  xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  xmx[i*p7X_NXCELLS+p7X_C] = xC;
+}
+
+
+static int
+forward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
+{
+  float    xC;
+  int      i;
+  __m256  *dpc = ox->dpf_avx[0];
+  __m256  *dpp;
 
   ox->M  = om->M;
   ox->L  = L;
   ox->has_own_scales = TRUE;
-  zerov  = _mm256_setzero_ps();
-  for (q = 0; q < Q; q++)
-    MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
-  xE = ox->xmx[p7X_E] = 0.0f;
-  xN = ox->xmx[p7X_N] = 1.0f;
-  xJ = ox->xmx[p7X_J] = 0.0f;
-  xB = ox->xmx[p7X_B] = om->xf[p7O_N][p7O_MOVE];
-  xC = ox->xmx[p7X_C] = 0.0f;
-
-  ox->xmx[p7X_SCALE] = 1.0f;
-  ox->totscale        = 0.0;
+  ox->totscale       = 0.0;
+  p7_ForwardRow_avx(dsq, om, ox->xmx, &ox->totscale, dpc, NULL, 0);
 
   for (i = 1; i <= L; i++) {
     dpp = dpc;
     dpc = ox->dpf_avx[do_full * i];
-    rp  = om->rfv_avx[dsq[i]];
-    tp  = om->tfv_avx;
-    dcv = zerov;
-    xEv = zerov;
-    xBv = _mm256_set1_ps(xB);
-
-    mpv = esl_avx_rightshiftz_float(MMO(dpp,Q-1));
-    dpv = esl_avx_rightshiftz_float(DMO(dpp,Q-1));
-    ipv = esl_avx_rightshiftz_float(IMO(dpp,Q-1));
-
-    for (q = 0; q < Q; q++) {
-      sv   =                _mm256_mul_ps(xBv, *tp);  tp++;
-      sv   = _mm256_add_ps(sv, _mm256_mul_ps(mpv, *tp)); tp++;
-      sv   = _mm256_add_ps(sv, _mm256_mul_ps(ipv, *tp)); tp++;
-      sv   = _mm256_add_ps(sv, _mm256_mul_ps(dpv, *tp)); tp++;
-      sv   = _mm256_mul_ps(sv, *rp);                     rp++;
-      xEv  = _mm256_add_ps(xEv, sv);
-
-      mpv = MMO(dpp,q);
-      dpv = DMO(dpp,q);
-      ipv = IMO(dpp,q);
-
-      MMO(dpc,q) = sv;
-      DMO(dpc,q) = dcv;
-
-      dcv = _mm256_mul_ps(sv, *tp); tp++;
-
-      sv         =                _mm256_mul_ps(mpv, *tp);  tp++;
-      IMO(dpc,q) = _mm256_add_ps(sv, _mm256_mul_ps(ipv, *tp)); tp++;
-    }
-
-    /* DD paths */
-    dcv        = esl_avx_rightshiftz_float(dcv);
-    DMO(dpc,0) = zerov;
-    tp         = om->tfv_avx + 7*Q;
-    for (q = 0; q < Q; q++) {
-      DMO(dpc,q) = _mm256_add_ps(dcv, DMO(dpc,q));
-      dcv        = _mm256_mul_ps(DMO(dpc,q), *tp); tp++;
-    }
-
-    if (om->M < 100) {
-      for (j = 1; j < 8; j++) {
-        dcv = esl_avx_rightshiftz_float(dcv);
-        tp  = om->tfv_avx + 7*Q;
-        for (q = 0; q < Q; q++) {
-          DMO(dpc,q) = _mm256_add_ps(dcv, DMO(dpc,q));
-          dcv        = _mm256_mul_ps(dcv, *tp); tp++;
-        }
-      }
-    } else {
-      for (j = 1; j < 8; j++) {
-        register __m256 cv;
-        dcv = esl_avx_rightshiftz_float(dcv);
-        tp  = om->tfv_avx + 7*Q;
-        cv  = zerov;
-        for (q = 0; q < Q; q++) {
-          sv         = _mm256_add_ps(dcv, DMO(dpc,q));
-          cv         = _mm256_or_ps(cv, _mm256_cmp_ps(sv, DMO(dpc,q), _CMP_GT_OS));
-          DMO(dpc,q) = sv;
-          dcv        = _mm256_mul_ps(dcv, *tp); tp++;
-        }
-        if (!_mm256_movemask_ps(cv)) break;
-      }
-    }
-
-    /* D's contribute to xE in Forward */
-    for (q = 0; q < Q; q++) xEv = _mm256_add_ps(DMO(dpc,q), xEv);
-
-    /* Horizontal sum of xEv */
-    esl_avx_hsum_ps(xEv, &xE);
-
-    xN = xN * om->xf[p7O_N][p7O_LOOP];
-    xC = (xC * om->xf[p7O_C][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_MOVE]);
-    xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) + (xE * om->xf[p7O_E][p7O_LOOP]);
-    xB = (xJ * om->xf[p7O_J][p7O_MOVE]) + (xN * om->xf[p7O_N][p7O_MOVE]);
-
-    /* Sparse rescaling */
-    if (xE > 1.0e4f) {
-      xN  = xN / xE;
-      xC  = xC / xE;
-      xJ  = xJ / xE;
-      xB  = xB / xE;
-      xEv = _mm256_set1_ps(1.0f / xE);
-      for (q = 0; q < Q; q++) {
-        MMO(dpc,q) = _mm256_mul_ps(MMO(dpc,q), xEv);
-        DMO(dpc,q) = _mm256_mul_ps(DMO(dpc,q), xEv);
-        IMO(dpc,q) = _mm256_mul_ps(IMO(dpc,q), xEv);
-      }
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-      ox->totscale += log(xE);
-      xE = 1.0f;
-    } else {
-      ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0f;
-    }
-
-    ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-    ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-    ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-    ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-    ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
+    p7_ForwardRow_avx(dsq, om, ox->xmx, &ox->totscale, dpc, dpp, i);
   }
+  xC = ox->xmx[L*p7X_NXCELLS+p7X_C];
 
   if      (isnan(xC))             ESL_EXCEPTION(eslERANGE, "forward score is NaN");
   else if (L > 0 && xC == 0.0f)  ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");

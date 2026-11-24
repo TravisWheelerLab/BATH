@@ -311,235 +311,262 @@ p7_BackwardDecoding(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fw
  * 2. Forward/Backward engine implementations (called thru API)
  *****************************************************************/
 
+/* Function:  p7_ForwardRow()
+ * Synopsis:  One row of the NEON Forward algorithm.
+ *
+ * Purpose:   Forward row <i> of profile <om> against <dsq> into <dpc>,
+ *            from row i-1 in <dpp> (not used for <i> = 0), reading the
+ *            special states of row i-1 from <xmx> and writing row <i>'s
+ *            special states and scale factor into it. When the row is
+ *            rescaled, the log of its scale factor is added to
+ *            <*totscale>. Row 0 is the initialization. Same calculation
+ *            as each row of <p7_Forward()>, which calls it.
+ */
+void
+p7_ForwardRow(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, float32x4_t *dpc, const float32x4_t *dpp, int i)
+{
+  register float32x4_t mpv, dpv, ipv;
+  register float32x4_t sv;
+  register float32x4_t dcv;
+  register float32x4_t xEv;
+  register float32x4_t xBv;
+  float32x4_t zerov = vmovq_n_f32(0.0);
+  float    xN, xE, xB, xC, xJ;
+  int      q;
+  int      j;
+  int      Q     = p7O_NQF(om->M);
+  float32x4_t *rp;
+  float32x4_t *tp;
+
+  if (i == 0)
+    {
+      for (q = 0; q < Q; q++)
+        MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
+      xmx[p7X_E] = 0.;
+      xmx[p7X_N] = 1.;
+      xmx[p7X_J] = 0.;
+      xmx[p7X_B] = om->xf[p7O_N][p7O_MOVE];
+      xmx[p7X_C] = 0.;
+      xmx[p7X_SCALE] = 1.0;
+      return;
+    }
+
+  xN = xmx[(i-1)*p7X_NXCELLS+p7X_N];
+  xJ = xmx[(i-1)*p7X_NXCELLS+p7X_J];
+  xB = xmx[(i-1)*p7X_NXCELLS+p7X_B];
+  xC = xmx[(i-1)*p7X_NXCELLS+p7X_C];
+
+  rp  = om->rfv[dsq[i]];
+  tp  = om->tfv;
+  dcv = vmovq_n_f32(0.0f);
+  xEv = vmovq_n_f32(0.0f);
+  xBv = vmovq_n_f32(xB);
+
+  /* Right shifts by 4 bytes. 4,8,12,x becomes x,4,8,12.  Shift zeros on. */
+  mpv = vextq_f32(zerov, MMO(dpp,Q-1), 3);
+  dpv = vextq_f32(zerov, DMO(dpp,Q-1), 3);
+  ipv = vextq_f32(zerov, IMO(dpp,Q-1), 3);
+
+  for (q = 0; q < Q; q++) {
+          /* Calculate new MMO(i,q); don't store it yet, hold it in sv. */
+          sv  =               vmulq_f32(xBv, *tp);  tp++;
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, step=1 ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
+    printf("\n");
+#endif
+    sv  = vaddq_f32(sv, vmulq_f32(mpv, *tp)); tp++;
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, step=2 ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
+    printf("\n");
+#endif
+    sv  = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, step=3 ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
+    printf("\n");
+#endif
+    sv  = vaddq_f32(sv, vmulq_f32(dpv, *tp)); tp++;
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, step=4 ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
+    printf("\n");
+#endif
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, rp=", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)*rp);
+    printf("\n");
+#endif
+    sv  = vmulq_f32(sv, *rp);                 rp++;
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, step=5 ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
+    printf("\n");
+#endif
+    xEv = vaddq_f32(xEv, sv);
+#ifdef ARMDEBUG
+    printf("i= %d, q=%d, ", i, q);
+    esl_neon_dump_float(stdout, (esl_neon_128f_t)xEv);
+    printf("\n");
+#endif
+    /* Load {MDI}(i-1,q) into mpv, dpv, ipv;
+          * {MDI}MX(q) is then the current, not the prev row
+          */
+          mpv = MMO(dpp,q);
+          dpv = DMO(dpp,q);
+          ipv = IMO(dpp,q);
+
+          /* Do the delayed stores of {MD}(i,q) now that memory is usable */
+          MMO(dpc,q) = sv;
+          DMO(dpc,q) = dcv;
+
+          /* Calculate the next D(i,q+1) partially: M->D only;
+       * delay storage, holding it in dcv
+          */
+          dcv = vmulq_f32(sv, *tp); tp++;
+
+          /* Calculate and store I(i,q); assumes odds ratio for emission is 1.0 */
+          sv         =               vmulq_f32(mpv, *tp);  tp++;
+          IMO(dpc,q) = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
+        }
+#ifdef ARMDEBUG
+  printf("i= %d, step = 1, ", i);
+  esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
+  printf("\n");
+#endif
+  /* Now the DD paths. We would rather not serialize them but
+   * in an accurate Forward calculation, we have few options.
+   */
+  /* dcv has carried through from end of q loop above; store it
+   * in first pass, we add M->D and D->D path into DMX
+   */
+  /* We're almost certainly obligated to do at least one complete
+   * DD path to be sure:
+   */
+  dcv        = vextq_f32(zerov, dcv, 3);
+  DMO(dpc,0) = vmovq_n_f32(0.0);
+  tp         = om->tfv + 7*Q;       /* set tp to start of the DD's */
+  for (q = 0; q < Q; q++) {
+      DMO(dpc,q) = vaddq_f32(dcv, DMO(dpc,q));
+          dcv        = vmulq_f32(DMO(dpc,q), *tp); tp++; /* extend DMO(q), so we include M->D and D->D paths */
+        }
+
+  /* now. on small models, it seems best (empirically) to just go
+   * ahead and serialize. on large models, we can do a bit better,
+   * by testing for when dcv (DD path) accrued to DMO(q) is below
+   * machine epsilon for all q, in which case we know DMO(q) are all
+   * at their final values. The tradeoff point is (empirically) somewhere around M=100,
+   * at least on my desktop. We don't worry about the conditional here;
+   * it's outside any inner loops.
+   */
+  if (om->M < 100){                 /* Fully serialized version */
+          for (j = 1; j < 4; j++){
+      dcv = vextq_f32(zerov, dcv, 3);
+            tp        = om->tfv + 7*Q;      /* set tp to start of the DD's */
+            for (q = 0; q < Q; q++){ /* note, extend dcv, not DMO(q); only adding DD paths now */
+                    DMO(dpc,q) = vaddq_f32(dcv, DMO(dpc,q));
+                    dcv        = vmulq_f32(dcv, *tp);   tp++;
+                  }
+          }
+        }
+  else {                    /* Slightly parallelized version, but which incurs some overhead */
+          for (j = 1; j < 4; j++) {
+            register uint32x4_t cv; /* keeps track of whether any DD's change DMO(q) */
+
+      dcv = vextq_f32(zerov, dcv, 3);
+            tp  = om->tfv + 7*Q;    /* set tp to start of the DD's */
+            cv  = vmovq_n_u32(0);
+            for (q = 0; q < Q; q++){ /* using cmpgt below tests if DD changed any DMO(q) *without* conditional branch */
+                    sv         = vaddq_f32(dcv, DMO(dpc,q));
+                    cv         = vorrq_u32(cv, vcgtq_f32(sv, DMO(dpc,q)));
+                    DMO(dpc,q) = sv;                                      /* store new DMO(q) */
+                    dcv        = vmulq_f32(dcv, *tp);   tp++;       /* note, extend dcv, not DMO(q) */
+                  }
+            if (esl_neon_hmax_u8((esl_neon_128i_t) cv) == 0) break; /* DD's didn't change any DMO(q)? Then done, break out. */
+          }
+        }
+#ifdef ARMDEBUG
+  printf("i= %d, step = 2, ", i);
+  esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
+  printf("\n");
+#endif
+  /* Add D's to xEv */
+  for (q = 0; q < Q; q++) xEv = vaddq_f32(DMO(dpc,q), xEv);
+
+  /* Finally the "special" states, which start from Mk->E (->C, ->J->B) */
+  /* The following incantation is a horizontal sum of xEv's elements  */
+  /* These must follow DD calculations, because D's contribute to E in Forward
+   * (as opposed to Viterbi)
+   */
+  esl_neon_hsum_float((esl_neon_128f_t) xEv, &xE);
+  xN =  xN * om->xf[p7O_N][p7O_LOOP];
+  xC = (xC * om->xf[p7O_C][p7O_LOOP]) +  (xE * om->xf[p7O_E][p7O_MOVE]);
+  xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) +  (xE * om->xf[p7O_E][p7O_LOOP]);
+  xB = (xJ * om->xf[p7O_J][p7O_MOVE]) +  (xN * om->xf[p7O_N][p7O_MOVE]);
+  /* and now xB will carry over into next i, and xC carries over after i=L */
+
+  /* Sparse rescaling. xE above threshold? trigger a rescaling event.            */
+  if (xE > 1.0e4)   /* that's a little less than e^10, ~10% of our dynamic range */{
+        xN  = xN / xE;
+        xC  = xC / xE;
+        xJ  = xJ / xE;
+        xB  = xB / xE;
+
+  xEv = vmovq_n_f32(1.0 / xE);
+  for (q = 0; q < Q; q++){
+          MMO(dpc,q) = vmulq_f32(MMO(dpc,q), xEv);
+          DMO(dpc,q) = vmulq_f32(DMO(dpc,q), xEv);
+          IMO(dpc,q) = vmulq_f32(IMO(dpc,q), xEv);
+        }
+      xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
+        *totscale += log(xE);
+        xE = 1.0;
+        }
+  else xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0;
+
+  /* Storage of the specials.  We could've stored these already
+   * but using xE, etc. variables makes it easy to convert this
+   * code to O(M) memory versions just by deleting storage steps.
+   */
+  xmx[i*p7X_NXCELLS+p7X_E] = xE;
+  xmx[i*p7X_NXCELLS+p7X_N] = xN;
+  xmx[i*p7X_NXCELLS+p7X_J] = xJ;
+  xmx[i*p7X_NXCELLS+p7X_B] = xB;
+  xmx[i*p7X_NXCELLS+p7X_C] = xC;
+#ifdef ARMDEBUG
+  printf("i= %d, xE = %f\n", i, xE);
+#endif
+}
+
+
 static int
 forward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
 {
-  register float32x4_t mpv, dpv, ipv;  /* previous row values                                       */
-  register float32x4_t sv;		         /* temp storage of 1 curr row value in progress              */
-  register float32x4_t dcv;		         /* delayed storage of D(i,q+1)                               */
-  register float32x4_t xEv;		         /* E state: keeps max for Mk->E as we go                     */
-  register float32x4_t xBv;		         /* B state: splatted vector of B[i-1] for B->Mk calculations */
-  register float32x4_t zerov;          /* zero vector: used for emulating logical shifts with VEXT  */
-  float    xN, xE, xB, xC, xJ;	       /* special states' scores                                    */
-  int i;			                         /* counter over sequence positions 1..L                      */
-  int q;			                         /* counter over quads 0..nq-1                                */
-  int j;			                         /* counter over DD iterations (4 is full serialization)      */
-  int Q       = p7O_NQF(om->M);	       /* segment length: # of vectors                              */
-  float32x4_t *dpc = ox->dpf[0];       /* current row, for use in {MDI}MO(dpp,q) access macro       */
-  float32x4_t *dpp;                    /* previous row, for use in {MDI}MO(dpp,q) access macro      */
-  float32x4_t *rp;			               /* will point at om->rfv[x] for residue x[i]                 */
-  float32x4_t *tp;			               /* will point into (and step thru) om->tfv                   */
+  float    xC;
+  int      i;
+  float32x4_t *dpc = ox->dpf[0];
+  float32x4_t *dpp;
 
-  /* Initialization. */
-  zerov = vmovq_n_f32(0.0);
   ox->M  = om->M;
   ox->L  = L;
-  ox->has_own_scales = TRUE; 	/* all forward matrices control their own scalefactors */
-  for (q = 0; q < Q; q++)
-    MMO(dpc,q) = IMO(dpc,q) = DMO(dpc,q) = zerov;
-  xE    = ox->xmx[p7X_E] = 0.;
-  xN    = ox->xmx[p7X_N] = 1.;
-  xJ    = ox->xmx[p7X_J] = 0.;
-  xB    = ox->xmx[p7X_B] = om->xf[p7O_N][p7O_MOVE];
-  xC    = ox->xmx[p7X_C] = 0.;
-
-  ox->xmx[p7X_SCALE] = 1.0;
+  ox->has_own_scales = TRUE;
   ox->totscale       = 0.0;
+  p7_ForwardRow(dsq, om, ox->xmx, &ox->totscale, dpc, NULL, 0);
 
 #if eslDEBUGLEVEL > 0
-  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, xE, xN, xJ, xB, xC);	/* logify=TRUE, <rowi>=0, width=8, precision=5*/
+  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, ox->xmx[p7X_E], ox->xmx[p7X_N], ox->xmx[p7X_J], ox->xmx[p7X_B], ox->xmx[p7X_C]);
 #endif
 
-  for (i = 1; i <= L; i++)
-    {
-      dpp = dpc;
-      dpc = ox->dpf[do_full * i];     /* avoid conditional, use do_full as kronecker delta */
-      rp  = om->rfv[dsq[i]];
-      tp  = om->tfv;
-      dcv = vmovq_n_f32(0.0f);
-      xEv = vmovq_n_f32(0.0f);
-      xBv = vmovq_n_f32(xB);
-
-      /* Right shifts by 4 bytes. 4,8,12,x becomes x,4,8,12.  Shift zeros on. */
-      mpv = vextq_f32(zerov, MMO(dpp,Q-1), 3);
-      dpv = vextq_f32(zerov, DMO(dpp,Q-1), 3);
-      ipv = vextq_f32(zerov, IMO(dpp,Q-1), 3);
-
-      for (q = 0; q < Q; q++) {
-	      /* Calculate new MMO(i,q); don't store it yet, hold it in sv. */
-	      sv  =               vmulq_f32(xBv, *tp);  tp++;
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, step=1 ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-        printf("\n");
-#endif
-        sv  = vaddq_f32(sv, vmulq_f32(mpv, *tp)); tp++;
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, step=2 ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-        printf("\n");
-#endif
-        sv  = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, step=3 ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-        printf("\n");
-#endif
-        sv  = vaddq_f32(sv, vmulq_f32(dpv, *tp)); tp++;
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, step=4 ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-        printf("\n");
-#endif
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, rp=", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)*rp);
-        printf("\n");
-#endif
-        sv  = vmulq_f32(sv, *rp);                 rp++;
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, step=5 ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-        printf("\n");
-#endif
-        xEv = vaddq_f32(xEv, sv);
-#ifdef ARMDEBUG
-        printf("i= %d, q=%d, ", i, q);
-        esl_neon_dump_float(stdout, (esl_neon_128f_t)xEv);
-        printf("\n");
-#endif
-        /* Load {MDI}(i-1,q) into mpv, dpv, ipv;
-	      * {MDI}MX(q) is then the current, not the prev row
-	      */
-	      mpv = MMO(dpp,q);
-	      dpv = DMO(dpp,q);
-	      ipv = IMO(dpp,q);
-
-	      /* Do the delayed stores of {MD}(i,q) now that memory is usable */
-	      MMO(dpc,q) = sv;
-	      DMO(dpc,q) = dcv;
-
-	      /* Calculate the next D(i,q+1) partially: M->D only;
-           * delay storage, holding it in dcv
-	      */
-	      dcv = vmulq_f32(sv, *tp); tp++;
-
-	      /* Calculate and store I(i,q); assumes odds ratio for emission is 1.0 */
-	      sv         =               vmulq_f32(mpv, *tp);  tp++;
-	      IMO(dpc,q) = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
-	    }
-#ifdef ARMDEBUG
-      printf("i= %d, step = 1, ", i);
-      esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
-      printf("\n");
-#endif
-      /* Now the DD paths. We would rather not serialize them but
-       * in an accurate Forward calculation, we have few options.
-       */
-      /* dcv has carried through from end of q loop above; store it
-       * in first pass, we add M->D and D->D path into DMX
-       */
-      /* We're almost certainly obligated to do at least one complete
-       * DD path to be sure:
-       */
-      dcv        = vextq_f32(zerov, dcv, 3);
-      DMO(dpc,0) = vmovq_n_f32(0.0);
-      tp         = om->tfv + 7*Q;	/* set tp to start of the DD's */
-      for (q = 0; q < Q; q++) {
-    	  DMO(dpc,q) = vaddq_f32(dcv, DMO(dpc,q));
-	      dcv        = vmulq_f32(DMO(dpc,q), *tp); tp++; /* extend DMO(q), so we include M->D and D->D paths */
-	    }
-
-      /* now. on small models, it seems best (empirically) to just go
-       * ahead and serialize. on large models, we can do a bit better,
-       * by testing for when dcv (DD path) accrued to DMO(q) is below
-       * machine epsilon for all q, in which case we know DMO(q) are all
-       * at their final values. The tradeoff point is (empirically) somewhere around M=100,
-       * at least on my desktop. We don't worry about the conditional here;
-       * it's outside any inner loops.
-       */
-      if (om->M < 100){			/* Fully serialized version */
-	      for (j = 1; j < 4; j++){
-          dcv = vextq_f32(zerov, dcv, 3);
-	        tp        = om->tfv + 7*Q;	/* set tp to start of the DD's */
-	        for (q = 0; q < Q; q++){ /* note, extend dcv, not DMO(q); only adding DD paths now */
-		        DMO(dpc,q) = vaddq_f32(dcv, DMO(dpc,q));
-		        dcv        = vmulq_f32(dcv, *tp);   tp++;
-		      }
-	      }
-	    }
-      else {			/* Slightly parallelized version, but which incurs some overhead */
-	      for (j = 1; j < 4; j++) {
-	        register uint32x4_t cv;	/* keeps track of whether any DD's change DMO(q) */
-
-          dcv = vextq_f32(zerov, dcv, 3);
-	        tp  = om->tfv + 7*Q;	/* set tp to start of the DD's */
-	        cv  = vmovq_n_u32(0);
-	        for (q = 0; q < Q; q++){ /* using cmpgt below tests if DD changed any DMO(q) *without* conditional branch */
-		        sv         = vaddq_f32(dcv, DMO(dpc,q));
-		        cv         = vorrq_u32(cv, vcgtq_f32(sv, DMO(dpc,q)));
-		        DMO(dpc,q) = sv;	                              /* store new DMO(q) */
-		        dcv        = vmulq_f32(dcv, *tp);   tp++;       /* note, extend dcv, not DMO(q) */
-		      }
-	        if (esl_neon_hmax_u8((esl_neon_128i_t) cv) == 0) break; /* DD's didn't change any DMO(q)? Then done, break out. */
-	      }
-	    }
-#ifdef ARMDEBUG
-      printf("i= %d, step = 2, ", i);
-      esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
-      printf("\n");
-#endif
-      /* Add D's to xEv */
-      for (q = 0; q < Q; q++) xEv = vaddq_f32(DMO(dpc,q), xEv);
-
-      /* Finally the "special" states, which start from Mk->E (->C, ->J->B) */
-      /* The following incantation is a horizontal sum of xEv's elements  */
-      /* These must follow DD calculations, because D's contribute to E in Forward
-       * (as opposed to Viterbi)
-       */
-      esl_neon_hsum_float((esl_neon_128f_t) xEv, &xE);
-      xN =  xN * om->xf[p7O_N][p7O_LOOP];
-      xC = (xC * om->xf[p7O_C][p7O_LOOP]) +  (xE * om->xf[p7O_E][p7O_MOVE]);
-      xJ = (xJ * om->xf[p7O_J][p7O_LOOP]) +  (xE * om->xf[p7O_E][p7O_LOOP]);
-      xB = (xJ * om->xf[p7O_J][p7O_MOVE]) +  (xN * om->xf[p7O_N][p7O_MOVE]);
-      /* and now xB will carry over into next i, and xC carries over after i=L */
-
-      /* Sparse rescaling. xE above threshold? trigger a rescaling event.            */
-      if (xE > 1.0e4)	/* that's a little less than e^10, ~10% of our dynamic range */{
-	    xN  = xN / xE;
-	    xC  = xC / xE;
-	    xJ  = xJ / xE;
-	    xB  = xB / xE;
-
-      xEv = vmovq_n_f32(1.0 / xE);
-      for (q = 0; q < Q; q++){
-	      MMO(dpc,q) = vmulq_f32(MMO(dpc,q), xEv);
-	      DMO(dpc,q) = vmulq_f32(DMO(dpc,q), xEv);
-	      IMO(dpc,q) = vmulq_f32(IMO(dpc,q), xEv);
-	    }
-  	  ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = xE;
-	    ox->totscale += log(xE);
-	    xE = 1.0;
-	    }
-      else ox->xmx[i*p7X_NXCELLS+p7X_SCALE] = 1.0;
-
-      /* Storage of the specials.  We could've stored these already
-       * but using xE, etc. variables makes it easy to convert this
-       * code to O(M) memory versions just by deleting storage steps.
-       */
-      ox->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = xC;
-
+  for (i = 1; i <= L; i++) {
+    dpp = dpc;
+    dpc = ox->dpf[do_full * i];
+    p7_ForwardRow(dsq, om, ox->xmx, &ox->totscale, dpc, dpp, i);
 #if eslDEBUGLEVEL > 0
-      if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, xE, xN, xJ, xB, xC);	/* logify=TRUE, <rowi>=i, width=8, precision=5*/
+    if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, ox->xmx[i*p7X_NXCELLS+p7X_E], ox->xmx[i*p7X_NXCELLS+p7X_N], ox->xmx[i*p7X_NXCELLS+p7X_J], ox->xmx[i*p7X_NXCELLS+p7X_B], ox->xmx[i*p7X_NXCELLS+p7X_C]);
 #endif
-#ifdef ARMDEBUG
-      printf("i= %d, xE = %f\n", i, xE);
-#endif
-    } /* end loop over sequence residues 1..L */
+  }
+  xC = ox->xmx[L*p7X_NXCELLS+p7X_C];
 
   /* finally C->T, and flip total score back to log space (nats) */
   /* On overflow, xC is inf or nan (nan arises because inf*0 = nan). */

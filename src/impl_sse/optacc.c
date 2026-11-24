@@ -12,6 +12,8 @@
  */
 #include "p7_config.h"
 
+#include <string.h>
+
 #include <float.h>
 
 #include <xmmintrin.h>
@@ -27,6 +29,113 @@
 /*****************************************************************
  * 1. Optimal accuracy alignment, DP fill
  *****************************************************************/
+
+/* oa_row()
+ * OA row <i> into <dpc> and row i of the OA special states <xmx>, from
+ * OA row i-1 in <dpp> and the posterior row <ppp> with its special
+ * states <ppx> (E, N, J, B, C of row i). Row 0 is the initialization
+ * (<ppp>, <ppx>, <dpp> unused). <dpc> may be <ppp>: each posterior
+ * vector is read before the OA vector at its place is written. Same
+ * calculation as each row of p7_OptimalAccuracy(), which calls it.
+ */
+static void
+oa_row(const P7_OPROFILE *om, const __m128 *ppp, const float *ppx, float *xmx, __m128 *dpc, const __m128 *dpp, int i)
+{
+  register __m128 mpv, dpv, ipv;
+  register __m128 sv;
+  register __m128 xEv;
+  register __m128 xBv;
+  register __m128 dcv;
+  __m128 *tp;
+  __m128 zerov = _mm_setzero_ps();
+  __m128 infv  = _mm_set1_ps(-eslINFINITY);
+  int M = om->M;
+  int Q = p7O_NQF(M);
+  int q;
+  int j;
+  float t1, t2;
+
+
+  if (i == 0)
+    {
+      for (q = 0; q < Q; q++) MMO(dpc, q) = IMO(dpc,q) = DMO(dpc,q) = infv;
+      XMXo(0, p7X_E)    = -eslINFINITY;
+      XMXo(0, p7X_N)    = 0.;
+      XMXo(0, p7X_J)    = -eslINFINITY;
+      XMXo(0, p7X_B)    = 0.;
+      XMXo(0, p7X_C)    = -eslINFINITY;
+      return;
+    }
+
+  tp  = om->tfv;
+  dcv = infv;
+  xEv = infv;
+  xBv = _mm_set1_ps(XMXo(i-1, p7X_B));
+
+  mpv = esl_sse_rightshift_ps(MMO(dpp,Q-1), infv);
+  dpv = esl_sse_rightshift_ps(DMO(dpp,Q-1), infv);
+  ipv = esl_sse_rightshift_ps(IMO(dpp,Q-1), infv);
+  for (q = 0; q < Q; q++)
+    {
+      sv  =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), xBv);  tp++;
+      sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv)); tp++;
+      sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv)); tp++;
+      sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dpv)); tp++;
+      sv  = _mm_add_ps(sv, *ppp);                                      ppp += 2;
+      xEv = _mm_max_ps(xEv, sv);
+
+      mpv = MMO(dpp,q);
+      dpv = DMO(dpp,q);
+      ipv = IMO(dpp,q);
+
+      MMO(dpc,q) = sv;
+      DMO(dpc,q) = dcv;
+
+      dcv = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), sv); tp++;
+
+      sv         =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv);   tp++;
+      sv         = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv));  tp++;
+      IMO(dpc,q) = _mm_add_ps(sv, *ppp);                                       ppp++;
+    }
+
+  dcv = esl_sse_rightshift_ps(dcv, infv);
+  tp  = om->tfv + 7*Q;
+  for (q = 0; q < Q; q++)
+    {
+      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+      dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), DMO(dpc,q));   tp++;
+    }
+
+  for (j = 1; j < 4; j++)
+    {
+      dcv = esl_sse_rightshift_ps(dcv, infv);
+      tp  = om->tfv + 7*Q;
+      for (q = 0; q < Q; q++)
+        {
+          DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
+          dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dcv);   tp++;
+        }
+    }
+
+  for (q = 0; q < Q; q++) xEv = _mm_max_ps(xEv, DMO(dpc,q));
+
+  esl_sse_hmax_ps(xEv, &(XMXo(i,p7X_E)));
+
+  t1 = ( (om->xf[p7O_J][p7O_LOOP] == 0.0) ? 0.0 : xmx[(i-1)*p7X_NXCELLS+p7X_J] + ppx[p7X_J]);
+  t2 = ( (om->xf[p7O_E][p7O_LOOP] == 0.0) ? 0.0 : xmx[   i *p7X_NXCELLS+p7X_E]);
+  xmx[i*p7X_NXCELLS+p7X_J] = ESL_MAX(t1, t2);
+
+  t1 = ( (om->xf[p7O_C][p7O_LOOP] == 0.0) ? 0.0 : xmx[(i-1)*p7X_NXCELLS+p7X_C] + ppx[p7X_C]);
+  t2 = ( (om->xf[p7O_E][p7O_MOVE] == 0.0) ? 0.0 : xmx[   i *p7X_NXCELLS+p7X_E]);
+  xmx[i*p7X_NXCELLS+p7X_C] = ESL_MAX(t1, t2);
+
+  xmx[i*p7X_NXCELLS+p7X_N] = ((om->xf[p7O_N][p7O_LOOP] == 0.0) ? 0.0 : xmx[(i-1)*p7X_NXCELLS+p7X_N] + ppx[p7X_N]);
+
+  t1 = ( (om->xf[p7O_N][p7O_MOVE] == 0.0) ? 0.0 : xmx[i*p7X_NXCELLS+p7X_N]);
+  t2 = ( (om->xf[p7O_J][p7O_MOVE] == 0.0) ? 0.0 : xmx[i*p7X_NXCELLS+p7X_J]);
+  xmx[i*p7X_NXCELLS+p7X_B] = ESL_MAX(t1, t2);
+}
+
 
 /* Function:  p7_OptimalAccuracy()
  * Synopsis:  DP fill of an optimal accuracy alignment calculation.
@@ -60,113 +169,13 @@
 int
 p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp, P7_OMX *ox, float *ret_e)
 {
-  register __m128 mpv, dpv, ipv;   /* previous row values                                       */
-  register __m128 sv;		   /* temp storage of 1 curr row value in progress              */
-  register __m128 xEv;		   /* E state: keeps max for Mk->E as we go                     */
-  register __m128 xBv;		   /* B state: splatted vector of B[i-1] for B->Mk calculations */
-  register __m128 dcv;
-  float  *xmx = ox->xmx;
-  __m128 *dpc = ox->dpf[0];        /* current row, for use in {MDI}MO(dpp,q) access macro       */
-  __m128 *dpp;                     /* previous row, for use in {MDI}MO(dpp,q) access macro      */
-  __m128 *ppp;			   /* quads in the <pp> posterior probability matrix            */
-  __m128 *tp;			   /* quads in the <om->tfv> transition scores                  */
-  __m128 zerov = _mm_setzero_ps();
-  __m128 infv  = _mm_set1_ps(-eslINFINITY);
-  int M = om->M;
-  int Q = p7O_NQF(M);
-  int q;
-  int j;
   int i;
-  float t1, t2;
 
   ox->M = om->M;
   ox->L = pp->L;
-  for (q = 0; q < Q; q++) MMO(dpc, q) = IMO(dpc,q) = DMO(dpc,q) = infv;
-  XMXo(0, p7X_E)    = -eslINFINITY;
-  XMXo(0, p7X_N)    = 0.;
-  XMXo(0, p7X_J)    = -eslINFINITY;
-  XMXo(0, p7X_B)    = 0.;
-  XMXo(0, p7X_C)    = -eslINFINITY;
-
+  oa_row(om, NULL, NULL, ox->xmx, ox->dpf[0], NULL, 0);
   for (i = 1; i <= pp->L; i++)
-    {
-      dpp = dpc;		/* previous DP row in OA matrix */
-      dpc = ox->dpf[i];   	/* current DP row in OA matrix  */
-      ppp = pp->dpf[i];		/* current row in the posterior probabilities per position */
-      tp  = om->tfv;		/* transition probabilities */
-      dcv = infv;
-      xEv = infv;
-      xBv = _mm_set1_ps(XMXo(i-1, p7X_B));
-
-      mpv = esl_sse_rightshift_ps(MMO(dpp,Q-1), infv);  /* Right shifts by 4 bytes. 4,8,12,x becomes x,4,8,12. */
-      dpv = esl_sse_rightshift_ps(DMO(dpp,Q-1), infv);
-      ipv = esl_sse_rightshift_ps(IMO(dpp,Q-1), infv);
-      for (q = 0; q < Q; q++)
-	{
-	  sv  =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), xBv);  tp++;
-	  sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv)); tp++;
-	  sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv)); tp++;
-	  sv  = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dpv)); tp++;
-	  sv  = _mm_add_ps(sv, *ppp);                                      ppp += 2;
-	  xEv = _mm_max_ps(xEv, sv);
-	  
-	  mpv = MMO(dpp,q);
-	  dpv = DMO(dpp,q);
-	  ipv = IMO(dpp,q);
-
-	  MMO(dpc,q) = sv;
-	  DMO(dpc,q) = dcv;
-
-	  dcv = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), sv); tp++;
-
-	  sv         =                _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), mpv);   tp++;
-	  sv         = _mm_max_ps(sv, _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), ipv));  tp++;
-	  IMO(dpc,q) = _mm_add_ps(sv, *ppp);                                       ppp++;
-	}
-      
-      /* dcv has carried through from end of q loop above; store it 
-       * in first pass, we add M->D and D->D path into DMX
-       */
-      dcv = esl_sse_rightshift_ps(dcv, infv); 
-      tp  = om->tfv + 7*Q;	/* set tp to start of the DD's */
-      for (q = 0; q < Q; q++)
-	{
-	  DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-	  dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), DMO(dpc,q));   tp++;
-	}
-
-      /* fully serialized D->D; can optimize later */
-      for (j = 1; j < 4; j++)
-	{
-	  dcv = esl_sse_rightshift_ps(dcv, infv);
-	  tp  = om->tfv + 7*Q;	
-	  for (q = 0; q < Q; q++)
-	    {
-	      DMO(dpc, q) = _mm_max_ps(dcv, DMO(dpc, q));
-	      dcv         = _mm_and_ps(_mm_cmpgt_ps(*tp, zerov), dcv);   tp++;
-	    }
-	}
-
-      /* D->E paths */
-      for (q = 0; q < Q; q++) xEv = _mm_max_ps(xEv, DMO(dpc,q));
-      
-      /* Specials */
-      esl_sse_hmax_ps(xEv, &(XMXo(i,p7X_E)));
-      
-      t1 = ( (om->xf[p7O_J][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[(i-1)*p7X_NXCELLS+p7X_J] + pp->xmx[i*p7X_NXCELLS+p7X_J]);
-      t2 = ( (om->xf[p7O_E][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[   i *p7X_NXCELLS+p7X_E]);
-      ox->xmx[i*p7X_NXCELLS+p7X_J] = ESL_MAX(t1, t2);
-
-      t1 = ( (om->xf[p7O_C][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[(i-1)*p7X_NXCELLS+p7X_C] + pp->xmx[i*p7X_NXCELLS+p7X_C]);
-      t2 = ( (om->xf[p7O_E][p7O_MOVE] == 0.0) ? 0.0 : ox->xmx[   i *p7X_NXCELLS+p7X_E]);
-      ox->xmx[i*p7X_NXCELLS+p7X_C] = ESL_MAX(t1, t2);
-      
-      ox->xmx[i*p7X_NXCELLS+p7X_N] = ((om->xf[p7O_N][p7O_LOOP] == 0.0) ? 0.0 : ox->xmx[(i-1)*p7X_NXCELLS+p7X_N] + pp->xmx[i*p7X_NXCELLS+p7X_N]);
-      
-      t1 = ( (om->xf[p7O_N][p7O_MOVE] == 0.0) ? 0.0 : ox->xmx[i*p7X_NXCELLS+p7X_N]);
-      t2 = ( (om->xf[p7O_J][p7O_MOVE] == 0.0) ? 0.0 : ox->xmx[i*p7X_NXCELLS+p7X_J]);
-      ox->xmx[i*p7X_NXCELLS+p7X_B] = ESL_MAX(t1, t2);
-    }
+    oa_row(om, pp->dpf[i], pp->xmx + i*p7X_NXCELLS, ox->xmx, ox->dpf[i], ox->dpf[i-1], i);
 
   *ret_e = ox->xmx[pp->L*p7X_NXCELLS+p7X_C];
   return eslOK;
@@ -468,6 +477,352 @@ select_b(const P7_OPROFILE *om, const P7_OMX *ox, int i)
 
 
 
+
+/*****************************************************************
+ * OA sweep over a checkpointed Backward, and its trace
+ *****************************************************************/
+
+/* oat_blend_sse()
+ * Lanes of <b> where <mask> is set, of <a> elsewhere (SSE2).
+ */
+static inline __m128
+oat_blend_sse(__m128 a, __m128 b, __m128 mask)
+{
+  return _mm_or_ps(_mm_and_ps(mask, b), _mm_andnot_ps(mask, a));
+}
+
+/* oat_ppcodes4()
+ * Posterior codes (p7OAT_PPCODE(), 0..10) of the 4 lanes of <v> as 4
+ * lane masks, bit b of each lane's code in <m[b]>.
+ */
+static inline void
+oat_ppcodes4(__m128 v, int m[4])
+{
+  union { __m128 v; float p[4]; } u;
+  int r, c;
+
+  u.v  = v;
+  m[0] = m[1] = m[2] = m[3] = 0;
+  for (r = 0; r < 4; r++)
+    {
+      c     = p7OAT_PPCODE(u.p[r]);
+      m[0] |= ( c       & 1) << r;
+      m[1] |= ((c >> 1) & 1) << r;
+      m[2] |= ((c >> 2) & 1) << r;
+      m[3] |= ((c >> 3) & 1) << r;
+    }
+}
+
+/* oat_store_row()
+ * Store into <ox> what the OA trace reads from OA row <i> (<dpc>, with
+ * the OA special states in <xmx>): for each k, the predecessors of an
+ * M at (i+1,k), an I at (i+1,k) and a D at (i,k), chosen with the same
+ * comparisons, shifts and ties as p7_OATrace() makes on the OA
+ * matrix; the posterior codes of M and I at (i,k) from the posterior
+ * row <ppp> (all 0 for row 0, <ppp> NULL); the row's OA special states
+ * and the posteriors of N, J, C (<ppx>, NULL for row 0); and the cell
+ * an E at row i comes from, in p7_OATrace()'s scan order.
+ */
+static void
+oat_store_row(const P7_OPROFILE *om, P7_OATMX *ox, const __m128 *dpc, const float *xmx, const __m128 *ppp, const float *ppx, int i)
+{
+  int      M     = om->M;
+  int      Q     = p7O_NQF(M);
+  __m128   zerov = _mm_setzero_ps();
+  __m128   infv  = _mm_set1_ps(-eslINFINITY);
+  __m128   xBv   = _mm_set1_ps(xmx[i*p7X_NXCELLS+p7X_B]);
+  __m128   mpv, ipv, dpv, tmdv, tddv;
+  __m128   pM, pI, pD, pB, best, gt, b0, b1;
+  __m128  *tp;
+  union { __m128 v; float p[4]; } u;
+  float    max;
+  int      kmax, smax;
+  int      mm[4], mi[4];
+  int      q, r, c;
+
+  for (q = 0; q < Q; q++)
+    {
+      tp = om->tfv + 7*q;
+
+      /* row i at k-1 */
+      if (q > 0) {
+        mpv  = MMO(dpc, q-1);
+        ipv  = IMO(dpc, q-1);
+        dpv  = DMO(dpc, q-1);
+        tmdv = om->tfv[7*(q-1) + p7O_MD];
+        tddv = om->tfv[7*Q + (q-1)];
+      } else {
+        mpv  = esl_sse_rightshiftz_float(MMO(dpc, Q-1));
+        ipv  = esl_sse_rightshiftz_float(IMO(dpc, Q-1));
+        dpv  = esl_sse_rightshiftz_float(DMO(dpc, Q-1));
+        tmdv = esl_sse_rightshiftz_float(om->tfv[7*(Q-1) + p7O_MD]);
+        tddv = esl_sse_rightshiftz_float(om->tfv[8*Q-1]);
+      }
+
+      /* M at (i+1,k): first best of M, I, D, B */
+      pB   = oat_blend_sse(xBv, infv, _mm_cmpeq_ps(tp[p7O_BM], zerov));
+      pM   = oat_blend_sse(mpv, infv, _mm_cmpeq_ps(tp[p7O_MM], zerov));
+      pI   = oat_blend_sse(ipv, infv, _mm_cmpeq_ps(tp[p7O_IM], zerov));
+      pD   = oat_blend_sse(dpv, infv, _mm_cmpeq_ps(tp[p7O_DM], zerov));
+      best = pM;
+      gt   = _mm_cmpgt_ps(pI, best);  best = oat_blend_sse(best, pI, gt);  b0 = gt;                    b1 = zerov;
+      gt   = _mm_cmpgt_ps(pD, best);  best = oat_blend_sse(best, pD, gt);  b0 = _mm_andnot_ps(gt, b0); b1 = _mm_or_ps(b1, gt);
+      gt   = _mm_cmpgt_ps(pB, best);                                           b0 = _mm_or_ps(b0, gt);    b1 = _mm_or_ps(b1, gt);
+      OATO_SET_STRIPE4(ox, i, p7OAT_MP, q, _mm_movemask_ps(b0));
+      OATO_SET_STRIPE4(ox, i, p7OAT_MP+1, q, _mm_movemask_ps(b1));
+
+      /* I at (i+1,k): M on ties */
+      pM = oat_blend_sse(MMO(dpc, q), infv, _mm_cmpeq_ps(tp[p7O_MI], zerov));
+      pI = oat_blend_sse(IMO(dpc, q), infv, _mm_cmpeq_ps(tp[p7O_II], zerov));
+      OATO_SET_STRIPE4(ox, i, p7OAT_IP, q, _mm_movemask_ps(_mm_cmpgt_ps(pI, pM)));
+
+      /* D at (i,k): M on ties */
+      pM = oat_blend_sse(mpv, infv, _mm_cmpeq_ps(tmdv, zerov));
+      pD = oat_blend_sse(dpv, infv, _mm_cmpeq_ps(tddv, zerov));
+      OATO_SET_STRIPE4(ox, i, p7OAT_DP, q, _mm_movemask_ps(_mm_cmpgt_ps(pD, pM)));
+
+      /* posterior codes of M and I */
+      if (ppp != NULL) { oat_ppcodes4(ppp[q*3 + p7X_M], mm); oat_ppcodes4(ppp[q*3 + p7X_I], mi); }
+      else             { mm[0] = mm[1] = mm[2] = mm[3] = mi[0] = mi[1] = mi[2] = mi[3] = 0; }
+      for (c = 0; c < 4; c++)
+        {
+          OATO_SET_STRIPE4(ox, i, p7OAT_PPM + c, q, mm[c]);
+          OATO_SET_STRIPE4(ox, i, p7OAT_PPI + c, q, mi[c]);
+        }
+    }
+
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_N]   = xmx[i*p7X_NXCELLS + p7X_N];
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_J]   = xmx[i*p7X_NXCELLS + p7X_J];
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_C]   = xmx[i*p7X_NXCELLS + p7X_C];
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_B]   = xmx[i*p7X_NXCELLS + p7X_B];
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_E]   = xmx[i*p7X_NXCELLS + p7X_E];
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_PPN] = ppx ? ppx[p7X_N] : 0.0f;
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_PPJ] = ppx ? ppx[p7X_J] : 0.0f;
+  ox->xmx[i*p7OAT_NXCELLS + p7OAT_PPC] = ppx ? ppx[p7X_C] : 0.0f;
+
+  /* the cell an E at row i comes from, as oa_select_e() scans the row */
+  max  = -eslINFINITY;
+  smax = p7T_M;
+  kmax = 1;
+  for (q = 0; q < Q; q++)
+    {
+      u.v = MMO(dpc, q); for (r = 0; r < 4; r++) if (u.p[r] >= max) { max = u.p[r]; smax = p7T_M; kmax = r*Q + q + 1; }
+      u.v = DMO(dpc, q); for (r = 0; r < 4; r++) if (u.p[r] >  max) { max = u.p[r]; smax = p7T_D; kmax = r*Q + q + 1; }
+    }
+  ox->ek[i] = (smax == p7T_M) ? kmax : -kmax;
+}
+
+
+/* Function:  p7_OptimalAccuracySweep()
+ * Synopsis:  OA alignment in one forward sweep over a checkpointed Backward, SSE.
+ *
+ * Purpose:   For profile <om> and sequence <dsq> of length <L>, with the
+ *            checkpointed Backward matrix <cx> filled by
+ *            <p7_BackwardChk()>, compute in one sweep through rows
+ *            1..L the Forward, posterior and optimal accuracy (OA) rows,
+ *            computing each block of Backward rows again from its
+ *            checkpoint as the sweep reaches it, and store in <ox> what
+ *            <p7_OATraceSweep()> needs for the OA trace. Rows of
+ *            Forward, posterior and OA values are kept only as long as
+ *            the next row needs them.
+ *
+ *            Each row is calculated as <p7_Forward()>,
+ *            <p7_Decoding()> and <p7_OptimalAccuracy()> calculate
+ *            it. The checkpointed Backward has its own scale factors, so
+ *            the posteriors are those <p7_Decoding()> gives for a
+ *            Backward matrix with its own scale factors: normalized by
+ *            the Backward score, and equal to those from a Backward
+ *            scaled like Forward up to rounding.
+ *
+ *            If <opt_null2> is non-NULL, the null2 odds ratios of the
+ *            sequence are also calculated into it, as
+ *            <p7_Null2_ByExpectation()> calculates them from the
+ *            posteriors: the posterior rows are summed as the sweep
+ *            computes them, in the same order.
+ *
+ *            <ox> must have been created with <p7OAT_NPLANES> planes;
+ *            its layout is set to 4 lanes and it is grown for <om->M> by
+ *            <L>. On return <cx> has its last block loaded.
+ *
+ * Args:      dsq       - sequence in digitized form, 1..L
+ *            L         - length of dsq (>= 1)
+ *            om        - profile
+ *            cx        - checkpointed Backward matrix from p7_BackwardChk()
+ *            ox        - RESULT: what the OA trace reads
+ *            opt_null2 - optRETURN: null2 odds ratios, <0..Kp-1>; caller allocated
+ *            opt_fsc   - optRETURN: Forward score in nats
+ *            ret_oasc  - RETURN: OA score, the expected number of
+ *                        correctly aligned residues
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation failure; <eslEINVAL> if <ox> or <cx>
+ *            isn't set up for this computation; <eslERANGE> if the
+ *            posterior scale correction overflows (as <p7_Decoding()>).
+ */
+int
+p7_OptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox,
+                            float *opt_null2, float *opt_fsc, float *ret_oasc)
+{
+  int      M      = om->M;
+  int      Q      = p7O_NQF(M);
+  P7_OMX  *wk     = NULL;   /* rows 0,1: Forward; 2,3: OA; 4: posteriors; 5: posterior sums; xmx: Forward specials */
+  float   *oxmx   = NULL;
+  float    ppx[p7X_NXCELLS];
+  float    cntx[p7X_NXCELLS];
+  float    totscale = 0.0f;
+  float    scaleproduct;
+  __m128  *pp, *cnt;
+  int      i, q, b;
+  int      status;
+
+  if (ox->nplanes != p7OAT_NPLANES) ESL_EXCEPTION(eslEINVAL, "P7_OATMX not set up for the standard OA sweep");
+  if (cx->L != L || cx->M != M || cx->dir != p7_CHK_BACKWARD || cx->nscells != p7X_NSCELLS) ESL_EXCEPTION(eslEINVAL, "checkpointed Backward matrix doesn't match");
+  ox->lanes = 4;
+  if ((status = p7_oatmx_GrowTo(ox, M, L)) != eslOK) return status;
+
+  if ((wk = p7_omx_Create(M, 5, L)) == NULL) { status = eslEMEM; goto ERROR; }
+  ESL_ALLOC(oxmx, sizeof(float) * (L+1) * p7X_NXCELLS);
+  pp  = wk->dpf[4];
+  cnt = wk->dpf[5];
+
+  scaleproduct = 1.0 / cx->xmx[p7X_N];
+  for (q = 0; q < p7X_NXCELLS; q++) cntx[q] = 0.0f;
+
+  p7_ForwardRow(dsq, om, wk->xmx, &totscale, wk->dpf[0], NULL, 0);
+  oa_row(om, NULL, NULL, oxmx, wk->dpf[2], NULL, 0);
+  oat_store_row(om, ox, wk->dpf[2], oxmx, NULL, NULL, 0);
+
+  for (i = 1; i <= L; i++)
+    {
+      b = (i / cx->blockR) * cx->blockR;
+      if (b != cx->b && (status = p7_BackwardChkLoad(dsq, om, cx, b)) != eslOK) goto ERROR;
+
+      p7_ForwardRow(dsq, om, wk->xmx, &totscale, wk->dpf[i%2], wk->dpf[(i-1)%2], i);
+      p7_DecodingRow(om, wk->xmx, cx->xmx, wk->dpf[i%2], cx->dpf[i], pp, ppx, i, scaleproduct);
+      scaleproduct *= wk->xmx[i*p7X_NXCELLS+p7X_SCALE] / cx->xmx[i*p7X_NXCELLS+p7X_SCALE];
+
+      oa_row(om, pp, ppx, oxmx, wk->dpf[2 + i%2], wk->dpf[2 + (i-1)%2], i);
+      oat_store_row(om, ox, wk->dpf[2 + i%2], oxmx, pp, ppx, i);
+
+      /* posterior sums for null2, added up as p7_Null2_ByExpectation() does */
+      if (i == 1)
+        {
+          memcpy(cnt, pp, sizeof(__m128) * 3 * Q);
+          cntx[p7X_N] = ppx[p7X_N];
+          cntx[p7X_C] = ppx[p7X_C];
+          cntx[p7X_J] = ppx[p7X_J];
+        }
+      else
+        {
+          for (q = 0; q < Q; q++)
+            {
+              cnt[q*3 + p7X_M] = _mm_add_ps(pp[q*3 + p7X_M], cnt[q*3 + p7X_M]);
+              cnt[q*3 + p7X_I] = _mm_add_ps(pp[q*3 + p7X_I], cnt[q*3 + p7X_I]);
+            }
+          cntx[p7X_N] += ppx[p7X_N];
+          cntx[p7X_C] += ppx[p7X_C];
+          cntx[p7X_J] += ppx[p7X_J];
+        }
+    }
+  if (isinf(scaleproduct)) { status = eslERANGE; goto ERROR; }
+
+  if (opt_null2 != NULL) p7_Null2_FromCounts(om, cnt, cntx, L, opt_null2);
+  if (opt_fsc   != NULL) *opt_fsc = totscale + log(wk->xmx[L*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_MOVE]);
+  *ret_oasc = oxmx[L*p7X_NXCELLS+p7X_C];
+
+  p7_omx_Destroy(wk);
+  free(oxmx);
+  return eslOK;
+
+ ERROR:
+  if (wk) p7_omx_Destroy(wk);
+  free(oxmx);
+  return status;
+}
+
+
+/* Function:  p7_OATraceSweep()
+ * Synopsis:  OA trace from what the SSE OA sweep stored.
+ *
+ * Purpose:   The OA trace for profile <om> from <ox>, filled by
+ *            <p7_OptimalAccuracySweep()>, into the empty trace <tr>
+ *            (created with <p7_trace_CreateWithPP()>). The choices are
+ *            those <p7_OATrace()> makes on the same OA scores. The
+ *            posterior probability of each residue is the value its PP
+ *            character stands for (<p7OAT_PPVALUE()>), from the
+ *            posterior row, as <p7_alidisplay_EncodePostProb()> prints
+ *            it.
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <tr> isn't
+ *            empty or a bogus state is reached.
+ */
+int
+p7_OATraceSweep(const P7_OPROFILE *om, const P7_OATMX *ox, P7_TRACE *tr)
+{
+  static const int state[4] = { p7T_M, p7T_I, p7T_D, p7T_B };   /* indexed by p7OAT_FROM_* */
+  int   i = ox->L;
+  int   k = 0;
+  int   s0, s1;
+  float path[2];
+  float postprob;
+  int   status;
+
+  if (tr->N != 0) ESL_EXCEPTION(eslEINVAL, "trace not empty; needs to be Reuse()'d?");
+
+  if ((status = p7_trace_AppendWithPP(tr, p7T_T, k, i, 0.0)) != eslOK) return status;
+  if ((status = p7_trace_AppendWithPP(tr, p7T_C, k, i, 0.0)) != eslOK) return status;
+
+  s0 = tr->st[tr->N-1];
+  while (s0 != p7T_S)
+    {
+      switch (s0) {
+      case p7T_M: s1 = state[OATO_MPRED(ox, i-1, k)];                              k--; i--; break;
+      case p7T_D: s1 = OATO_DPRED(ox, i, k) ? p7T_D : p7T_M;                        k--;      break;
+      case p7T_I: s1 = (OATO_IPRED(ox, i-1, k) == p7OAT_FROM_I) ? p7T_I : p7T_M;         i--; break;
+      case p7T_N: s1 = (i == 0) ? p7T_S : p7T_N;                                               break;
+      case p7T_C:
+        if      (om->xf[p7O_C][p7O_LOOP] == 0.0) s1 = p7T_E;
+        else if (om->xf[p7O_E][p7O_MOVE] == 0.0) s1 = (ox->xmx[(i-1)*p7OAT_NXCELLS+p7OAT_C] > -eslINFINITY) ? p7T_C : p7T_E;
+        else    s1 = (ox->xmx[i*p7OAT_NXCELLS+p7OAT_C] > ox->xmx[i*p7OAT_NXCELLS+p7OAT_E]) ? p7T_C : p7T_E;
+        break;
+      case p7T_J:
+        if      (om->xf[p7O_J][p7O_LOOP] == 0.0) s1 = p7T_E;
+        else if (om->xf[p7O_E][p7O_LOOP] == 0.0) s1 = (ox->xmx[(i-1)*p7OAT_NXCELLS+p7OAT_J] > -eslINFINITY) ? p7T_J : p7T_E;
+        else    s1 = (ox->xmx[i*p7OAT_NXCELLS+p7OAT_J] > ox->xmx[i*p7OAT_NXCELLS+p7OAT_E]) ? p7T_J : p7T_E;
+        break;
+      case p7T_E:
+        s1 = (ox->ek[i] > 0) ? p7T_M : p7T_D;
+        k  = abs(ox->ek[i]);
+        break;
+      case p7T_B:
+        path[0] = (om->xf[p7O_N][p7O_MOVE] == 0.0) ? -eslINFINITY : ox->xmx[i*p7OAT_NXCELLS+p7OAT_N];
+        path[1] = (om->xf[p7O_J][p7O_MOVE] == 0.0) ? -eslINFINITY : ox->xmx[i*p7OAT_NXCELLS+p7OAT_J];
+        s1 = (path[0] > path[1]) ? p7T_N : p7T_J;
+        break;
+      default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
+      }
+
+      switch (s1) {
+      case p7T_M: postprob = p7OAT_PPVALUE(OATO_PPM(ox, i, k));                              break;
+      case p7T_I: postprob = p7OAT_PPVALUE(OATO_PPI(ox, i, k));                              break;
+      case p7T_N: postprob = (s1 == s0) ? ox->xmx[i*p7OAT_NXCELLS+p7OAT_PPN] : 0.0f;         break;
+      case p7T_C: postprob = (s1 == s0) ? ox->xmx[i*p7OAT_NXCELLS+p7OAT_PPC] : 0.0f;         break;
+      case p7T_J: postprob = (s1 == s0) ? ox->xmx[i*p7OAT_NXCELLS+p7OAT_PPJ] : 0.0f;         break;
+      default:    postprob = 0.0f;                                                           break;
+      }
+      if ((status = p7_trace_AppendWithPP(tr, s1, k, i, postprob)) != eslOK) return status;
+
+      if ( (s1 == p7T_N || s1 == p7T_J || s1 == p7T_C) && s1 == s0) i--;
+      s0 = s1;
+    }
+  tr->M = om->M;
+  tr->L = ox->L;
+  return p7_trace_Reverse(tr);
+}
+
 /*****************************************************************
  * 3. Benchmark driver
  *****************************************************************/
@@ -620,6 +975,10 @@ main(int argc, char **argv)
  *****************************************************************/
 #ifdef p7OPTACC_TESTDRIVE
 #include <math.h>
+#include <string.h>
+
+#include "esl_randomseq.h"
+#include "esl_vectorops.h"
 
 #include "esl_alphabet.h"
 #include "esl_getopts.h"
@@ -859,6 +1218,125 @@ utest_inplace(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   p7_profile_Destroy(gm);
   p7_hmm_Destroy(hmm);
 }
+/* utest_sweep()
+ * The OA sweep over a checkpointed Backward against the full-matrix
+ * path on the same Backward: p7_Forward(), the checkpointed Backward
+ * filled in one block and copied into a Backward matrix with its own
+ * scale factors, p7_Decoding(), p7_OptimalAccuracy(), p7_OATrace() and
+ * p7_Null2_ByExpectation(). The sweep, with Backward blocks of 1..8
+ * rows, must give the same Forward and OA scores, null2, states, k and
+ * i on the trace, and PP characters equal to those the posterior
+ * matrix gives. Sequences alternate random ones and the consensus of a
+ * model with sharpened match emissions and M->M transitions between
+ * random flanks, so that rows are rescaled.
+ */
+static void
+utest_sweep(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
+{
+  char        *msg  = "OA sweep unit test failed";
+  P7_HMM      *hmm  = NULL;
+  P7_PROFILE  *gm   = NULL;
+  P7_OPROFILE *om   = NULL;
+  ESL_SQ      *sq   = esl_sq_CreateDigital(abc);
+  ESL_DSQ     *dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
+  float       *n2a  = malloc(sizeof(float) * abc->Kp);
+  float       *n2b  = malloc(sizeof(float) * abc->Kp);
+  P7_OMX      *fwd  = NULL, *bck = NULL, *pp = NULL, *oa = NULL;
+  P7_CHKOMX   *cx1  = NULL, *cx2 = NULL;
+  P7_OATMX    *ox   = p7_oatmx_Create(M, L, p7OAT_NPLANES, 1);
+  P7_TRACE    *tr1  = p7_trace_CreateWithPP();
+  P7_TRACE    *tr2  = p7_trace_CreateWithPP();
+  int          Q    = p7O_NQF(M);
+  size_t       rowb = sizeof(__m128) * 3 * (size_t) Q;
+  float        fsc, fsc2, oasc1, oasc2, p;
+  int          n, Ln, blockR, i, k, x, z;
+
+  if (p7_hmm_Sample(r, M, abc, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abc->K);
+      esl_vec_FSet(hmm->mat[k], abc->K, 0.15 / (abc->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  gm = p7_profile_Create(M, abc);
+  if (p7_ProfileConfig(hmm, bg, gm, L, p7_LOCAL) != eslOK) esl_fatal(msg);
+  p7_emit_SimpleConsensus(hmm, sq);
+
+  om  = p7_oprofile_Create(M, abc);  p7_oprofile_Convert(gm, om);
+  fwd = p7_omx_Create(M, L, L); bck = p7_omx_Create(M, L, L); pp = p7_omx_Create(M, L, L); oa = p7_omx_Create(M, L, L);
+  cx1 = p7_chkomx_Create(M, L, L+1, 1, p7X_NSCELLS, p7_CHK_BACKWARD);
+  cx2 = p7_chkomx_Create(M, L, 1,   1, p7X_NSCELLS, p7_CHK_BACKWARD);
+
+  for (n = 0; n < N; n++)
+    {
+      Ln = 1 + esl_rnd_Roll(r, L);
+      esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+      if (n % 2 == 1 && M <= L)
+        {
+          Ln = ESL_MAX(Ln, M);
+          esl_rsq_xfIID(r, bg->f, abc->K, Ln, dsq);
+          memcpy(dsq + 1 + esl_rnd_Roll(r, Ln - M + 1), sq->dsq + 1, sizeof(ESL_DSQ) * M);
+        }
+      blockR = 1 + esl_rnd_Roll(r, 8);
+      p7_trace_Reuse(tr1);
+      p7_trace_Reuse(tr2);
+
+      p7_oprofile_ReconfigLength(om, Ln);
+      if (p7_Forward(dsq, Ln, om, fwd, &fsc)                    != eslOK) esl_fatal(msg);
+      if (p7_chkomx_GrowTo(cx1, M, Ln, Ln+1)                    != eslOK) esl_fatal(msg);
+      if (p7_BackwardChk(dsq, Ln, om, cx1, NULL)                != eslOK) esl_fatal(msg);
+      for (i = 0; i <= Ln; i++) memcpy(bck->dpf[i], cx1->dpf[i], rowb);
+      memcpy(bck->xmx, cx1->xmx, sizeof(float) * (Ln+1) * p7X_NXCELLS);
+      bck->M = M; bck->L = Ln; bck->has_own_scales = TRUE;
+
+      if (p7_Decoding(om, fwd, bck, pp)                         != eslOK) esl_fatal(msg);
+      p7_OptimalAccuracy(om, pp, oa, &oasc1);
+      if (p7_OATrace(om, oa, tr1)                               != eslOK) esl_fatal(msg);
+      if (p7_chkomx_GrowTo(cx2, M, Ln, blockR)                  != eslOK) esl_fatal(msg);
+      if (p7_BackwardChk(dsq, Ln, om, cx2, NULL)                != eslOK) esl_fatal(msg);
+      if (p7_OptimalAccuracySweep(dsq, Ln, om, cx2, ox, n2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
+      if (p7_OATraceSweep(om, ox, tr2)                          != eslOK) esl_fatal(msg);
+
+      if (fsc2  != fsc)    esl_fatal("%s: Forward scores differ (%f %f)", msg, fsc2, fsc);
+      if (oasc2 != oasc1)  esl_fatal("%s: OA scores differ (%f %f)", msg, oasc2, oasc1);
+      if (tr1->N != tr2->N) esl_fatal("%s: trace lengths differ (%d %d)", msg, tr1->N, tr2->N);
+      for (z = 0; z < tr1->N; z++)
+        {
+          if (tr1->st[z] != tr2->st[z] || tr1->k[z] != tr2->k[z] || tr1->i[z] != tr2->i[z])
+            esl_fatal("%s: traces differ at %d", msg, z);
+          switch (tr1->st[z]) {
+          case p7T_M: p = p7_omx_FGetMDI(pp, p7X_M, tr1->i[z], tr1->k[z]); break;
+          case p7T_I: p = p7_omx_FGetMDI(pp, p7X_I, tr1->i[z], tr1->k[z]); break;
+          case p7T_N: case p7T_C: case p7T_J:
+            /* an N, C or J emits residue i when the state before it is the same one */
+            p = (z > 0 && tr1->st[z-1] == tr1->st[z]) ? pp->xmx[tr1->i[z]*p7X_NXCELLS + (tr1->st[z] == p7T_N ? p7X_N : tr1->st[z] == p7T_C ? p7X_C : p7X_J)] : 0.0;
+            break;
+          default: p = 0.0; break;
+          }
+          if (p7_alidisplay_EncodePostProb(tr2->pp[z]) != p7_alidisplay_EncodePostProb(p))
+            esl_fatal("%s: PP character differs at %d (state %d, i %d, k %d)", msg, z, tr1->st[z], tr1->i[z], tr1->k[z]);
+        }
+
+      /* null2 from the full posterior matrix, which it uses as workspace, so last */
+      p7_Null2_ByExpectation(om, pp, n2a);
+      for (x = 0; x < abc->Kp; x++)
+        if (n2b[x] != n2a[x]) esl_fatal("%s: null2 differs for residue %d (%g %g)", msg, x, n2b[x], n2a[x]);
+    }
+
+  free(dsq); free(n2a); free(n2b);
+  esl_sq_Destroy(sq);
+  p7_trace_Destroy(tr1);
+  p7_trace_Destroy(tr2);
+  p7_oatmx_Destroy(ox);
+  p7_omx_Destroy(fwd); p7_omx_Destroy(bck); p7_omx_Destroy(pp); p7_omx_Destroy(oa);
+  p7_chkomx_Destroy(cx1); p7_chkomx_Destroy(cx2);
+  p7_oprofile_Destroy(om);
+  p7_profile_Destroy(gm);
+  p7_hmm_Destroy(hmm);
+}
+
+
 #endif /*p7OPTACC_TESTDRIVE*/
 /*------------------- end, unit tests ---------------------------*/
 
@@ -945,6 +1423,8 @@ main(int argc, char **argv)
   utest_inplace(r, abc, bg, M, L, N);
   utest_inplace(r, abc, bg, 1, L, 10);
   utest_inplace(r, abc, bg, M, 1, 10);
+  utest_sweep(r, abc, bg, M, 200, N);
+  utest_sweep(r, abc, bg, 1, 200, 10);
 
   esl_alphabet_Destroy(abc);
   p7_bg_Destroy(bg);

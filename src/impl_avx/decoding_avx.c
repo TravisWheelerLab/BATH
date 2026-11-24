@@ -19,6 +19,48 @@
 #include "impl_avx.h"
 
 
+/* Function:  p7_DecodingRow_avx()
+ * Synopsis:  Posterior decoding of one row, AVX.
+ *
+ * Purpose:   Posterior probabilities of row <i> (1..L) into <ppv> and the
+ *            special states <ppx> (E, N, J, B, C of the row), from Forward
+ *            row <i> in <fv>, Backward row <i> in <bv>, and the special
+ *            states of both matrices in <fxmx> and <bxmx>, with
+ *            <scaleproduct> the row's scale correction (see
+ *            <p7_Decoding_avx()>). Same calculation as each row of
+ *            <p7_Decoding_avx()>, which calls it.
+ */
+void
+p7_DecodingRow_avx(const P7_OPROFILE *om, const float *fxmx, const float *bxmx, const __m256 *fv, const __m256 *bv, __m256 *ppv, float *ppx, int i, float scaleproduct)
+{
+  int    Q     = p7O_NQF_AVX(om->M);
+  __m256 totrv = _mm256_set1_ps(scaleproduct * fxmx[i*p7X_NXCELLS+p7X_SCALE]);
+  int    q;
+
+  for (q = 0; q < Q; q++)
+    {
+      /* M */
+      *ppv = _mm256_mul_ps(*fv,  *bv);
+      *ppv = _mm256_mul_ps(*ppv,  totrv);
+      ppv++;  fv++;  bv++;
+
+      /* D */
+      *ppv = _mm256_setzero_ps();
+      ppv++;  fv++;  bv++;
+
+      /* I */
+      *ppv = _mm256_mul_ps(*fv,  *bv);
+      *ppv = _mm256_mul_ps(*ppv,  totrv);
+      ppv++;  fv++;  bv++;
+    }
+  ppx[p7X_E] = 0.0;
+  ppx[p7X_N] = fxmx[(i-1)*p7X_NXCELLS+p7X_N] * bxmx[i*p7X_NXCELLS+p7X_N] * om->xf[p7O_N][p7O_LOOP] * scaleproduct;
+  ppx[p7X_J] = fxmx[(i-1)*p7X_NXCELLS+p7X_J] * bxmx[i*p7X_NXCELLS+p7X_J] * om->xf[p7O_J][p7O_LOOP] * scaleproduct;
+  ppx[p7X_C] = fxmx[(i-1)*p7X_NXCELLS+p7X_C] * bxmx[i*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_LOOP] * scaleproduct;
+  ppx[p7X_B] = 0.0;
+}
+
+
 /* Function:  p7_Decoding_avx()
  *
  * Purpose:   AVX2 implementation of posterior decoding of residue assignment.
@@ -36,9 +78,6 @@ int
 p7_Decoding_avx(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *pp)
 {
   __m256 *ppv;
-  __m256 *fv;
-  __m256 *bv;
-  __m256  totrv;
   int    L  = oxf->L;
   int    M  = om->M;
   int    Q  = p7O_NQF_AVX(M);
@@ -62,33 +101,7 @@ p7_Decoding_avx(const P7_OPROFILE *om, const P7_OMX *oxf, P7_OMX *oxb, P7_OMX *p
 
   for (i = 1; i <= L; i++)
     {
-      ppv   =  pp->dpf_avx[i];
-      fv    = oxf->dpf_avx[i];
-      bv    = oxb->dpf_avx[i];
-      totrv = _mm256_set1_ps(scaleproduct * oxf->xmx[i*p7X_NXCELLS+p7X_SCALE]);
-
-      for (q = 0; q < Q; q++)
-        {
-          /* M */
-          *ppv = _mm256_mul_ps(*fv,  *bv);
-          *ppv = _mm256_mul_ps(*ppv,  totrv);
-          ppv++;  fv++;  bv++;
-
-          /* D */
-          *ppv = _mm256_setzero_ps();
-          ppv++;  fv++;  bv++;
-
-          /* I */
-          *ppv = _mm256_mul_ps(*fv,  *bv);
-          *ppv = _mm256_mul_ps(*ppv,  totrv);
-          ppv++;  fv++;  bv++;
-        }
-      pp->xmx[i*p7X_NXCELLS+p7X_E] = 0.0;
-      pp->xmx[i*p7X_NXCELLS+p7X_N] = oxf->xmx[(i-1)*p7X_NXCELLS+p7X_N] * oxb->xmx[i*p7X_NXCELLS+p7X_N] * om->xf[p7O_N][p7O_LOOP] * scaleproduct;
-      pp->xmx[i*p7X_NXCELLS+p7X_J] = oxf->xmx[(i-1)*p7X_NXCELLS+p7X_J] * oxb->xmx[i*p7X_NXCELLS+p7X_J] * om->xf[p7O_J][p7O_LOOP] * scaleproduct;
-      pp->xmx[i*p7X_NXCELLS+p7X_C] = oxf->xmx[(i-1)*p7X_NXCELLS+p7X_C] * oxb->xmx[i*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_LOOP] * scaleproduct;
-      pp->xmx[i*p7X_NXCELLS+p7X_B] = 0.0;
-
+      p7_DecodingRow_avx(om, oxf->xmx, oxb->xmx, oxf->dpf_avx[i], oxb->dpf_avx[i], pp->dpf_avx[i], pp->xmx + i*p7X_NXCELLS, i, scaleproduct);
       if (oxb->has_own_scales) scaleproduct *= oxf->xmx[i*p7X_NXCELLS+p7X_SCALE] /  oxb->xmx[i*p7X_NXCELLS+p7X_SCALE];
     }
 

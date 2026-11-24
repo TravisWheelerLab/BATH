@@ -30,15 +30,10 @@
 int
 p7_Null2_ByExpectation_avx(const P7_OPROFILE *om, const P7_OMX *pp, float *null2)
 {
-  int      M    = om->M;
   int      Ld   = pp->L;
-  int      Q    = p7O_NQF_AVX(M);
+  int      Q    = p7O_NQF_AVX(om->M);
   float   *xmx  = pp->xmx;
-  float    norm;
-  __m256  *rp;
-  __m256   sv;
-  float    xfactor;
-  int      i,q,x;
+  int      i,q;
 
   memcpy(pp->dpf_avx[0], pp->dpf_avx[1], sizeof(__m256) * 3 * Q);
   XMXo(0,p7X_N) = XMXo(1,p7X_N);
@@ -56,27 +51,53 @@ p7_Null2_ByExpectation_avx(const P7_OPROFILE *om, const P7_OMX *pp, float *null2
       XMXo(0,p7X_C) += XMXo(i,p7X_C);
       XMXo(0,p7X_J) += XMXo(i,p7X_J);
     }
+  return p7_Null2_FromCounts_avx(om, pp->dpf_avx[0], pp->xmx, Ld, null2);
+}
+
+
+/* Function:  p7_Null2_FromCounts_avx()
+ * Synopsis:  Null2 odds ratios from expected state usage, AVX.
+ *
+ * Purpose:   The second half of <p7_Null2_ByExpectation_avx()>: from the
+ *            posterior probabilities of M and I summed over rows 1..Ld
+ *            of an envelope of <Ld> residues (<cnt>, one row of striped
+ *            cells), and those of N, C and J (<cntx>, indexed by
+ *            p7X_N etc.), calculate the null2 odds ratios into <null2>
+ *            (<0..Kp-1>, caller allocated). <cnt> and <cntx> are
+ *            overwritten.
+ *
+ * Returns:   <eslOK> on success.
+ */
+int
+p7_Null2_FromCounts_avx(const P7_OPROFILE *om, __m256 *cnt, float *cntx, int Ld, float *null2)
+{
+  int      Q    = p7O_NQF_AVX(om->M);
+  float    norm;
+  __m256  *rp;
+  __m256   sv;
+  float    xfactor;
+  int      q,x;
 
   norm = 1.0 / (float) Ld;
   sv   = _mm256_set1_ps(norm);
   for (q = 0; q < Q; q++)
     {
-      pp->dpf_avx[0][q*3 + p7X_M] = _mm256_mul_ps(pp->dpf_avx[0][q*3 + p7X_M], sv);
-      pp->dpf_avx[0][q*3 + p7X_I] = _mm256_mul_ps(pp->dpf_avx[0][q*3 + p7X_I], sv);
+      cnt[q*3 + p7X_M] = _mm256_mul_ps(cnt[q*3 + p7X_M], sv);
+      cnt[q*3 + p7X_I] = _mm256_mul_ps(cnt[q*3 + p7X_I], sv);
     }
-  XMXo(0,p7X_N) *= norm;
-  XMXo(0,p7X_C) *= norm;
-  XMXo(0,p7X_J) *= norm;
+  cntx[p7X_N] *= norm;
+  cntx[p7X_C] *= norm;
+  cntx[p7X_J] *= norm;
 
-  xfactor = XMXo(0, p7X_N) + XMXo(0, p7X_C) + XMXo(0, p7X_J);
+  xfactor = cntx[p7X_N] + cntx[p7X_C] + cntx[p7X_J];
   for (x = 0; x < om->abc->K; x++)
     {
       sv = _mm256_setzero_ps();
       rp = om->rfv_avx[x];
       for (q = 0; q < Q; q++)
         {
-          sv = _mm256_add_ps(sv, _mm256_mul_ps(pp->dpf_avx[0][q*3 + p7X_M], *rp)); rp++;
-          sv = _mm256_add_ps(sv,               pp->dpf_avx[0][q*3 + p7X_I]);  /* insert odds implicitly 1.0 */
+          sv = _mm256_add_ps(sv, _mm256_mul_ps(cnt[q*3 + p7X_M], *rp)); rp++;
+          sv = _mm256_add_ps(sv,               cnt[q*3 + p7X_I]);  /* insert odds implicitly 1.0 */
         }
       null2[x] = 0.0f;
       esl_avx_hsum_ps(sv, &(null2[x]));

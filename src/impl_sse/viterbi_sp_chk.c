@@ -1105,7 +1105,7 @@ utest_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_GENCODE *gcode, P7_BG *bgA
 
           for (bi = 0; bi < 3; bi++)
             {
-              P7_CHKOMX  *cx  = p7_chkomx_Create(sub_M, L_dna_total, blocks[bi], min_intron + 6, p7X_NSCELLS);
+              P7_CHKOMX  *cx  = p7_chkomx_Create(sub_M, L_dna_total, blocks[bi], min_intron + 6, p7X_NSCELLS, p7_CHK_FORWARD);
               P7_CHKOIVX *cv  = p7_chkoivx_Create(sub_M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L_dna_total / blocks[bi]);
               P7_OIVX    *acc = p7_oivx_Create(sub_M, SPLICE_ROWS);
               P7_OIVX    *don = p7_oivx_Create(sub_M, SIGNAL_MEM_SIZE);

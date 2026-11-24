@@ -1627,7 +1627,7 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L);
+  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
   p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
@@ -1940,7 +1940,7 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3); 
-  p7_chkomx_GrowTo(pli->vit, M, L);
+  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
   p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
@@ -2213,7 +2213,7 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L);
+  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
   p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
@@ -2475,7 +2475,7 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L);
+  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
   p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);

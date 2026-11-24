@@ -423,30 +423,35 @@ p7_omx_FSetMDI(const P7_OMX *ox, int s, int i, int k, float val)
   
 /* P7_CHKOMX: checkpointed float dynamic programming matrix
  *
- * Rows are computed in blocks of <blockR> rows; block j covers rows
- * j*blockR .. (j+1)*blockR-1. Only one block is stored at a time,
- * together with the <saveR> rows before it. The row pointer array
- * has an entry for every row 0..L: loaded rows point into dp_mem,
- * all other rows are NULL. When the computation moves from block
- * j-1 into block j, the <saveR> rows before block j are copied into
- * checkpoint j-1 in ck_mem, so that block j can be loaded again
- * later. X states are kept for every row.
+ * Rows are computed in blocks of <blockR> rows; the block starting at
+ * row b covers rows b .. b+blockR-1, for b a multiple of blockR. Only
+ * one block is stored at a time, together with <saveR> rows next to
+ * it: the rows before it for a computation that runs forward through
+ * the rows (dir = p7_CHK_FORWARD), the rows after it for one that runs
+ * backward (dir = p7_CHK_BACKWARD). The row pointer array has an entry
+ * for every row 0..L: loaded rows point into dp_mem, all other rows
+ * are NULL. When the computation moves into the next block, the
+ * <saveR> rows it needs from the block it leaves are copied into a
+ * checkpoint in ck_mem, so that the block can be loaded again later.
+ * X states are kept for every row.
  *
- * dp_mem holds <allocR> = <saveR> + <blockR> rows: slots 0..saveR-1
- * for the rows before the loaded block, then the block itself. Rows
+ * dp_mem holds <allocR> >= <saveR> + <blockR> rows: forward, slots
+ * 0..saveR-1 for the rows before the loaded block, then the block;
+ * backward, the block in slots 0..blockR-1, then the rows after it. Rows
  * are <allocQ4> stripes of <nscells> vectors.
  */
 typedef struct p7_chkomx_s {
   int       M;
   int       L;
   int       nscells;   /* vectors per stripe position, e.g. p7X_NSCELLS        */
+  int       dir;       /* p7_CHK_FORWARD or p7_CHK_BACKWARD                    */
   int       blockR;    /* rows per block                                       */
-  int       saveR;     /* rows saved at each checkpoint, before the block      */
+  int       saveR;     /* rows saved at each checkpoint, next to the block       */
   int       b;         /* first row of the loaded block; -1 if none            */
 
   __m128  **dpf;       /* row pointers [0..L]                                  */
   void     *dp_mem;    /* storage for allocR rows                              */
-  int       allocR;    /* rows of storage in dp_mem: saveR + blockR            */
+  int       allocR;    /* rows of storage in dp_mem: >= saveR + blockR             */
   int       allocP;    /* entries in the row pointer array; allocP >= L+1      */
   int       allocQ4;   /* float stripes per row     (allocQ4*4 >= M)           */
   size_t    nvec;      /* current allocation size of dp_mem, in vectors        */
@@ -481,8 +486,8 @@ extern int          p7_omx_DumpMFRow(P7_OMX *ox, int rowi, uint8_t xE, uint8_t x
 extern int          p7_omx_DumpVFRow(P7_OMX *ox, int rowi, int16_t xE, int16_t xN, int16_t xJ, int16_t xB, int16_t xC);
 
 /* p7_chkomx.c */
-extern P7_CHKOMX   *p7_chkomx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells);
-extern int          p7_chkomx_GrowTo    (P7_CHKOMX *cx, int allocM, int allocL);
+extern P7_CHKOMX   *p7_chkomx_Create    (int allocM, int allocL, int blockR, int saveR, int nscells, int dir);
+extern int          p7_chkomx_GrowTo    (P7_CHKOMX *cx, int allocM, int allocL, int blockR);
 extern int          p7_chkomx_StartBlock(P7_CHKOMX *cx, int b);
 extern int          p7_chkomx_LoadBlock (P7_CHKOMX *cx, int b);
 extern float        p7_chkomx_FGetMDI   (const P7_CHKOMX *cx, int s, int i, int k);

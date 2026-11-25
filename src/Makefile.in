@@ -62,10 +62,7 @@ PROGOBJS = bathsearch.o\
            bathfetch.o\
            bathstat.o
 
-HDRS =  hmmer.h \
-	p7_gbands.h \
-	p7_gmxb.h \
-	p7_gmxchk.h 
+HDRS =  hmmer.h
 
 OBJS =  build.o\
 	emit.o\
@@ -76,8 +73,6 @@ OBJS =  build.o\
 	generic_decoding_frameshift.o\
 	generic_fwdback.o\
 	generic_fwdback_frameshift.o\
-	generic_fwdback_chk.o\
-	generic_fwdback_banded.o\
 	generic_null2.o\
     generic_null2_frameshift.o\
 	generic_msv.o\
@@ -101,12 +96,9 @@ OBJS =  build.o\
 	p7_builder.o\
 	p7_domain.o\
 	p7_domaindef.o\
-	p7_gbands.o\
 	p7_gmx.o\
 	p7_chkgmx.o\
 	p7_oatmx.o\
-	p7_gmxb.o\
-	p7_gmxchk.o\
     p7_ivx.o\
 	p7_chkivx.o\
 	p7_hit.o\
@@ -141,7 +133,6 @@ BENCHMARKS = \
 	generic_decoding_benchmark\
 	generic_decoding_frameshift_benchmark\
 	generic_fwdback_benchmark\
-	generic_fwdback_chk_benchmark\
     generic_fwdback_frameshift_benchmark\
     generic_msv_benchmark\
 	generic_null2_benchmark\
@@ -156,7 +147,6 @@ BENCHMARKS = \
 UTESTS =\
 	build_utest\
 	generic_fwdback_utest\
-	generic_fwdback_chk_utest\
 	generic_optacc_utest\
     generic_fwdback_frameshift_utest\
     generic_msv_utest\
@@ -179,7 +169,6 @@ UTESTS =\
 	p7_chkgmx_utest\
 	p7_oatmx_utest\
 	p7_chkivx_utest\
-	p7_gmxchk_utest\
 	p7_hit_utest\
 	p7_hmm_utest\
 	p7_hmmfile_utest\
@@ -196,7 +185,6 @@ EXAMPLES = \
 	build_example\
 	emit_example\
 	generic_fwdback_example\
-	generic_fwdback_chk_example\
 	generic_msv_example\
 	generic_decoding_example\
 	generic_optacc_example\

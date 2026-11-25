@@ -18,6 +18,102 @@
  * 1. Forward, Backward, Hybrid implementations.
  *****************************************************************/
 
+/* Function:  p7_GForwardRow()
+ * Synopsis:  One row of the generic Forward algorithm.
+ *
+ * Purpose:   Forward row <i> of profile <gm> against <dsq> into <dp[i]>
+ *            and row <i> of the special states <xmx>, from row i-1 in
+ *            <dp[i-1]> and <xmx> (not used for <i> = 0). Row 0 is the
+ *            initialization. Same calculation as each row of
+ *            <p7_GForward()>, which calls it. Caller must have
+ *            initialized the log-sum calculation with <p7_FLogsumInit()>.
+ */
+void
+p7_GForwardRow(const ESL_DSQ *dsq, const P7_PROFILE *gm, float **dp, float *xmx, int i)
+{
+  float const *tsc  = gm->tsc;
+  int          M    = gm->M;
+  float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
+  float const *rsc;
+  float        sc;
+  int          k;
+
+  /* Initialization of the zero row. */
+  if (i == 0)
+    {
+      XMX(0,p7G_N) = 0;                                           /* S->N, p=1            */
+      XMX(0,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
+      XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;  /* need seq to get here */
+      for (k = 0; k <= M; k++)
+        MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;            /* need seq to get here */
+      return;
+    }
+
+  /* Recursion. Done as a pull.
+   * Note some slightly wasteful boundary conditions:  
+   *    tsc[0] = impossible for all eight transitions (no node 0)
+   *    D_1 is wastefully calculated (doesn't exist)
+   */
+  rsc = gm->rsc[dsq[i]];
+
+  MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+  XMX(i, p7G_E) = -eslINFINITY;
+
+  for (k = 1; k < M; k++)
+    {
+      /* match state */
+      sc = p7_FLogsum(p7_FLogsum(MMX(i-1,k-1)   + TSC(p7P_MM,k-1), 
+                                 IMX(i-1,k-1)   + TSC(p7P_IM,k-1)),
+                      p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,k-1),
+                                 DMX(i-1,k-1)   + TSC(p7P_DM,k-1)));
+      MMX(i,k) = sc + MSC(k);
+
+      /* insert state */
+      sc = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
+                      IMX(i-1,k) + TSC(p7P_II,k));
+      IMX(i,k) = sc + ISC(k);
+
+      /* delete state */
+      DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
+                            DMX(i,k-1) + TSC(p7P_DD,k-1));
+
+      /* E state update */
+      XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,k) + esc,
+                                           DMX(i,k) + esc),
+                                XMX(i,p7G_E));
+    }
+  /* unrolled match state M_M */
+  sc = p7_FLogsum(p7_FLogsum(MMX(i-1,M-1)   + TSC(p7P_MM,M-1), 
+                             IMX(i-1,M-1)   + TSC(p7P_IM,M-1)),
+                  p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,M-1),
+                             DMX(i-1,M-1)   + TSC(p7P_DM,M-1)));
+  MMX(i,M) = sc + MSC(M);
+  IMX(i,M) = -eslINFINITY;
+
+  /* unrolled delete state D_M */
+  DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
+                        DMX(i,M-1) + TSC(p7P_DD,M-1));
+
+  /* unrolled E state update */
+  XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,M),
+                                       DMX(i,M)),
+                            XMX(i,p7G_E));
+
+  /* J state */
+  XMX(i,p7G_J) = p7_FLogsum(XMX(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
+                            XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP]);
+  /* C state */
+  XMX(i,p7G_C) = p7_FLogsum(XMX(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
+                            XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_MOVE]);
+  /* N state */
+  XMX(i,p7G_N) = XMX(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
+
+  /* B state */
+  XMX(i,p7G_B) = p7_FLogsum(XMX(i,  p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
+                            XMX(i,  p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
+}
+
+
 /* Function:  p7_GForward()
  * Synopsis:  The Forward algorithm.
  *
@@ -47,91 +143,16 @@
 int
 p7_GForward(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_sc)
 {
-  float const *tsc  = gm->tsc;
-  float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx; 			    
-  int          M    = gm->M;
-  int          i, k;  
-  float        esc  = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
+  float *xmx = gx->xmx;
+  int    i;
 
   p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
 
-  /* Initialization of the zero row. */
-  XMX(0,p7G_N) = 0;                                           /* S->N, p=1            */
-  XMX(0,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];                    /* S->N->B, no N-tail   */
-  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;  /* need seq to get here */
-  for (k = 0; k <= M; k++)
-    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;            /* need seq to get here */
-
-  /* Recursion. Done as a pull.
-   * Note some slightly wasteful boundary conditions:  
-   *    tsc[0] = impossible for all eight transitions (no node 0)
-   *    D_1 is wastefully calculated (doesn't exist)
-   */
-  for (i = 1; i <= L; i++) 
-    {
-      float const *rsc = gm->rsc[dsq[i]];
-      float sc;
-
-      MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
-      XMX(i, p7G_E) = -eslINFINITY;
-
-      for (k = 1; k < M; k++)
-	{
-	  /* match state */
-	  sc = p7_FLogsum(p7_FLogsum(MMX(i-1,k-1)   + TSC(p7P_MM,k-1), 
-				     IMX(i-1,k-1)   + TSC(p7P_IM,k-1)),
-			  p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,k-1),
-				     DMX(i-1,k-1)   + TSC(p7P_DM,k-1)));
-	  MMX(i,k) = sc + MSC(k);
-
-	  /* insert state */
-	  sc = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
-			  IMX(i-1,k) + TSC(p7P_II,k));
-	  IMX(i,k) = sc + ISC(k);
-
-	  /* delete state */
-	  DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
-				DMX(i,k-1) + TSC(p7P_DD,k-1));
-
-	  /* E state update */
-	  XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,k) + esc,
-					       DMX(i,k) + esc),
-				               XMX(i,p7G_E));
-	}
-      /* unrolled match state M_M */
-      sc = p7_FLogsum(p7_FLogsum(MMX(i-1,M-1)   + TSC(p7P_MM,M-1), 
-				 IMX(i-1,M-1)   + TSC(p7P_IM,M-1)),
-		      p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,M-1),
-				 DMX(i-1,M-1)   + TSC(p7P_DM,M-1)));
-      MMX(i,M) = sc + MSC(M);
-      IMX(i,M) = -eslINFINITY;
-
-      /* unrolled delete state D_M */
-      DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
-			    DMX(i,M-1) + TSC(p7P_DD,M-1));
-
-      /* unrolled E state update */
-      XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,M),
-					   DMX(i,M)),
-					   XMX(i,p7G_E));
-
-      /* J state */
-      XMX(i,p7G_J) = p7_FLogsum(XMX(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-				XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP]);
-      /* C state */
-      XMX(i,p7G_C) = p7_FLogsum(XMX(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
-				XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_MOVE]);
-      /* N state */
-      XMX(i,p7G_N) = XMX(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
-
-      /* B state */
-      XMX(i,p7G_B) = p7_FLogsum(XMX(i,  p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
-				XMX(i,  p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
-    }
+  for (i = 0; i <= L; i++)
+    p7_GForwardRow(dsq, gm, gx->dp, gx->xmx, i);
 
   if (opt_sc != NULL) *opt_sc = XMX(L,p7G_C) + gm->xsc[p7P_C][p7P_MOVE];
-  gx->M = M;
+  gx->M = gm->M;
   gx->L = L;
   return eslOK;
 }

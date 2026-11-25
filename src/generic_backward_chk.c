@@ -1,4 +1,4 @@
-/* Checkpointed Backward algorithms, generic (non-SIMD) versions.
+/* Checkpointed Backward and Forward algorithms, generic (non-SIMD) versions.
  *
  * The Backward matrix is computed from row L down to row 0 in blocks
  * of rows held in a P7_CHKGMX created with <p7_CHK_BACKWARD>. Only one
@@ -9,13 +9,18 @@
  * for every row. The values are identical to <p7_GBackward()> and
  * <p7_GBackward_Frameshift()>.
  *
+ * The checkpointed Forward is the mirror image, in a P7_CHKGMX with
+ * <p7_CHK_FORWARD>: rows 0 up to L, checkpoints of the rows before
+ * each block, blocks loaded again from last to first. Its values are
+ * identical to <p7_GForward()>.
+ *
  * Computing posterior probabilities from Backward rows as they are
  * finished, without a full Backward matrix, follows HMMER4's Backward
  * filter; checkpointing the Backward matrix for a forward sweep is an
  * elaboration of that idea.
  *
  * Contents:
- *   1. Checkpointed Backward, standard model
+ *   1. Checkpointed Backward and Forward, standard model
  *   2. Checkpointed Backward, frameshift model (5 codon lengths)
  *   3. Unit tests
  *   4. Test driver
@@ -35,7 +40,7 @@
 
 
 /*****************************************************************
- * 1. Checkpointed Backward, standard model
+ * 1. Checkpointed Backward and Forward, standard model
  *****************************************************************/
 
 /* backward_row()
@@ -198,6 +203,90 @@ p7_GBackwardChkLoad(const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int
   if ((status = p7_chkgmx_LoadBlock(cx, b)) != eslOK) return status;
   for (i = ESL_MIN(cx->L, b + cx->blockR - 1); i >= b; i--)
     backward_row(dsq, cx->L, gm, cx->dp, cx->xmx, i);
+  return eslOK;
+}
+
+/* Function:  p7_GForwardChk()
+ * Synopsis:  Checkpointed Forward, standard model.
+ *
+ * Purpose:   Forward of profile <gm> against <dsq> of length <L> into
+ *            the checkpointed matrix <cx>. Each row is computed by
+ *            <p7_GForwardRow()>, as in <p7_GForward()>, so values and
+ *            score are identical to it.
+ *
+ *            Rows are computed from 0 up to <L>, one block at a time;
+ *            checkpoints of the rows before each block are saved, so
+ *            <p7_GForwardChkLoad()> can compute any block again. On
+ *            return the block holding row <L> is loaded and the special
+ *            states of all rows are in <cx->xmx>.
+ *
+ *            The caller creates <cx> with <p7_CHK_FORWARD> (or sets that
+ *            direction with <p7_chkgmx_SetDirection()>), <p7G_NSCELLS>
+ *            cells per model position and at least 1 saved row, and grows
+ *            it for <gm->M> by <L> with the block size it wants
+ *            (<p7_chkgmx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq
+ *            gm     - profile
+ *            cx     - checkpointed DP matrix
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation.
+ */
+int
+p7_GForwardChk(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc)
+{
+  float  *xmx = cx->xmx;
+  int     b, i;
+  int     status;
+
+  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 1 || cx->nscells != p7G_NSCELLS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed Forward");
+
+  p7_FLogsumInit();
+  cx->M = gm->M;
+  cx->L = L;
+
+  for (b = 0; b <= L; b += cx->blockR)
+    {
+      if ((status = p7_chkgmx_StartBlock(cx, b)) != eslOK) return status;
+      for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
+        p7_GForwardRow(dsq, gm, cx->dp, cx->xmx, i);
+    }
+
+  if (opt_sc != NULL) *opt_sc = XMX(L,p7G_C) + gm->xsc[p7P_C][p7P_MOVE];
+  return eslOK;
+}
+
+
+/* Function:  p7_GForwardChkLoad()
+ * Synopsis:  Compute one block of a checkpointed Forward matrix again.
+ *
+ * Purpose:   Load block <b> (a multiple of <cx->blockR>) of the Forward
+ *            matrix that <p7_GForwardChk()> filled in <cx> for profile
+ *            <gm> and sequence <dsq>, computing its rows again from the
+ *            checkpoint before it. Afterwards rows <b> .. <b>+<blockR>-1
+ *            (up to <cx->L>) hold the same values as rows of the full
+ *            matrix from <p7_GForward()>. Blocks are loaded in decreasing
+ *            order, as a computation that runs backward through the rows
+ *            reads them (<p7_chkgmx_LoadBlock()>).
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if block <b> can't be loaded.
+ */
+int
+p7_GForwardChkLoad(const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b)
+{
+  int i;
+  int status;
+
+  if ((status = p7_chkgmx_LoadBlock(cx, b)) != eslOK) return status;
+  for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
+    p7_GForwardRow(dsq, gm, cx->dp, cx->xmx, i);
   return eslOK;
 }
 
@@ -609,6 +698,7 @@ p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, 
  * equal the same rows of the full matrix <gx> exactly. Column 0 and
  * the I cell at k = M (there is no I_M state) are left out: the full
  * Backward doesn't set them in every row, and nothing reads them.
+ * Used for both the Backward and the Forward matrices.
  */
 static void
 compare_block(const char *msg, const P7_CHKGMX *cx, const P7_GMX *gx, int b)
@@ -639,7 +729,10 @@ compare_specials(const char *msg, const P7_CHKGMX *cx, const P7_GMX *gx)
  * matrix with p7_GBackward() and the checkpointed one with block sizes
  * from 1 row to more than L. The scores and special states must be
  * identical, and every block loaded again with p7_GBackwardChkLoad(),
- * first to last, must hold the same rows as the full matrix.
+ * first to last, must hold the same rows as the full matrix. The same
+ * matrix, turned around by p7_chkgmx_SetDirection(), is also filled by
+ * p7_GForwardChk(): score, special states and every block loaded again
+ * with p7_GForwardChkLoad(), last to first, must equal p7_GForward().
  */
 static void
 utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *gm, int nseq)
@@ -650,12 +743,13 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *
   int        nL       = sizeof(lengths) / sizeof(int);
   int        nB       = sizeof(blocks)  / sizeof(int);
   P7_GMX    *gx       = p7_gmx_Create(gm->M, 201, 201, p7G_NSCELLS);
+  P7_GMX    *gxf      = p7_gmx_Create(gm->M, 201, 201, p7G_NSCELLS);
   P7_CHKGMX *cx       = p7_chkgmx_Create(gm->M, 201, 8, 1, p7G_NSCELLS, p7_CHK_BACKWARD);
   ESL_DSQ   *dsq      = malloc(sizeof(ESL_DSQ) * (201 + 2));
-  float      sc, chk_sc;
+  float      sc, fsc, chk_sc;
   int        n, j, q, b, L;
 
-  if (gx == NULL || cx == NULL || dsq == NULL) esl_fatal("%s: allocation failed", msg);
+  if (gx == NULL || gxf == NULL || cx == NULL || dsq == NULL) esl_fatal("%s: allocation failed", msg);
 
   for (n = 0; n < nseq; n++)
     for (j = 0; j < nL; j++)
@@ -664,6 +758,7 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *
         if (esl_rsq_xfIID(r, bg->f, abc->K, L, dsq)         != eslOK) esl_fatal("%s: seq generation failed", msg);
         if (p7_ReconfigLength(gm, L)                         != eslOK) esl_fatal(msg);
         if (p7_GBackward(dsq, L, gm, gx, &sc)                != eslOK) esl_fatal(msg);
+        if (p7_GForward (dsq, L, gm, gxf, &fsc)              != eslOK) esl_fatal(msg);
 
         for (q = 0; q < nB; q++)
           {
@@ -678,12 +773,28 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, P7_PROFILE *
                 if (p7_GBackwardChkLoad(dsq, gm, cx, b)      != eslOK) esl_fatal(msg);
                 compare_block(msg, cx, gx, b);
               }
+
+            /* the same matrix turned around for the checkpointed Forward:
+             * the fill and every block loaded again, last to first, are
+             * identical to p7_GForward() */
+            if (p7_chkgmx_SetDirection(cx, p7_CHK_FORWARD, 1) != eslOK) esl_fatal(msg);
+            if (p7_chkgmx_GrowTo(cx, gm->M, L, blocks[q])      != eslOK) esl_fatal(msg);
+            if (p7_GForwardChk(dsq, L, gm, cx, &chk_sc)        != eslOK) esl_fatal(msg);
+            if (chk_sc != fsc) esl_fatal("%s: Forward scores differ (%f %f), L %d, block size %d", msg, fsc, chk_sc, L, blocks[q]);
+            compare_specials(msg, cx, gxf);
+            for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
+              {
+                if (p7_GForwardChkLoad(dsq, gm, cx, b)        != eslOK) esl_fatal(msg);
+                compare_block(msg, cx, gxf, b);
+              }
+            if (p7_chkgmx_SetDirection(cx, p7_CHK_BACKWARD, 1) != eslOK) esl_fatal(msg);
           }
       }
 
   free(dsq);
   p7_chkgmx_Destroy(cx);
   p7_gmx_Destroy(gx);
+  p7_gmx_Destroy(gxf);
 }
 
 /* utest_backward_chk_frameshift():

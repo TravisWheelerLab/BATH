@@ -1455,6 +1455,7 @@ extern int p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_
 extern int p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_fwdback.c */
+extern void p7_GForwardRow (const ESL_DSQ *dsq, const P7_PROFILE *gm, float **dp, float *xmx, int i);
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern int p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *fwd, P7_GMX *bck, float *opt_sc);
@@ -1649,6 +1650,8 @@ extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int
 /* generic_backward_chk.c */
 extern int p7_GBackwardChk              (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc);
 extern int p7_GBackwardChkLoad          (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
+extern int p7_GForwardChk               (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc);
+extern int p7_GForwardChkLoad           (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
 extern int p7_GBackwardChk_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
 extern int p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
 

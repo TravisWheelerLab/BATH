@@ -41,80 +41,6 @@
  * 1. OA sweep and trace
  *****************************************************************/
 
-/* forward_row()
- * Forward row <i> into dp[i] and xmx row i, from row i-1. Same
- * calculation as p7_GForward().
- */
-static void
-forward_row(const ESL_DSQ *dsq, const P7_PROFILE *gm, float **dp, float *xmx, int i)
-{
-  float const *tsc = gm->tsc;
-  float const *rsc = gm->rsc[dsq[i]];
-  int          M   = gm->M;
-  float        esc = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
-  float        sc;
-  int          k;
-
-  MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
-  XMX(i, p7G_E) = -eslINFINITY;
-
-  for (k = 1; k < M; k++)
-    {
-      sc = p7_FLogsum(p7_FLogsum(MMX(i-1,k-1)   + TSC(p7P_MM,k-1),
-                                 IMX(i-1,k-1)   + TSC(p7P_IM,k-1)),
-                      p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,k-1),
-                                 DMX(i-1,k-1)   + TSC(p7P_DM,k-1)));
-      MMX(i,k) = sc + MSC(k);
-
-      sc = p7_FLogsum(MMX(i-1,k) + TSC(p7P_MI,k),
-                      IMX(i-1,k) + TSC(p7P_II,k));
-      IMX(i,k) = sc + ISC(k);
-
-      DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
-                            DMX(i,k-1) + TSC(p7P_DD,k-1));
-
-      XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,k) + esc,
-                                           DMX(i,k) + esc),
-                                XMX(i,p7G_E));
-    }
-  sc = p7_FLogsum(p7_FLogsum(MMX(i-1,M-1)   + TSC(p7P_MM,M-1),
-                             IMX(i-1,M-1)   + TSC(p7P_IM,M-1)),
-                  p7_FLogsum(XMX(i-1,p7G_B) + TSC(p7P_BM,M-1),
-                             DMX(i-1,M-1)   + TSC(p7P_DM,M-1)));
-  MMX(i,M) = sc + MSC(M);
-  IMX(i,M) = -eslINFINITY;
-
-  DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
-                        DMX(i,M-1) + TSC(p7P_DD,M-1));
-
-  XMX(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,M),
-                                       DMX(i,M)),
-                            XMX(i,p7G_E));
-
-  XMX(i,p7G_J) = p7_FLogsum(XMX(i-1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-                            XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_LOOP]);
-  XMX(i,p7G_C) = p7_FLogsum(XMX(i-1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP],
-                            XMX(i,  p7G_E) + gm->xsc[p7P_E][p7P_MOVE]);
-  XMX(i,p7G_N) = XMX(i-1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP];
-  XMX(i,p7G_B) = p7_FLogsum(XMX(i,  p7G_N) + gm->xsc[p7P_N][p7P_MOVE],
-                            XMX(i,  p7G_J) + gm->xsc[p7P_J][p7P_MOVE]);
-}
-
-/* forward_row_0()
- * Forward row 0 into dp[0] and xmx row 0, as p7_GForward() sets it.
- */
-static void
-forward_row_0(const P7_PROFILE *gm, float **dp, float *xmx)
-{
-  int k;
-
-  XMX(0,p7G_N) = 0;
-  XMX(0,p7G_B) = gm->xsc[p7P_N][p7P_MOVE];
-  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;
-  for (k = 0; k <= gm->M; k++)
-    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;
-}
-
 /* decode_row()
  * Posterior probabilities of row <i> (1..L) into <pp> (one row,
  * [k*p7G_NSCELLS+s]) and <ppx> (N, J, C of the row), from Forward row
@@ -377,18 +303,18 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
 
   /* Forward score, two rows */
   fdp[0] = mem;
-  forward_row_0(gm, fdp, fxmx);
+  p7_GForwardRow(dsq, gm, fdp, fxmx, 0);
   for (i = 1; i <= L; i++)
     {
       fdp[i] = mem + (i%2)*W;
-      forward_row(dsq, gm, fdp, fxmx, i);
+      p7_GForwardRow(dsq, gm, fdp, fxmx, i);
     }
   overall_sc = fxmx[L*p7G_NXCELLS + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
 
   /* the sweep */
   fdp[0] = mem;
   odp[0] = mem + 2*W;
-  forward_row_0(gm, fdp, fxmx);
+  p7_GForwardRow(dsq, gm, fdp, fxmx, 0);
   oa_row_0(gm, odp, oxmx);
   oat_store_row(gm, odp, oxmx, NULL, NULL, ox, 0);
 
@@ -400,7 +326,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
       b = (i / cx->blockR) * cx->blockR;
       if (b != cx->b && (status = p7_GBackwardChkLoad(dsq, gm, cx, b)) != eslOK) goto ERROR;
 
-      forward_row(dsq, gm, fdp, fxmx, i);
+      p7_GForwardRow(dsq, gm, fdp, fxmx, i);
       decode_row(gm, fdp[i], fxmx + (i-1)*p7G_NXCELLS, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx);
       oa_row(gm, pp, ppx, odp, oxmx, i);
       oat_store_row(gm, odp, oxmx, pp, ppx, ox, i);

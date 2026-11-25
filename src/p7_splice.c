@@ -1627,18 +1627,19 @@ p7_splice_AlignExons(SPLICE_WORKER_INFO *info, SPLICE_PATH *orig_path, ESL_SQ *p
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
-  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
+  p7_chkomx_SetDirection(pli->chk, p7_CHK_FORWARD, pli->min_intron + 6);
+  p7_chkomx_GrowTo(pli->chk, M, L, SPLICE_CHECKPOINT_ROWS);
+  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->chk->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
 
-  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, TRUE);
+  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, TRUE);
   /* If the hits were in different frames and no splice site was able to pull score
    * from the upstream frame to the downstream frame the splicing is a failure */
-  if(pli->vit->xmx[L*p7X_NXCELLS+p7X_C] == -eslINFINITY) return NULL;
+  if(pli->chk->xmx[L*p7X_NXCELLS+p7X_C] == -eslINFINITY) return NULL;
 
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE, NULL, &max_drop);
+  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE, NULL, &max_drop);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -1940,15 +1941,16 @@ p7_splice_AlignExtendDown(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, E
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3); 
-  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
-  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
+  p7_chkomx_SetDirection(pli->chk, p7_CHK_FORWARD, pli->min_intron + 6);
+  p7_chkomx_GrowTo(pli->chk, M, L, SPLICE_CHECKPOINT_ROWS);
+  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->chk->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
 
-  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, FALSE);
+  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, FALSE);
   tr = p7_trace_fs_Create();
 
-  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, FALSE, NULL, NULL);
+  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, FALSE, NULL, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2213,14 +2215,15 @@ p7_splice_AlignExtendUp(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
   p7_fs_ReconfigLength(gm_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
-  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
+  p7_chkomx_SetDirection(pli->chk, p7_CHK_FORWARD, pli->min_intron + 6);
+  p7_chkomx_GrowTo(pli->chk, M, L, SPLICE_CHECKPOINT_ROWS);
+  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->chk->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
 
-  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, FALSE, TRUE);
+  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, FALSE, TRUE);
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, FALSE, TRUE, NULL, NULL);
+  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, FALSE, TRUE, NULL, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -2475,14 +2478,15 @@ p7_splice_AlignSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_S
 
   p7_fs_oprofile_SubConvert_Log(gm_tr, om_tr, k_start, k_end);
   p7_fs_oprofile_ReconfigLength_Log(om_tr, L/3);
-  p7_chkomx_GrowTo(pli->vit, M, L, SPLICE_CHECKPOINT_ROWS);
-  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->vit->blockR);
+  p7_chkomx_SetDirection(pli->chk, p7_CHK_FORWARD, pli->min_intron + 6);
+  p7_chkomx_GrowTo(pli->chk, M, L, SPLICE_CHECKPOINT_ROWS);
+  p7_chkoivx_GrowTo(pli->don_ck, M, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L / pli->chk->blockR);
   p7_oivx_GrowTo(pli->acc_ov, M, SPLICE_ROWS);
   p7_oivx_GrowTo(pli->don_ov, M, SIGNAL_MEM_SIZE);
 
-  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, TRUE);
+  p7_Viterbi_SplicedChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, pli->signal_scores, pli->acc_ov, pli->don_ov, i_start, i_end, pli->min_intron, TRUE, TRUE);
   tr = p7_trace_fs_Create();
-  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->vit, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE, NULL, NULL);
+  p7_Viterbi_SplicedTraceChk(path_seq->dsq, om_tr, pli->chk, pli->don_ck, gm_tr, pli->signal_scores, pli->acc_ov, pli->don_ov, tr, i_start, i_end, k_start, k_end, pli->min_intron, TRUE, TRUE, NULL, NULL);
 
   /* Find number of introns in trace */
   intron_cnt = 0;
@@ -3177,9 +3181,12 @@ p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_p
 /*  Function: p7_splice_AlignSplicedSequence
  *  Synopsis: Align a spliced protein sequence to a protein model
  *
- *  Purpose : Given a spliced protein sequence produced and a model, align them using Fwd/Bwd.
- *            Produce a spliced alignment and provide scores, p-values, and average
- *            posterior probabilities for all exons in the alignment.
+ *  Purpose : Given a spliced protein sequence produced and a model, align them
+ *            with a checkpointed Backward and one forward sweep that computes the
+ *            Forward score, null2 and the optimal accuracy alignment. Produce a
+ *            spliced alignment and provide scores, p-values, and average posterior
+ *            probabilities for all exons in the alignment. Exon scores come from
+ *            the Backward N-state values (p7_splice_ScoreExons()).
  *
  * Returns:   <eslOK>.
  *
@@ -3189,31 +3196,36 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 {
 
   int      i;
+  int      L;
   int      splice_cnt;
   int      use_generic;
+  int      bstatus, sstatus;
   float    filtersc;
   float    envsc, bwdsc;
   float    fbdiff;
   float    seq_score;
   float    oasc;
   float    domcorrection;
+  float    bwd_CL;
+  double   logscale;
   float    null2[p7_MAXCODE];
   P7_HIT   *hit;
   P7_TRACE *tr;
   SPLICE_PIPELINE *pli;
   P7_OPROFILE *om;
   P7_PROFILE  *gm;
-  P7_GMX      *gfwd, *gbck;
+  P7_CHKGMX   *gcx  = NULL;
+  P7_OATMX    *goat = NULL;
   int       status;
 
   pli    = info->pli;
   om     = info->om;
   gm     = info->gm;
+  L      = pli->amino_sq->n;
 
-  if (pli->fwd_alloc < pli->amino_sq->n + 1) {
-    ESL_REALLOC(pli->fwd_scale, sizeof(float) * (pli->amino_sq->n + 1));
-    ESL_REALLOC(pli->fwd_C,     sizeof(float) * (pli->amino_sq->n + 1));
-    pli->fwd_alloc = pli->amino_sq->n + 1;
+  if (pli->bwd_alloc < L + 1) {
+    ESL_REALLOC(pli->bwd_N, sizeof(float) * (L + 1));
+    pli->bwd_alloc = L + 1;
   }
 
   tr           = p7_trace_CreateWithPP();
@@ -3223,70 +3235,60 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   hit->dcl->scores_per_pos = NULL;
   hit->dcl->k_per_pos = NULL;
 
-  p7_oprofile_ReconfigUnihit(om, pli->amino_sq->n);
+  p7_oprofile_ReconfigUnihit(om, L);
 
-  p7_omx_GrowTo_dpf(pli->fwd, om->M, pli->amino_sq->n, pli->amino_sq->n);
-  p7_omx_GrowTo_dpf(pli->bwd, om->M, 0,                 pli->amino_sq->n);
-
-  p7_bg_SetLength(pli->bg, pli->amino_sq->n);
+  p7_bg_SetLength(pli->bg, L);
   if (pli->do_biasfilter)
-    p7_bg_FilterScore(pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
+    p7_bg_FilterScore(pli->bg, pli->amino_sq->dsq, L, &filtersc);
   else
-    p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, pli->amino_sq->n, &filtersc);
+    p7_bg_NullOne  (pli->bg, pli->amino_sq->dsq, L, &filtersc);
 
-  p7_Forward (pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, &envsc);
-
-  /* p7_splice_ScoreExons() needs these Forward values; the Backward sweep below overwrites <fwd> */
-  for (i = 0; i <= pli->amino_sq->n; i++) {
-    pli->fwd_scale[i] = pli->fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-    pli->fwd_C[i]     = pli->fwd->xmx[i*p7X_NXCELLS+p7X_C];
-  }
-
-  status = p7_BackwardDecoding(pli->amino_sq->dsq, pli->amino_sq->n, om, pli->fwd, pli->bwd, &bwdsc); /* <fwd> is now overwritten with posterior probabilities */
+  /* Backward, checkpointed, then Forward score, null2 and the OA alignment in one sweep */
+  if ((status = p7_chkomx_SetDirection(pli->chk, p7_CHK_BACKWARD, 1)) != eslOK) goto ERROR;
+  if ((status = p7_chkomx_GrowTo(pli->chk, om->M, L, p7_chk_BlockRows(om->M, L, 1, p7X_NSCELLS))) != eslOK) goto ERROR;
+  bstatus = p7_BackwardChk(pli->amino_sq->dsq, L, om, pli->chk, &bwdsc);
+  sstatus = (bstatus == eslOK) ? p7_OptimalAccuracySweep(pli->amino_sq->dsq, L, om, pli->chk, pli->oat, null2, &envsc, &oasc) : bstatus;
 
   /* Rescaling underflow in the single-precision unihit SIMD DP can make
    * Forward and Backward disagree, or make the posterior scaling
    * overflow. Detect either and fall back unconditionally to the generic
    * (log-space) engine, which never underflows this way. */
-  fbdiff      = fabsf(envsc - bwdsc);
-  use_generic = (status != eslOK || fbdiff / (fabsf(envsc) * sqrtf((float) pli->amino_sq->n * (float) om->M)) > 1e-8);
+  use_generic = (sstatus != eslOK);
+  if (! use_generic) {
+    fbdiff      = fabsf(envsc - bwdsc);
+    use_generic = (fbdiff / (fabsf(envsc) * sqrtf((float) L * (float) om->M)) > 1e-8);
+  }
 
   if (use_generic) {
-    p7_ReconfigUnihit(gm, pli->amino_sq->n);
+    p7_ReconfigUnihit(gm, L);
+    p7_FLogsumInit();
 
-    /* To avoid holding two sets of full sized L*M matrices in memory
-     * destroy and recreate the SIMD matrices with small L*M before
-     * allocating the generic matrices. */
-    p7_omx_Destroy(pli->fwd);
-    p7_omx_Destroy(pli->bwd);
-    if ((pli->fwd = p7_omx_Create_dpf(100, 100, 100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
-    if ((pli->bwd = p7_omx_Create_dpf(100, 0,   100, p7X_NSCELLS)) == NULL) { status = eslEMEM; goto ERROR; }
+    if ((gcx  = p7_chkgmx_Create(gm->M, L, p7_chk_BlockRows(gm->M, L, 1, p7G_NSCELLS), 1, p7G_NSCELLS, p7_CHK_BACKWARD)) == NULL) { status = eslEMEM; goto ERROR; }
+    if ((goat = p7_oatmx_Create(gm->M, L, p7OAT_NPLANES, 1)) == NULL) { status = eslEMEM; goto ERROR; }
 
-    gfwd = p7_gmx_Create(gm->M, pli->amino_sq->n,       pli->amino_sq->n, p7G_NSCELLS);
-    gbck = p7_gmx_Create(gm->M, BACKWARD_DECODING_ROWS, pli->amino_sq->n, p7G_NSCELLS);
+    if ((status = p7_GBackwardChk(pli->amino_sq->dsq, L, gm, gcx, NULL))                                  != eslOK) goto ERROR;
+    if ((status = p7_GOptimalAccuracySweep(pli->amino_sq->dsq, L, gm, gcx, goat, null2, &envsc, &oasc)) != eslOK) goto ERROR;
+    if ((status = p7_GOATraceSweep(gm, goat, tr))                                                        != eslOK) goto ERROR;
 
-    p7_GForward (pli->amino_sq->dsq, pli->amino_sq->n, gm, gfwd, &envsc);
+    /* log-space Backward N of each row, and C of row L, for the exon scores */
+    for (i = 0; i <= L; i++)
+      pli->bwd_N[i] = gcx->xmx[i*p7G_NXCELLS + p7G_N];
+    bwd_CL = gcx->xmx[L*p7G_NXCELLS + p7G_C];
 
-    /* <gfwd> is overwritten below by p7_GBackwardDecoding(); p7_splice_ScoreExons_Generic()
-     * needs these per-row C-state values, which are already the true cumulative log-odds
-     * score at that row - no scale reconstruction needed, unlike the SIMD path. */
-    for (i = 0; i <= pli->amino_sq->n; i++)
-      pli->fwd_C[i] = gfwd->xmx[i*p7G_NXCELLS + p7G_C];
-
-    p7_GBackwardDecoding(pli->amino_sq->dsq, pli->amino_sq->n, gm, gfwd, gbck, NULL); /* <gfwd> is now the posterior probability matrix */
-    p7_GNull2_ByExpectation(gm, gfwd, null2);
-
-    p7_GOptimalAccuracy(gm, gfwd, gfwd, &oasc);  /* <gfwd> is now the OA matrix */
-    p7_GOATrace        (gm, gfwd, tr);
-
-    p7_gmx_Destroy(gfwd);
-    p7_gmx_Destroy(gbck);
+    p7_chkgmx_Destroy(gcx);  gcx  = NULL;
+    p7_oatmx_Destroy(goat);  goat = NULL;
   }
   else {
-    p7_Null2_ByExpectation(om, pli->fwd, null2);
+    if ((status = p7_OATraceSweep(om, pli->oat, tr)) != eslOK) goto ERROR;
 
-    p7_OptimalAccuracy(om, pli->fwd, pli->fwd, &oasc); /* <fwd> is now overwritten with OA scores */
-    p7_OATrace        (om, pli->fwd, tr);
+    /* Backward N of each row, and C of row L, for the exon scores: a stored
+     * value of row i is scaled by the inverse scale factors of rows i..L */
+    logscale = 0.;
+    for (i = L; i >= 0; i--) {
+      logscale     += log(pli->chk->xmx[i*p7X_NXCELLS + p7X_SCALE]);
+      pli->bwd_N[i] = log(pli->chk->xmx[i*p7X_NXCELLS + p7X_N]) + logscale;
+      if (i == L) bwd_CL = log(pli->chk->xmx[L*p7X_NXCELLS + p7X_C]) + logscale;
+    }
   }
 
   p7_trace_Index(tr);
@@ -3302,8 +3304,7 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
 
   hit->dcl->ad = p7_alidisplay_splice_Create(hit->dcl->tr, 0, om, path_seq, pli->amino_sq, tr->sqfrom[0], splice_cnt,  pli->show_cigar);
 
-  if (use_generic) p7_splice_ScoreExons_Generic(pli, tr, hit->dcl->ad, gm);
-  else              p7_splice_ScoreExons        (pli, tr, hit->dcl->ad, om);
+  p7_splice_ScoreExons(pli, tr, hit->dcl->ad, bwd_CL, use_generic ? gm->evparam : om->evparam);
 
   hit->dcl->ihmm = hit->dcl->ad->hmmfrom;
   hit->dcl->jhmm = hit->dcl->ad->hmmto;
@@ -3340,137 +3341,34 @@ p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_pa
   return eslOK;
 
  ERROR:
+  if (gcx  != NULL) p7_chkgmx_Destroy(gcx);
+  if (goat != NULL) p7_oatmx_Destroy(goat);
   return status;
 }
 
 /*  Function: p7_splice_ScoreExons
- *  Synopsis: Produce Forward scores and p-values for each exon.
+ *  Synopsis: Produce scores and p-values for each exon.
  *
- *  Purpose : Extract approximate Forward scores for each exon from the fwd matrix.
- *            Use these scores to produce p-values.
- *
- * Returns:   <eslOK>.
- *
- */
-int
-p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om)
-{
-
-  int i, e, z;
-  int start_i, end_i;
-  int remainder;
-  int exon_nuc_len;
-  int exon_amino_len; 
-  float scale;
-  float start_score;
-  float end_score;
-  float exon_score;
-  float nullsc;
-  P7_BG *bg;
-  ESL_SQ *amino_sq;
-
-  bg       = pli->bg;
-  amino_sq = pli->amino_sq;
-
-  for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
-  start_i = tr->i[z]-1; // start_i is the -1 from the first amino position in the exon 
-  
-  scale = 0.;
-  for(i = 0; i <= start_i; i++)
-    scale += log(pli->fwd_scale[i]);
-
-  if(start_i == 0) start_score = 0.;
-  else             start_score = log(pli->fwd_C[start_i]) + scale;
-  exon_nuc_len = llabs(ad->exon_seq_ends[0] - ad->exon_seq_starts[0]) + 1;
-
-  remainder = exon_nuc_len % 3;
-
-  /* If a codon is split at the splice site assign the full codon to the exon that contributed two nucleotides */
-  if(remainder == 1) exon_nuc_len--;
-  if(remainder == 2) exon_nuc_len++;
-
-  exon_amino_len = exon_nuc_len / 3;
-  
-  end_i = start_i + exon_amino_len;
-  
-  for(i = start_i+1; i <= end_i; i++) 
-    scale += log(pli->fwd_scale[i]); 
-  
-  end_score = log(pli->fwd_C[end_i]) + scale;
-
-  exon_score = (end_score - start_score);
-
-  p7_bg_SetLength(bg, exon_amino_len);
-  p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
-
-  /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
-  exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
-  exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
-  exon_score = (exon_score - nullsc)  / eslCONST_LOG2;
-  ad->exon_lnP[0] = esl_exp_logsurv (exon_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-
-  for(e = 1; e < ad->exon_cnt; e++) {
-
-    start_i = end_i;
-    start_score = end_score;
-
-    exon_nuc_len = llabs(ad->exon_seq_ends[e] - ad->exon_seq_starts[e]) + 1;
-    /* Handle possible upstream codon split */
-    if(remainder == 1) exon_nuc_len++;
-    if(remainder == 2) exon_nuc_len--;
-
-    /* Handle possible downstream codon split */
-    remainder = exon_nuc_len % 3;
-    if(remainder == 1) exon_nuc_len--;
-    if(remainder == 2) exon_nuc_len++;
-   
-    exon_amino_len = exon_nuc_len / 3;
- 
-    end_i = start_i + exon_amino_len;
-   
-   
-    for(i = start_i+1; i <= end_i; i++) { 
-      scale += log(pli->fwd_scale[i]);
-
-    }
-    end_score = log(pli->fwd_C[end_i]) + scale;
-
-    exon_score = (end_score - start_score);
-  
-    p7_bg_SetLength(bg, exon_amino_len);
-    p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
-
-    /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
-    exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
-    exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
-
-    exon_score = (exon_score - nullsc) / eslCONST_LOG2;
-
-    ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  om->evparam[p7_FTAU], om->evparam[p7_FLAMBDA]);
-  }
-
-  return eslOK;
-}
-
-/*  Function: p7_splice_ScoreExons_Generic
- *  Synopsis: Like p7_splice_ScoreExons, but for a generic (log-space) Forward trace.
- *
- *  Purpose : Used by the Forward/Backward disagreement fallback in
- *            p7_splice_AlignSplicedSequence(): identical to
- *            p7_splice_ScoreExons except the per-row C-state value
- *            is read directly from pli->fwd_C (already the true cumulative
- *            log-odds score in generic log-space, no scale reconstruction
- *            needed) and the E-value parameters come from the generic profile
- *            <gm> instead of an optimized profile.
+ *  Purpose : Score each exon of the alignment in <tr> and <ad> from the
+ *            Backward N-state values: <pli->bwd_N[i]> is the log Backward N
+ *            value of row i (the score of everything after row i, ending
+ *            with C->T), and <bwd_CL> is the log Backward C value of row L.
+ *            An exon over rows s+1..t scores bwd_N[s] - bwd_N[t]; for an
+ *            exon that ends at row L, bwd_CL takes the place of bwd_N[L]:
+ *            the path is in C there, as it is in N at row 0. The exon rows
+ *            follow from the first M state of <tr> and the exon lengths in
+ *            <ad>, a codon split at a splice site going to the exon that
+ *            contributed two of its nucleotides. P-values use the Forward
+ *            E-value parameters <evparam>.
  *
  * Returns:   <eslOK>.
  *
  */
 int
-p7_splice_ScoreExons_Generic(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_PROFILE *gm)
+p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, float bwd_CL, const float *evparam)
 {
 
-  int i, e, z;
+  int e, z;
   int start_i, end_i;
   int remainder;
   int exon_nuc_len;
@@ -3481,62 +3379,36 @@ p7_splice_ScoreExons_Generic(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *
   float nullsc;
   P7_BG *bg;
   ESL_SQ *amino_sq;
+  int L;
 
   bg       = pli->bg;
   amino_sq = pli->amino_sq;
+  L        = amino_sq->n;
 
   for(z = 0; z < tr->N; z++) if(tr->st[z] == p7T_M) break;
-  start_i = tr->i[z]-1; // start_i is the -1 from the first amino position in the exon
+  end_i     = tr->i[z]-1; // the row before the first amino position of the first exon
+  remainder = 0;
 
-  if(start_i == 0) start_score = 0.;
-  else             start_score = pli->fwd_C[start_i];
-  exon_nuc_len = llabs(ad->exon_seq_ends[0] - ad->exon_seq_starts[0]) + 1;
-
-  remainder = exon_nuc_len % 3;
-
-  /* If a codon is split at the splice site assign the full codon to the exon that contributed two nucleotides */
-  if(remainder == 1) exon_nuc_len--;
-  if(remainder == 2) exon_nuc_len++;
-
-  exon_amino_len = exon_nuc_len / 3;
-
-  end_i = start_i + exon_amino_len;
-
-  end_score = pli->fwd_C[end_i];
-
-  exon_score = (end_score - start_score);
-
-  p7_bg_SetLength(bg, exon_amino_len);
-  p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
-
-  /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
-  exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
-  exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
-  exon_score = (exon_score - nullsc)  / eslCONST_LOG2;
-  ad->exon_lnP[0] = esl_exp_logsurv (exon_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
-
-  for(e = 1; e < ad->exon_cnt; e++) {
+  for(e = 0; e < ad->exon_cnt; e++) {
 
     start_i = end_i;
-    start_score = end_score;
 
     exon_nuc_len = llabs(ad->exon_seq_ends[e] - ad->exon_seq_starts[e]) + 1;
     /* Handle possible upstream codon split */
     if(remainder == 1) exon_nuc_len++;
     if(remainder == 2) exon_nuc_len--;
 
-    /* Handle possible downstream codon split */
+    /* If a codon is split at the downstream splice site assign the full codon to the exon that contributed two nucleotides */
     remainder = exon_nuc_len % 3;
     if(remainder == 1) exon_nuc_len--;
     if(remainder == 2) exon_nuc_len++;
 
     exon_amino_len = exon_nuc_len / 3;
+    end_i = ESL_MIN(start_i + exon_amino_len, L);
 
-    end_i = start_i + exon_amino_len;
-
-    end_score = pli->fwd_C[end_i];
-
-    exon_score = (end_score - start_score);
+    start_score = pli->bwd_N[start_i];
+    end_score   = (end_i == L) ? bwd_CL : pli->bwd_N[end_i];
+    exon_score  = start_score - end_score;
 
     p7_bg_SetLength(bg, exon_amino_len);
     p7_bg_NullOne  (bg, amino_sq->dsq, exon_amino_len, &nullsc);
@@ -3544,10 +3416,9 @@ p7_splice_ScoreExons_Generic(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *
     /* Subtract out old N->B probability and add in new N->B and C->T probabilities */
     exon_score -=     log(2.0 / ((float) amino_sq->n + 2.0));
     exon_score += 2 * log(2.0 / ((float) exon_amino_len + 2.0));
-
     exon_score = (exon_score - nullsc) / eslCONST_LOG2;
 
-    ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  gm->evparam[p7_FTAU], gm->evparam[p7_FLAMBDA]);
+    ad->exon_lnP[e] = esl_exp_logsurv (exon_score,  evparam[p7_FTAU], evparam[p7_FLAMBDA]);
   }
 
   return eslOK;

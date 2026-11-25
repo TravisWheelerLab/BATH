@@ -109,15 +109,12 @@ p7_splicepipeline_Create(const ESL_GETOPTS *go, int M_hint, int L_hint)
   pli->don_ov = p7_oivx_Create(M_hint, SIGNAL_MEM_SIZE);
   if ((pli->don_ck = p7_chkoivx_Create(M_hint, SIGNAL_MEM_SIZE, SIGNAL_MEM_SIZE, L_hint / SPLICE_CHECKPOINT_ROWS)) == NULL) goto ERROR;
 
-  pli->vit = NULL;
-  pli->fwd = NULL;
-  pli->bwd = NULL;
-  pli->fwd_scale = NULL;
-  pli->fwd_C     = NULL;
-  pli->fwd_alloc = 0;
-  if ((pli->vit = p7_chkomx_Create(M_hint, L_hint, SPLICE_CHECKPOINT_ROWS, pli->min_intron + 6, p7X_NSCELLS, p7_CHK_FORWARD)) == NULL) goto ERROR;
-  if ((pli->fwd = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
-  if ((pli->bwd = p7_omx_Create_dpf(M_hint, 0,      L_hint, p7X_NSCELLS)) == NULL) goto ERROR;
+  pli->chk = NULL;
+  pli->oat = NULL;
+  pli->bwd_N     = NULL;
+  pli->bwd_alloc = 0;
+  if ((pli->chk = p7_chkomx_Create(M_hint, L_hint, SPLICE_CHECKPOINT_ROWS, pli->min_intron + 6, p7X_NSCELLS, p7_CHK_FORWARD)) == NULL) goto ERROR;
+  if ((pli->oat = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES, 1)) == NULL) goto ERROR;
 
   pli->nuc_sq   = NULL;
   pli->amino_sq = NULL;
@@ -149,9 +146,6 @@ p7_splicepipeline_Reuse(SPLICE_PIPELINE *pli)
   esl_sq_Destroy(pli->amino_sq);
   pli->nuc_sq = NULL;
   pli->amino_sq = NULL; 
-
-  p7_omx_Reuse(pli->fwd);
-  p7_omx_Reuse(pli->bwd);
 
   if(pli->orig_nuc_idx != NULL) free(pli->orig_nuc_idx);
   pli->orig_nuc_idx = NULL;  
@@ -194,11 +188,9 @@ p7_splicepipeline_Destroy(SPLICE_PIPELINE *pli)
   p7_oivx_Destroy(pli->don_ov);
   p7_chkoivx_Destroy(pli->don_ck);
 
-  p7_chkomx_Destroy(pli->vit);
-  p7_omx_Destroy(pli->fwd);
-  p7_omx_Destroy(pli->bwd);
-  if(pli->fwd_scale != NULL) free(pli->fwd_scale);
-  if(pli->fwd_C     != NULL) free(pli->fwd_C);
+  p7_chkomx_Destroy(pli->chk);
+  if(pli->oat   != NULL) p7_oatmx_Destroy(pli->oat);
+  if(pli->bwd_N != NULL) free(pli->bwd_N);
 
   p7_bg_Destroy(pli->bg);
 

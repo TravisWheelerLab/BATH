@@ -5,8 +5,9 @@
 # a manually checked run, for a two-exon hit and a four-exon hit.
 # This catches errors in exon scoring that leave the whole-hit
 # score and E-value untouched: exon scores and P-values are computed
-# from the Forward matrix, and reusing that matrix for another purpose
-# before the exons are scored gives wrong exon P-values.
+# from the Backward special states kept with the checkpointed matrix,
+# and reusing that matrix for another purpose before the exons are
+# scored gives wrong exon P-values.
 #
 # Usage:    ./i18-splice-exons.pl <builddir> <srcdir> <tmpfile prefix>
 # Example:  ./i18-splice-exons.pl ..         ..        tmpfoo
@@ -31,15 +32,15 @@ if (! -x $bathsearch) { die "FAIL: didn't find bathsearch binary in $builddir/sr
 # tolerance, because they are printed to only two or three digits and the last
 # digit can differ between platforms. Everything else must match exactly.
 $tmem = [
-  [ 1, "test_splice", "-", "tmem-258", "-",  81,  545, "4.9e-52", "162.4", "4.2", 1, 2,   1,  42,   1, 126, "1.7e-27", "100.00", "gtag" ],
-  [ 1, "test_splice", "-", "tmem-258", "-",  81,  545, "4.9e-52", "162.4", "4.2", 2, 2,  43,  81, 245, 361,   "2e-30", "100.00", "----" ],
+  [ 1, "test_splice", "-", "tmem-258", "-",  81,  545, "4.9e-52", "162.4", "4.2", 1, 2,   1,  42,   1, 126, "1.4e-32", "100.00", "gtag" ],
+  [ 1, "test_splice", "-", "tmem-258", "-",  81,  545, "4.9e-52", "162.4", "4.2", 2, 2,  43,  81, 245, 361, "2.5e-25", "100.00", "----" ],
 ];
 
 $pthr = [
-  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 1, 4,  11, 135, 119,  491, "9.6e-19", "30.16", "gtag" ],
-  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 2, 4, 136, 143, 577,  600, "7.3e-05", "12.50", "gtag" ],
-  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 3, 4, 144, 180, 687,  798, "4.1e-10", "26.32", "gtag" ],
-  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 4, 4, 181, 251, 952, 1159, "4.9e-12", "34.72", "----" ],
+  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 1, 4,  11, 135, 119,  491, "3.4e-20", "30.16", "gtag" ],
+  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 2, 4, 136, 143, 577,  600, "4.8e-06", "12.50", "gtag" ],
+  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 3, 4, 144, 180, 687,  798, "1.7e-07", "26.32", "gtag" ],
+  [ 1, "seq1", "-", "PTHR37536", "-", 279, 1300, "2.8e-28", "87.9", "5.2", 4, 4, 181, 251, 952, 1159, "6.5e-12", "34.72", "----" ],
 ];
 
 # spliced search of $hmm against $seqdb; check every column of the exon table

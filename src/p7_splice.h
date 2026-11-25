@@ -136,15 +136,13 @@ typedef struct _splice_pipeline
 
   P7_OIVX    *acc_ov;
   P7_OIVX    *don_ov;
-  P7_CHKOIVX *don_ck;   /* rows of the donor scores in don_ov, and both saved at each checkpoint of vit */
+  P7_CHKOIVX *don_ck;   /* rows of the donor scores in don_ov, and both saved at each checkpoint of chk */
 
-  P7_CHKOMX  *vit;      /* checkpointed spliced Viterbi matrix                                         */
-  P7_OMX  *fwd;        /* full matrix: Forward, then posteriors, then OA scores for exon scoring       */
-  P7_OMX  *bwd;        /* one-row Backward parsing matrix for p7_BackwardDecoding()                   */
+  P7_CHKOMX  *chk;      /* checkpointed matrix: forward for the spliced Viterbi, backward for aligning the spliced sequence */
+  P7_OATMX   *oat;      /* what the OA trace reads, for aligning the spliced sequence                  */
 
-  float   *fwd_scale;  /* Forward scale factor and C-state value for each row, saved so   */
-  float   *fwd_C;      /*   <fwd> can be reused; both are 0..fwd_alloc-1                  */
-  int      fwd_alloc;
+  float   *bwd_N;      /* log Backward N-state value of each row, for exon scoring; 0..bwd_alloc-1    */
+  int      bwd_alloc;
 
   P7_BG   *bg;
 
@@ -302,8 +300,7 @@ extern int p7_splice_SpliceSingle(SPLICE_WORKER_INFO *info, SPLICE_PATH *path, E
 extern int p7_splice_AlignSplicedPath(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, int *success);
 extern int p7_splice_CreateSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq);
 extern int p7_splice_AlignSplicedSequence(SPLICE_WORKER_INFO *info, SPLICE_PATH *spliced_path, ESL_SQ *path_seq, double *P);
-extern int p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_OPROFILE *om);
-extern int p7_splice_ScoreExons_Generic(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, P7_PROFILE *gm);
+extern int p7_splice_ScoreExons(SPLICE_PIPELINE *pli, P7_TRACE *tr, P7_ALIDISPLAY *ad, float bwd_CL, const float *evparam);
 extern ESL_SQ* p7_splice_GetSubSequence(const ESL_SQFILE *seq_file, char* seqname, int64_t seq_min, int64_t seq_max, int revcomp, SPLICE_WORKER_INFO *info);
 
 

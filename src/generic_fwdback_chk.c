@@ -125,89 +125,6 @@ p7_GForwardChkLoad(const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int 
 }
 
 
-/* backward_row()
- * Backward row <i> of profile <gm> against <dsq> of length <L>: core
- * cells through row pointers <dp>, special states in <xmx>. Reads row
- * i+1 (core and special states). Same calculation as p7_GBackward().
- */
-static void
-backward_row(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, float **dp, float *xmx, int i)
-{
-  float const *tsc = gm->tsc;
-  float const *rsc = NULL;
-  int          M   = gm->M;
-  float        esc = p7_profile_IsLocal(gm) ? 0 : -eslINFINITY;
-  int          k;
-
-  if (i == L)
-    {
-      XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY;
-      XMX(L,p7G_C) = gm->xsc[p7P_C][p7P_MOVE];                 /* C<-T          */
-      XMX(L,p7G_E) = XMX(L,p7G_C) + gm->xsc[p7P_E][p7P_MOVE];  /* E<-C, no tail */
-
-      MMX(L,M) = DMX(L,M) = XMX(L,p7G_E); /* {MD}_M <- E (prob 1.0) */
-      IMX(L,M) = -eslINFINITY;            /* no I_M state        */
-      for (k = M-1; k >= 1; k--) {
-        MMX(L,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
-                               DMX(L, k+1)  + TSC(p7P_MD,k));
-        DMX(L,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
-                               DMX(L, k+1)  + TSC(p7P_DD,k));
-        IMX(L,k) = -eslINFINITY;
-      }
-    }
-  else if (i >= 1)
-    {
-      rsc = gm->rsc[dsq[i+1]];
-
-      XMX(i,p7G_B) = MMX(i+1,1) + TSC(p7P_BM,0) + MSC(1); /* t_BM index is 0 because it's stored off-by-one. */
-      for (k = 2; k <= M; k++)
-        XMX(i,p7G_B) = p7_FLogsum(XMX(i, p7G_B), MMX(i+1,k) + TSC(p7P_BM,k-1) + MSC(k));
-
-      XMX(i,p7G_J) = p7_FLogsum( XMX(i+1,p7G_J) + gm->xsc[p7P_J][p7P_LOOP],
-                                 XMX(i,  p7G_B) + gm->xsc[p7P_J][p7P_MOVE]);
-
-      XMX(i,p7G_C) = XMX(i+1,p7G_C) + gm->xsc[p7P_C][p7P_LOOP];
-
-      XMX(i,p7G_E) = p7_FLogsum( XMX(i, p7G_J)  + gm->xsc[p7P_E][p7P_LOOP],
-                                 XMX(i, p7G_C)  + gm->xsc[p7P_E][p7P_MOVE]);
-
-      XMX(i,p7G_N) = p7_FLogsum( XMX(i+1,p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
-                                 XMX(i,  p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
-
-      MMX(i,M) = DMX(i,M) = XMX(i,p7G_E);
-      IMX(i,M) = -eslINFINITY;
-      for (k = M-1; k >= 1; k--)
-        {
-          MMX(i,k) = p7_FLogsum( p7_FLogsum(MMX(i+1,k+1) + TSC(p7P_MM,k) + MSC(k+1),
-                                            IMX(i+1,k)   + TSC(p7P_MI,k) + ISC(k)),
-                                 p7_FLogsum(XMX(i,p7G_E) + esc,
-                                            DMX(i,  k+1) + TSC(p7P_MD,k)));
-
-          IMX(i,k) = p7_FLogsum( MMX(i+1,k+1) + TSC(p7P_IM,k) + MSC(k+1),
-                                 IMX(i+1,k)   + TSC(p7P_II,k) + ISC(k));
-
-          DMX(i,k) = p7_FLogsum( MMX(i+1,k+1) + TSC(p7P_DM,k) + MSC(k+1),
-                                 p7_FLogsum( DMX(i,  k+1)  + TSC(p7P_DD,k),
-                                             XMX(i, p7G_E) + esc));
-        }
-    }
-  else /* i == 0: only N,B states are reachable. */
-    {
-      rsc = gm->rsc[dsq[1]];
-      XMX(0,p7G_B) = MMX(1,1) + TSC(p7P_BM,0) + MSC(1); /* t_BM index is 0 because it's stored off-by-one. */
-      for (k = 2; k <= M; k++)
-        XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), MMX(1,k) + TSC(p7P_BM,k-1) + MSC(k));
-      XMX(0,p7G_J) = -eslINFINITY;
-      XMX(0,p7G_C) = -eslINFINITY;
-      XMX(0,p7G_E) = -eslINFINITY;
-      XMX(0,p7G_N) = p7_FLogsum( XMX(1, p7G_N) + gm->xsc[p7P_N][p7P_LOOP],
-                                 XMX(0, p7G_B) + gm->xsc[p7P_N][p7P_MOVE]);
-      for (k = M; k >= 1; k--)
-        MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;
-    }
-}
-
-
 /* Function:  p7_GBackwardChk()
  * Synopsis:  The Backward algorithm in a checkpointed matrix.
  *
@@ -253,7 +170,7 @@ p7_GBackwardChk(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, 
     {
       if ((status = p7_chkgmx_StartBlock(cx, b)) != eslOK) return status;
       for (i = ESL_MIN(L, b + cx->blockR - 1); i >= b; i--)
-        backward_row(dsq, L, gm, dp, xmx, i);
+        p7_GBackwardRow(dsq, L, gm, dp, xmx, i);
     }
 
   if (opt_sc != NULL) *opt_sc = XMX(0,p7G_N);
@@ -284,7 +201,7 @@ p7_GBackwardChkLoad(const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int
 
   if ((status = p7_chkgmx_LoadBlock(cx, b)) != eslOK) return status;
   for (i = ESL_MIN(cx->L, b + cx->blockR - 1); i >= b; i--)
-    backward_row(dsq, cx->L, gm, cx->dp, cx->xmx, i);
+    p7_GBackwardRow(dsq, cx->L, gm, cx->dp, cx->xmx, i);
   return eslOK;
 }
 

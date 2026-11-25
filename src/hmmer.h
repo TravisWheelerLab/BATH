@@ -1053,6 +1053,8 @@ typedef struct p7_domaindef_s {
   P7_SPENSEMBLE  *sp;    /* an ensemble of sampled segment pairs (domain endpoints) */
   P7_TRACE       *tr;    /* reusable space for a trace of a domain                  */
   P7_TRACE       *gtr;    /* reusable space for a traceback of the entire target seq */
+  ESL_RANDOMNESS **trng; /* one random number generator per sampled trace (nsamples) */
+  P7_TRACE       **strs;  /* the sampled traces of a region (nsamples)                */
 
   /* Heuristic thresholds that control the region definition process */
   /* "rt" = "region threshold", for lack of better term  */
@@ -1262,7 +1264,6 @@ typedef struct p7_pipeline_s {
   /* Dynamic programming matrices                                              */
   P7_OMX     *oxf;    /* one-row Forward matrix, accel pipe                    */
   P7_OMX     *oxb;    /* one-row Backward matrix, accel pipe                   */
-  P7_OMX     *fwd;    /* full Fwd matrix for stochastic traces of multidomain regions */
   P7_CHKOMX  *chk;    /* checkpointed Backward for domain rescoring            */
   P7_OATMX   *oat;    /* what the OA trace reads, for domain rescoring         */
   P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
@@ -1638,7 +1639,7 @@ extern int           p7_domaindef_DumpPosteriors(FILE *ofp, P7_DOMAINDEF *ddef);
 extern void          p7_domaindef_Destroy_BATH(P7_DOMAINDEF *ddef);
 
 extern int p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *windowsq, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, P7_BG *bg, const ESL_GENCODE *gcode);
-extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef);
+extern int p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *sq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef);
 
 /* p7_gmx.c */
 extern P7_GMX *p7_gmx_Create (int allocM, int allocL, int allocLx, int nscells);

@@ -99,6 +99,8 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->fs_ppx = NULL;
   pli->chk    = NULL;
   pli->oat    = NULL;
+  pli->oxf_fs = pli->oxb_fs = pli->fwd_fs = pli->bck_fs = NULL;
+  pli->ov3    = pli->ov5    = NULL;
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
 
@@ -121,20 +123,24 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    if ((pli->chk  = p7_chkomx_Create(M_hint, L_hint, p7_chk_BlockRows(M_hint, L_hint, 1, p7X_NSCELLS), 1, p7X_NSCELLS, p7_CHK_BACKWARD)) == NULL) goto ERROR;
    if ((pli->oat  = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES, 1))   == NULL) goto ERROR;
 
-  /* Create sparse memory forward and backward generic frameshift aware matrices 
-   * for use in the frameshift pipeline filters
-   */  
-    if ((pli->oxf_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_FWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
-    if ((pli->oxb_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
-    if ((pli->ov3     = p7_oivx_Create(M_hint, p7P_3CODONS))                              == NULL) goto ERROR;
-    if ((pli->ov5     = p7_oivx_Create(M_hint, p7P_5CODONS))                              == NULL) goto ERROR;
+  /* The frameshift pipeline's matrices exist only with --fs or --fsonly */
+  if (pli->fs_pipe)
+    {
+      /* Create sparse memory forward and backward generic frameshift aware matrices 
+       * for use in the frameshift pipeline filters
+       */  
+      if ((pli->oxf_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_FWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+      if ((pli->oxb_fs  = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+      if ((pli->ov3     = p7_oivx_Create(M_hint, p7P_3CODONS))                              == NULL) goto ERROR;
+      if ((pli->ov5     = p7_oivx_Create(M_hint, p7P_5CODONS))                              == NULL) goto ERROR;
 
-  /* Create the frameshift matrices for the frameshift pipeline alignment: a full
-   * Forward matrix, which then holds the posteriors and the OA alignment, and a
-   * Backward matrix with PARSER_ROWS_BWD rows
-   */ 
-   if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-   if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+      /* Create the frameshift matrices for the frameshift pipeline alignment: a full
+       * Forward matrix, which then holds the posteriors and the OA alignment, and a
+       * Backward matrix with PARSER_ROWS_BWD rows
+       */ 
+      if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
+      if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+    }
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
    * about to collect a stochastic trace ensemble. This eliminates run-to-run
@@ -257,10 +263,12 @@ ERROR:
 int
 p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
 {
-  p7_omx_Reuse(pli->oxf_fs);
-  p7_omx_Reuse(pli->oxb_fs);
-  p7_omx_Reuse(pli->fwd_fs);
-  p7_omx_Reuse(pli->bck_fs);
+  if (pli->fs_pipe) {
+    p7_omx_Reuse(pli->oxf_fs);
+    p7_omx_Reuse(pli->oxb_fs);
+    p7_omx_Reuse(pli->fwd_fs);
+    p7_omx_Reuse(pli->bck_fs);
+  }
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
   p7_domaindef_Reuse(pli->ddef);

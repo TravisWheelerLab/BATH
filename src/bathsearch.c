@@ -847,7 +847,7 @@ serial_master(ESL_GETOPTS *go, struct cfg_s *cfg)
         info[i].om_fs5 = NULL;
       }
       info[i].scoredata = p7_hmm_ScoreDataClone(scoredata, om->abc->Kp);
-      info[i].pli = p7_pipeline_Create_BATH(go, om->M, 300, p7_SEARCH_SEQS); /* L_hint = 300 is just a dummy for now */
+      info[i].pli = p7_pipeline_Create_BATH(go, om->M, 100, p7_SEARCH_SEQS); /* L_hint: matrices start at 100 rows and grow as needed */
       status = p7_pli_NewModel(info[i].pli, info[i].om, info[i].bg);
       if (status == eslEINVAL) p7_Fail(info->pli->errbuf);
 

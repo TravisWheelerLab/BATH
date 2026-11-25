@@ -1007,14 +1007,17 @@ extern int p7_SSVFilter_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, fl
 
 /* stotrace.c — self-patching dispatcher */
 extern int (*p7_StochasticTrace)(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *ox, P7_TRACE *tr);
+extern int (*p7_StochasticTraceChk)(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_TRACE **tr);
 
 /* stotrace_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_StochasticTrace_sse          (ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE    *om,    const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_StochasticTraceChk_sse       (ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_TRACE **tr);
 #endif
 /* stotrace_avx.c — AVX2 implementation */
 #ifdef eslENABLE_AVX
 extern int p7_StochasticTrace_avx           (ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L, const P7_OPROFILE    *om,    const P7_OMX *ox, P7_TRACE *tr);
+extern int p7_StochasticTraceChk_avx        (ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_TRACE **tr);
 #endif
 
 /* stotrace_fs.c — self-patching dispatcher */

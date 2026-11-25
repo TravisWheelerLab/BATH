@@ -1647,11 +1647,13 @@ extern int     p7_gmx_Compare(P7_GMX *gx1, P7_GMX *gx2, float tolerance);
 extern int     p7_gmx_Dump(FILE *fp, P7_GMX *gx, int flags);
 extern int     p7_gmx_DumpWindow(FILE *fp, P7_GMX *gx, int istart, int iend, int kstart, int kend, int show_specials);
 
-/* generic_backward_chk.c */
-extern int p7_GBackwardChk              (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc);
-extern int p7_GBackwardChkLoad          (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
+/* generic_fwdback_chk.c */
 extern int p7_GForwardChk               (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc);
 extern int p7_GForwardChkLoad           (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
+extern int p7_GBackwardChk              (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, float *opt_sc);
+extern int p7_GBackwardChkLoad          (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
+
+/* generic_fwdback_chk_frameshift.c */
 extern int p7_GBackwardChk_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
 extern int p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
 

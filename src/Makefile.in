@@ -117,7 +117,8 @@ OBJS =  build.o\
     p7_splicepipeline.o\
     generic_viterbi_spliced.o\
     generic_viterbi_spliced_chk.o\
-    generic_backward_chk.o\
+    generic_fwdback_chk.o\
+    generic_fwdback_chk_frameshift.o\
     generic_optacc_sweep.o\
     generic_optacc_sweep_frameshift.o\
 	p7_tophits.o\
@@ -155,7 +156,8 @@ UTESTS =\
     generic_viterbi_frameshift_utest\
 	generic_viterbi_spliced_utest\
 	generic_viterbi_spliced_chk_utest\
-	generic_backward_chk_utest\
+	generic_fwdback_chk_utest\
+	generic_fwdback_chk_frameshift_utest\
 	generic_optacc_sweep_utest\
 	generic_optacc_sweep_frameshift_utest\
 	hmmer_utest\

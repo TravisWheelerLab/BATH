@@ -18,6 +18,165 @@
  * 1. Stochastic traceback implementation.
  *****************************************************************/
 
+/* gsto_fs_step()
+ * One step of a stochastic trace back through the frameshift Forward
+ * rows <dp> and special states <xmx>: from state <*ret_sprv> at row
+ * <*ret_i> and model position <*ret_k>, choose the state before it (and
+ * for M, its codon length), append it to <tr>, and update <*ret_sprv>,
+ * <*ret_i> and <*ret_k>. <sc> is workspace for 2M+1 scores. Reads rows
+ * <*ret_i> and <*ret_i>-3.
+ */
+static int
+gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, const float *xmx, float *sc, P7_TRACE *tr, int *ret_sprv, int *ret_i, int *ret_k)
+{
+  float const *tsc  = gm_fs->tsc;
+  int          M    = gm_fs->M;
+  int          i    = *ret_i;
+  int          k    = *ret_k;
+  int          sprv = *ret_sprv;
+  int          scur = p7T_BOGUS;
+  int          c;
+  int          status;
+
+  switch (sprv) {
+    /* check all three frames of C as well as E(i) */
+    case p7T_C:
+      if   (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+      if   (i < 4) { scur = p7T_E; break; }
+      
+      sc[0] = XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+      sc[1] = XMX_FS(i-2, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+      sc[2] = XMX_FS(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
+      sc[3] = XMX_FS(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+      
+      esl_vec_FLogNorm(sc, 4);
+      scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_C : p7T_E;
+      break;
+
+    /* E connects from any M or D state. k set here */
+    case p7T_E:  
+      if (XMX_FS(i, p7G_E) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
+    if (p7_fs_profile_IsLocal(gm_fs)) 
+    { /* local models come from any M, D */
+      sc[0] = sc[M+1] = -eslINFINITY;
+      for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);
+      for (k = 2; k <= M; k++) sc[k+M] = DMX_FS(i,k);
+      esl_vec_FLogNorm(sc, 2*M+1); /* now sc is a prob vector */
+      k = esl_rnd_FChoose(r, sc, 2*M+1);
+      if (k <= M)    scur = p7T_M;
+      else { k -= M; scur = p7T_D; }
+    } 
+    else 
+    {     /* glocal models come from M_M or D_M  */
+      k     = M;
+      sc[0] = MMX_FS(i,M,p7G_C0);
+      sc[1] = DMX_FS(i,M);
+      esl_vec_FLogNorm(sc, 2); /* now sc is a prob vector */
+      scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
+    }
+    break;
+
+    /* M connects from {MDI} i,k-1, or B (all at same row i; i has already
+     * been decremented by this M's codon length c from the previous iteration,
+     * so i now points to the predecessor row, which is correct for the lookups
+     * below.  A validity check on MMX_FS(i,k) here would test the wrong cell.) */
+    case p7T_M:
+     sc[0] = XMX_FS(i,p7G_B)          + TSC(p7P_BM, k-1);
+     sc[1] = MMX_FS(i,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
+     sc[2] = IMX_FS(i,k-1)         + TSC(p7P_IM, k-1);
+     sc[3] = DMX_FS(i,k-1)         + TSC(p7P_DM, k-1);
+     esl_vec_FLogNorm(sc, 4);
+     switch (esl_rnd_FChoose(r, sc, 4)) {
+        case 0: scur = p7T_B;  break;
+        case 1: scur = p7T_M;  break;
+        case 2: scur = p7T_I;  break;
+        case 3: scur = p7T_D;  break;
+        default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+       }
+     k--; 
+     break;
+
+    /* D connects from M,D at i,k-1 */
+    case p7T_D:
+      if (DMX_FS(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+      sc[0] = MMX_FS(i, k-1,p7G_C0) + TSC(p7P_MD, k-1);
+      sc[1] = DMX_FS(i, k-1) + TSC(p7P_DD, k-1);
+      esl_vec_FLogNorm(sc, 2); 
+      scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
+      k--;
+      break;
+
+    /* I connects from M,I at i-1,k */
+    case p7T_I:
+      if (IMX_FS(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+      sc[0] = MMX_FS(i-3,k, p7G_C0) + TSC(p7P_MI, k);
+      sc[1] = IMX_FS(i-3,k) + TSC(p7P_II, k);
+
+      esl_vec_FLogNorm(sc, 2); 
+      scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_I;
+      i-=3;
+      break;
+
+    /* N connects from S, N */
+    case p7T_N:
+      if (XMX_FS(i, p7G_N) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
+      scur = (i == 0) ? p7T_S : p7T_N;
+      break;
+
+    /* B connects from N, J */
+    case p7T_B:    
+      if (XMX_FS(i,p7G_B) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
+
+      sc[0] = XMX_FS(i, p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE];
+      sc[1] = XMX_FS(i, p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE];
+      esl_vec_FLogNorm(sc, 2); 
+      scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_N : p7T_J;
+      break;
+
+    /* J connects from E(i) or J(i-1) */
+    case p7T_J:  
+      if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
+      
+      if   (i < 4) { scur = p7T_E; break; }
+      sc[0] = XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
+      sc[1] = XMX_FS(i-2,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
+      sc[2] = XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP]; 
+      sc[3] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+      esl_vec_FLogNorm(sc, 4); 
+      scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_J : p7T_E;  
+      
+      break;
+    default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
+    } /* end switch over statetype[tpos-1] */
+
+    if(scur == p7T_M)
+    {
+     sc[0] = MMX_FS(i,k,p7G_C1);
+     sc[1] = MMX_FS(i,k,p7G_C2);
+     sc[2] = MMX_FS(i,k,p7G_C3);
+     sc[3] = MMX_FS(i,k,p7G_C4);
+     sc[4] = MMX_FS(i,k,p7G_C5);
+     esl_vec_FLogNorm(sc, 5);
+     c = esl_rnd_FChoose(r, sc, 5) + 1;
+     if(i - c < 0) scur = p7T_B;
+    }
+    else c = 0; 
+    /* Append this state and the current i,k to be explained to the growing trace */
+    if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
+
+    /* For NCJ, we had to defer i decrement. */
+    if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
+
+  sprv = scur;
+  i-=c;
+
+  *ret_sprv = sprv;
+  *ret_i    = i;
+  *ret_k    = k;
+  return eslOK;
+}
+
+
 /* Function:  p7_GStochasticTrace_Frameshift()
  * Synopsis:  Stochastic traceback of a frameshift-aware Forward matrix.
  *
@@ -44,158 +203,21 @@ p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
   int     status;
   int     i;      /* position in seq (1..L) */
   int     k;      /* position in model (1..M) */ 
-  int     c;
   int     M   = gm_fs->M;
-  float **dp  = gx->dp;
-  float  *xmx = gx->xmx;
-  float const *tsc  = gm_fs->tsc;
   float  *sc;      /* scores of possible choices: up to 2M-1, in the case of exits to E  */
-  int     scur, sprv;
+  int     sprv;
 
   /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */
   ESL_ALLOC(sc, sizeof(float) * (2*M+1)); 
 
   k = 0;
   i = L;    
-  c = 0;  
-  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) goto ERROR;
-  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) goto ERROR;
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, 0)) != eslOK) goto ERROR;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) goto ERROR;
   sprv = p7T_C;
 
   while (sprv != p7T_S) 
-  { 
-    switch (sprv) {
-      /* check all three frames of C as well as E(i) */
-      case p7T_C:
-        if   (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-        if   (i < 4) { scur = p7T_E; break; }
-        
-        sc[0] = XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-        sc[1] = XMX_FS(i-2, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-        sc[2] = XMX_FS(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-        sc[3] = XMX_FS(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
-        
-        esl_vec_FLogNorm(sc, 4);
-        scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_C : p7T_E;
-        break;
-  
-      /* E connects from any M or D state. k set here */
-      case p7T_E:  
-        if (XMX_FS(i, p7G_E) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible E reached at i=%d", i);
-      if (p7_fs_profile_IsLocal(gm_fs)) 
-      { /* local models come from any M, D */
-        sc[0] = sc[M+1] = -eslINFINITY;
-        for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);
-        for (k = 2; k <= M; k++) sc[k+M] = DMX_FS(i,k);
-        esl_vec_FLogNorm(sc, 2*M+1); /* now sc is a prob vector */
-        k = esl_rnd_FChoose(r, sc, 2*M+1);
-        if (k <= M)    scur = p7T_M;
-        else { k -= M; scur = p7T_D; }
-      } 
-      else 
-      {     /* glocal models come from M_M or D_M  */
-        k     = M;
-        sc[0] = MMX_FS(i,M,p7G_C0);
-        sc[1] = DMX_FS(i,M);
-        esl_vec_FLogNorm(sc, 2); /* now sc is a prob vector */
-        scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
-      }
-      break;
-
-      /* M connects from {MDI} i,k-1, or B (all at same row i; i has already
-       * been decremented by this M's codon length c from the previous iteration,
-       * so i now points to the predecessor row, which is correct for the lookups
-       * below.  A validity check on MMX_FS(i,k) here would test the wrong cell.) */
-      case p7T_M:
-       sc[0] = XMX_FS(i,p7G_B)          + TSC(p7P_BM, k-1);
-       sc[1] = MMX_FS(i,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-       sc[2] = IMX_FS(i,k-1)         + TSC(p7P_IM, k-1);
-       sc[3] = DMX_FS(i,k-1)         + TSC(p7P_DM, k-1);
-       esl_vec_FLogNorm(sc, 4);
-       switch (esl_rnd_FChoose(r, sc, 4)) {
-          case 0: scur = p7T_B;  break;
-          case 1: scur = p7T_M;  break;
-          case 2: scur = p7T_I;  break;
-          case 3: scur = p7T_D;  break;
-          default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
-         }
-       k--; 
-       break;
-
-      /* D connects from M,D at i,k-1 */
-      case p7T_D:
-        if (DMX_FS(i, k) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
-        sc[0] = MMX_FS(i, k-1,p7G_C0) + TSC(p7P_MD, k-1);
-        sc[1] = DMX_FS(i, k-1) + TSC(p7P_DD, k-1);
-        esl_vec_FLogNorm(sc, 2); 
-        scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
-        k--;
-        break;
-
-      /* I connects from M,I at i-1,k */
-      case p7T_I:
-        if (IMX_FS(i,k) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
-        sc[0] = MMX_FS(i-3,k, p7G_C0) + TSC(p7P_MI, k);
-        sc[1] = IMX_FS(i-3,k) + TSC(p7P_II, k);
-
-        esl_vec_FLogNorm(sc, 2); 
-        scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_I;
-        i-=3;
-        break;
-
-      /* N connects from S, N */
-      case p7T_N:
-        if (XMX_FS(i, p7G_N) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible N reached at i=%d", i);
-        scur = (i == 0) ? p7T_S : p7T_N;
-        break;
-
-      /* B connects from N, J */
-      case p7T_B:    
-        if (XMX_FS(i,p7G_B) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible B reached at i=%d", i);
-
-        sc[0] = XMX_FS(i, p7G_N) + gm_fs->xsc[p7P_N][p7P_MOVE];
-        sc[1] = XMX_FS(i, p7G_J) + gm_fs->xsc[p7P_J][p7P_MOVE];
-        esl_vec_FLogNorm(sc, 2); 
-        scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_N : p7T_J;
-        break;
-
-      /* J connects from E(i) or J(i-1) */
-      case p7T_J:  
-        if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_XEXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-        
-        if   (i < 4) { scur = p7T_E; break; }
-        sc[0] = XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
-        sc[1] = XMX_FS(i-2,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
-        sc[2] = XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP]; 
-        sc[3] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
-        esl_vec_FLogNorm(sc, 4); 
-        scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_J : p7T_E;  
-        
-        break;
-      default: ESL_XEXCEPTION(eslFAIL, "bogus state in traceback");
-      } /* end switch over statetype[tpos-1] */
-
-      if(scur == p7T_M)
-      {
-       sc[0] = MMX_FS(i,k,p7G_C1);
-       sc[1] = MMX_FS(i,k,p7G_C2);
-       sc[2] = MMX_FS(i,k,p7G_C3);
-       sc[3] = MMX_FS(i,k,p7G_C4);
-       sc[4] = MMX_FS(i,k,p7G_C5);
-       esl_vec_FLogNorm(sc, 5);
-       c = esl_rnd_FChoose(r, sc, 5) + 1;
-       if(i - c < 0) scur = p7T_B;
-      }
-      else c = 0; 
-      /* Append this state and the current i,k to be explained to the growing trace */
-      if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) goto ERROR;
-
-      /* For NCJ, we had to defer i decrement. */
-      if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
-
-      sprv = scur;
-      i-=c;
-    } /* end traceback, at S state */
+    if ((status = gsto_fs_step(r, gm_fs, gx->dp, gx->xmx, sc, tr, &sprv, &i, &k)) != eslOK) goto ERROR;
 
   if ((status = p7_trace_fs_Reverse(tr)) != eslOK) goto ERROR;
   tr->M = gm_fs->M;
@@ -205,6 +227,99 @@ p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
 
  ERROR:
   if (sc != NULL) free(sc);
+  return status;
+}
+
+
+/* Function:  p7_GStochasticTraceChk_Frameshift()
+ * Synopsis:  Sample tracebacks from a checkpointed frameshift Forward matrix.
+ *
+ * Purpose:   Sample <ntr> stochastic tracebacks of the 5-codon profile
+ *            <gm_fs5> against <dsq> of length <L> from the checkpointed
+ *            Forward matrix <cx> that <p7_GForwardChk_Frameshift()>
+ *            filled: trace <t> into <tr[t]>, with its own random number
+ *            generator <r[t]>. Each trace makes the same choices, in the
+ *            same order, as <p7_GStochasticTrace_Frameshift()> on the
+ *            full Forward matrix with the same generator, so the traces
+ *            are identical to it.
+ *
+ *            All traces are sampled together. The blocks of <cx> are
+ *            loaded from the last to the first, each computed again from
+ *            its checkpoint by <p7_GForwardChkLoad_Frameshift()> with
+ *            <iv> as workspace, and every trace is taken back through the
+ *            rows of the loaded block before the next block is loaded, so
+ *            the Forward matrix is computed again only once for all the
+ *            traces. On return block 0 of <cx> is loaded.
+ *
+ * Args:      r      - <ntr> random number generators, one per trace
+ *            ntr    - number of traces
+ *            dsq    - digital sequence, 1..L
+ *            L      - length of dsq
+ *            gm_fs5 - 5-codon frameshift profile
+ *            cx     - checkpointed Forward matrix from p7_GForwardChk_Frameshift()
+ *            iv     - intermediate value matrix, workspace
+ *            tr     - <ntr> traces; RETURN: the sampled traces
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if <cx> isn't a
+ *            checkpointed frameshift Forward matrix for this comparison;
+ *            <eslFAIL> if a trace reaches an impossible state.
+ */
+int
+p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5,
+                                  P7_CHKGMX *cx, P7_IVX *iv, P7_TRACE **tr)
+{
+  float *sc   = NULL;
+  int   *sprv = NULL;
+  int   *i    = NULL;
+  int   *k    = NULL;
+  int    b, t;
+  int    status;
+
+  if (cx->dir != p7_CHK_FORWARD || cx->nscells != p7G_NSCELLS_FS || cx->L != L || cx->M != gm_fs5->M)
+    ESL_EXCEPTION(eslEINVAL, "checkpointed frameshift Forward matrix doesn't match");
+
+  ESL_ALLOC(sc,   sizeof(float) * (2*gm_fs5->M+1));
+  ESL_ALLOC(sprv, sizeof(int)   * ESL_MAX(1, ntr));
+  ESL_ALLOC(i,    sizeof(int)   * ESL_MAX(1, ntr));
+  ESL_ALLOC(k,    sizeof(int)   * ESL_MAX(1, ntr));
+  for (t = 0; t < ntr; t++)
+    {
+      i[t] = L;
+      k[t] = 0;
+      if ((status = p7_trace_fs_Append(tr[t], p7T_T, 0, L, 0)) != eslOK) goto ERROR;
+      if ((status = p7_trace_fs_Append(tr[t], p7T_C, 0, L, 0)) != eslOK) goto ERROR;
+      sprv[t] = p7T_C;
+    }
+
+  /* a step from row i reads rows i and i-3, which are loaded with the
+   * block holding row i and the 5 rows saved before it */
+  for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
+    {
+      if (b != cx->b && (status = p7_GForwardChkLoad_Frameshift(dsq, gm_fs5, cx, iv, b)) != eslOK) goto ERROR;
+      for (t = 0; t < ntr; t++)
+        while (sprv[t] != p7T_S && i[t] >= b)
+          if ((status = gsto_fs_step(r[t], gm_fs5, cx->dp, cx->xmx, sc, tr[t], &sprv[t], &i[t], &k[t])) != eslOK) goto ERROR;
+    }
+
+  for (t = 0; t < ntr; t++)
+    {
+      if ((status = p7_trace_fs_Reverse(tr[t])) != eslOK) goto ERROR;
+      tr[t]->M = gm_fs5->M;
+      tr[t]->L = L;
+    }
+  free(sc);
+  free(sprv);
+  free(i);
+  free(k);
+  return eslOK;
+
+ ERROR:
+  free(sc);
+  free(sprv);
+  free(i);
+  free(k);
   return status;
 }
 

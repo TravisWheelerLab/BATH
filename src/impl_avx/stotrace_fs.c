@@ -47,6 +47,38 @@ p7_StochasticTrace_Frameshift_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq
   return eslENORESULT;
 #endif
 }
+
+
+/* Forward declaration of dispatcher */
+static int p7_StochasticTraceChk_Frameshift_Dispatcher(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                                        P7_CHKOMX *cx, P7_OIVX *ov, P7_TRACE **tr);
+
+/* Global function pointer, initially pointing at the dispatcher */
+int (*p7_StochasticTraceChk_Frameshift)(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                        P7_CHKOMX *cx, P7_OIVX *ov, P7_TRACE **tr) = p7_StochasticTraceChk_Frameshift_Dispatcher;
+
+/* Function:  p7_StochasticTraceChk_Frameshift_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for frameshift stochastic traceback
+ *            from a checkpointed Forward matrix.
+ */
+static int
+p7_StochasticTraceChk_Frameshift_Dispatcher(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                             P7_CHKOMX *cx, P7_OIVX *ov, P7_TRACE **tr)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_StochasticTraceChk_Frameshift = p7_StochasticTraceChk_Frameshift_avx; return p7_StochasticTraceChk_Frameshift_avx(rng, ntr, dsq, L, om_fs, cx, ov, tr); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_StochasticTraceChk_Frameshift = p7_StochasticTraceChk_Frameshift_sse;
+  return p7_StochasticTraceChk_Frameshift_sse(rng, ntr, dsq, L, om_fs, cx, ov, tr);
+#else
+  p7_Die("p7_StochasticTraceChk_Frameshift: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+
 /*****************************************************************
  * 4. Unit tests
  *****************************************************************/
@@ -54,6 +86,7 @@ p7_StochasticTrace_Frameshift_Dispatcher(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq
 #include "esl_getopts.h"
 #include "esl_gencode.h"
 #include "esl_random.h"
+#include "esl_vectorops.h"
 #include "esl_randomseq.h"
 
 /* utest_stotrace_fs()
@@ -154,6 +187,135 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
   p7_profile_fs_Destroy(gm_fs5);
   p7_fs_oprofile_Destroy(om_fs5);
 }
+
+/* utest_stotrace_chk_fs()
+ * Stochastic traces from a checkpointed frameshift Forward matrix against
+ * p7_StochasticTrace_Frameshift() on the full Forward matrix. For
+ * random DNA and the back-translated consensus of a model with sharpened
+ * match emissions between random flanks, <ntr> traces sampled together
+ * by p7_StochasticTraceChk_Frameshift() must be identical (states,
+ * k, i and codon lengths) to those sampled one at a time with the same
+ * per-trace random number generators, with the checkpointed matrix in one
+ * block and in blocks of 5..12 rows. With <use_sse>, the _sse versions are called directly, so an AVX CPU
+ * also tests the SSE engine.
+ */
+static void
+utest_stotrace_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA,
+                      P7_CODONTABLE *codon_table, int M, int L, int N, int use_sse)
+{
+  char            *msg    = "checkpointed frameshift stochastic trace unit test failed";
+  int              ntr    = 20;
+  P7_HMM          *hmm    = NULL;
+  P7_BG           *bgDNA  = p7_bg_Create(abcDNA);
+  P7_FS_PROFILE   *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
+  P7_FS_OPROFILE  *om_fs5 = NULL;
+  P7_OMX          *fwd    = NULL;
+  P7_OIVX         *ov5    = NULL;
+  P7_CHKOMX       *cx     = NULL;
+  ESL_SQ          *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ         *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  ESL_RANDOMNESS  *rng1   = esl_randomness_Create(1);
+  ESL_RANDOMNESS **rng    = malloc(sizeof(ESL_RANDOMNESS *) * ntr);
+  P7_TRACE        *tr1    = p7_trace_fs_Create();
+  P7_TRACE       **tr2    = malloc(sizeof(P7_TRACE *) * ntr);
+  uint32_t        *seed   = malloc(sizeof(uint32_t) * ntr);
+  int              ntested = 0;
+  int              n, Ln, blockR, start, i, j, t, z, k, x;
+  int            (*reconfig)  (P7_FS_OPROFILE *, int)                                                         = use_sse ? p7_fs_oprofile_ReconfigLength_sse : p7_fs_oprofile_ReconfigLength;
+  int            (*fwd_full)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)     = use_sse ? p7_Forward_Frameshift_sse : p7_Forward_Frameshift;
+  int            (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *)  = use_sse ? p7_ForwardChk_Frameshift_sse : p7_ForwardChk_Frameshift;
+  int            (*chk_growto)(P7_CHKOMX *, int, int, int)                                                     = use_sse ? p7_chkomx_GrowTo_sse : p7_chkomx_GrowTo;
+  int            (*sto_full)  (ESL_RANDOMNESS *, const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_TRACE *)               = use_sse ? p7_StochasticTrace_Frameshift_sse : p7_StochasticTrace_Frameshift;
+  int            (*sto_chk)   (ESL_RANDOMNESS **, int, const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, P7_TRACE **) = use_sse ? p7_StochasticTraceChk_Frameshift_sse : p7_StochasticTraceChk_Frameshift;
+
+  for (t = 0; t < ntr; t++) { rng[t] = esl_randomness_Create(1); tr2[t] = p7_trace_fs_Create(); }
+
+  if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+      esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+  p7_emit_SimpleConsensus(hmm, sq);
+  if (use_sse)
+    {
+      om_fs5 = p7_fs_oprofile_Create_sse(M, abcAA, 5);
+      p7_fs_oprofile_Convert_sse(gm_fs5, om_fs5);
+      fwd    = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS_FS);
+      ov5    = p7_oivx_Create_sse(M, p7P_5CODONS);
+      cx     = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
+    }
+  else
+    {
+      om_fs5 = p7_fs_oprofile_Create(M, abcAA, 5);
+      p7_fs_oprofile_Convert(gm_fs5, om_fs5);
+      fwd    = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS);
+      ov5    = p7_oivx_Create(M, p7P_5CODONS);
+      cx     = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
+    }
+
+  for (n = 0; n < N; n++)
+    {
+      Ln = 15 + esl_rnd_Roll(r, L - 14);
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+      if (n % 2 == 1 && 3*M <= L)
+        {
+          Ln    = ESL_MAX(Ln, 3*M);
+          esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+          start = 1 + esl_rnd_Roll(r, Ln - 3*M + 1);
+          for (i = 1, j = start; i <= M; i++, j += 3)
+            p7_codontable_GetCodon(codon_table, r, sq->dsq[i], dsq+j);
+        }
+      blockR = (n % 3 == 2) ? Ln+1 : 5 + esl_rnd_Roll(r, 8);
+
+      reconfig(om_fs5, Ln/3);
+      if (fwd_full(dsq, Ln, om_fs5, fwd, ov5, NULL) != eslOK) continue;
+      if (chk_growto(cx, M, Ln, blockR)                != eslOK) esl_fatal(msg);
+      if (fwd_chk(dsq, Ln, om_fs5, cx, ov5, NULL)      != eslOK) esl_fatal(msg);
+
+      for (t = 0; t < ntr; t++) { seed[t] = 1 + esl_rnd_Roll(r, 1000000); esl_randomness_Init(rng[t], seed[t]); }
+      if (sto_chk(rng, ntr, dsq, Ln, om_fs5, cx, ov5, tr2) != eslOK) esl_fatal(msg);
+      for (t = 0; t < ntr; t++)
+        {
+          esl_randomness_Init(rng1, seed[t]);
+          if (sto_full(rng1, dsq, Ln, om_fs5, fwd, tr1) != eslOK) esl_fatal(msg);
+          if (tr1->N != tr2[t]->N) esl_fatal("%s: trace %d lengths differ (%d %d)", msg, t, tr1->N, tr2[t]->N);
+          for (z = 0; z < tr1->N; z++)
+            if (tr1->st[z] != tr2[t]->st[z] || tr1->k[z] != tr2[t]->k[z] || tr1->i[z] != tr2[t]->i[z] || tr1->c[z] != tr2[t]->c[z])
+              esl_fatal("%s: trace %d differs at %d (block size %d)", msg, t, z, blockR);
+          p7_trace_Reuse(tr1);
+          p7_trace_Reuse(tr2[t]);
+        }
+      ntested++;
+    }
+  if (ntested == 0) esl_fatal("%s: no sequence was tested", msg);
+
+  for (t = 0; t < ntr; t++) { esl_randomness_Destroy(rng[t]); p7_trace_fs_Destroy(tr2[t]); }
+  free(rng); free(tr2); free(seed); free(dsq);
+  esl_randomness_Destroy(rng1);
+  p7_trace_fs_Destroy(tr1);
+  esl_sq_Destroy(sq);
+  p7_hmm_Destroy(hmm);
+  p7_bg_Destroy(bgDNA);
+  p7_profile_fs_Destroy(gm_fs5);
+  if (use_sse)
+    {
+      p7_omx_Destroy_sse(fwd);
+      p7_oivx_Destroy_sse(ov5);
+      p7_chkomx_Destroy_sse(cx);
+      p7_fs_oprofile_Destroy_sse(om_fs5);
+    }
+  else
+    {
+      p7_omx_Destroy(fwd);
+      p7_oivx_Destroy(ov5);
+      p7_chkomx_Destroy(cx);
+      p7_fs_oprofile_Destroy(om_fs5);
+    }
+}
 #endif /*p7STOTRACE_FS_TESTDRIVE*/
 /*----------------- end, unit tests -----------------------------*/
 
@@ -205,6 +367,10 @@ main(int argc, char **argv)
   impl_Init();
 
   utest_stotrace_fs(r, abcAA, abcDNA, gcode, bgAA, ct, M, N);
+  utest_stotrace_chk_fs(r, abcAA, abcDNA, gcode, bgAA, ct, M, 3*M+150, N, FALSE);
+#ifdef eslENABLE_SSE
+  utest_stotrace_chk_fs(r, abcAA, abcDNA, gcode, bgAA, ct, M, 3*M+150, N, TRUE);
+#endif
 
   p7_bg_Destroy(bgAA);
   p7_codontable_Destroy(ct);

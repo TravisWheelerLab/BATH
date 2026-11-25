@@ -275,6 +275,7 @@ p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, 
 #include "esl_gencode.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "esl_vectorops.h"
 
 /* compare_block()
  * Every cell, k = 0..M, of the rows of the loaded block <b> of <cx>
@@ -382,6 +383,95 @@ utest_fwdback_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   p7_gmx_Destroy(fx);
   p7_profile_fs_Destroy(gm_fs5);
 }
+
+/* utest_stotrace_chk_frameshift():
+ * Stochastic traces from a checkpointed frameshift Forward matrix against
+ * p7_GStochasticTrace_Frameshift() on the full Forward matrix. For random
+ * DNA and the back-translated consensus of a model with sharpened match
+ * emissions between random flanks, <ntr> traces sampled together by
+ * p7_GStochasticTraceChk_Frameshift() must be identical (states, k, i and
+ * codon lengths) to those sampled one at a time with the same per-trace
+ * random number generators, with the checkpointed matrix in one block and
+ * in blocks of 5..12 rows.
+ */
+static void
+utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
+{
+  char            *msg    = "checkpointed frameshift stochastic trace unit test failed";
+  int              ntr    = 20;
+  P7_HMM          *hmm    = NULL;
+  P7_CODONTABLE   *ct     = p7_codontable_Create(gcode);
+  P7_FS_PROFILE   *gm_fs5 = p7_profile_fs_Create(M, abcAA, p7P_5CODONS);
+  P7_GMX          *fx     = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
+  P7_CHKGMX       *cx     = p7_chkgmx_Create(M, L, L+1, 5, p7G_NSCELLS_FS, p7_CHK_FORWARD);
+  P7_IVX          *iv     = p7_ivx_Create(M, p7P_5CODONS);
+  ESL_SQ          *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ         *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  ESL_RANDOMNESS  *rng1   = esl_randomness_Create(1);
+  ESL_RANDOMNESS **rng    = malloc(sizeof(ESL_RANDOMNESS *) * ntr);
+  P7_TRACE        *tr1    = p7_trace_fs_Create();
+  P7_TRACE       **tr2    = malloc(sizeof(P7_TRACE *) * ntr);
+  uint32_t        *seed   = malloc(sizeof(uint32_t) * ntr);
+  int              n, Ln, blockR, start, i, j, t, z, k, x;
+
+  for (t = 0; t < ntr; t++) { rng[t] = esl_randomness_Create(1); tr2[t] = p7_trace_fs_Create(); }
+
+  if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+      esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  p7_emit_SimpleConsensus(hmm, sq);
+
+  for (n = 0; n < N; n++)
+    {
+      Ln = 15 + esl_rnd_Roll(r, L - 14);
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+      if (n % 2 == 1 && 3*M <= L)
+        {
+          Ln    = ESL_MAX(Ln, 3*M);
+          esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, dsq);
+          start = 1 + esl_rnd_Roll(r, Ln - 3*M + 1);
+          for (i = 1, j = start; i <= M; i++, j += 3)
+            p7_codontable_GetCodon(ct, r, sq->dsq[i], dsq+j);
+        }
+      blockR = (n % 3 == 2) ? Ln+1 : 5 + esl_rnd_Roll(r, 8);
+
+      if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift(dsq, Ln, gm_fs5, fx, iv, NULL)         != eslOK) esl_fatal(msg);
+      if (p7_chkgmx_GrowTo(cx, M, Ln, blockR)                           != eslOK) esl_fatal(msg);
+      if (p7_GForwardChk_Frameshift(dsq, Ln, gm_fs5, cx, iv, NULL)      != eslOK) esl_fatal(msg);
+
+      for (t = 0; t < ntr; t++) { seed[t] = 1 + esl_rnd_Roll(r, 1000000); esl_randomness_Init(rng[t], seed[t]); }
+      if (p7_GStochasticTraceChk_Frameshift(rng, ntr, dsq, Ln, gm_fs5, cx, iv, tr2) != eslOK) esl_fatal(msg);
+      for (t = 0; t < ntr; t++)
+        {
+          esl_randomness_Init(rng1, seed[t]);
+          if (p7_GStochasticTrace_Frameshift(rng1, dsq, Ln, gm_fs5, fx, tr1) != eslOK) esl_fatal(msg);
+          if (tr1->N != tr2[t]->N) esl_fatal("%s: trace %d lengths differ (%d %d)", msg, t, tr1->N, tr2[t]->N);
+          for (z = 0; z < tr1->N; z++)
+            if (tr1->st[z] != tr2[t]->st[z] || tr1->k[z] != tr2[t]->k[z] || tr1->i[z] != tr2[t]->i[z] || tr1->c[z] != tr2[t]->c[z])
+              esl_fatal("%s: trace %d differs at %d (block size %d)", msg, t, z, blockR);
+          p7_trace_Reuse(tr1);
+          p7_trace_Reuse(tr2[t]);
+        }
+    }
+
+  for (t = 0; t < ntr; t++) { esl_randomness_Destroy(rng[t]); p7_trace_fs_Destroy(tr2[t]); }
+  free(rng); free(tr2); free(seed); free(dsq);
+  esl_randomness_Destroy(rng1);
+  p7_trace_fs_Destroy(tr1);
+  esl_sq_Destroy(sq);
+  p7_ivx_Destroy(iv);
+  p7_chkgmx_Destroy(cx);
+  p7_gmx_Destroy(fx);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_codontable_Destroy(ct);
+  p7_hmm_Destroy(hmm);
+}
 #endif /*p7GENERIC_FWDBACK_CHK_FRAMESHIFT_TESTDRIVE*/
 
 
@@ -402,7 +492,7 @@ static ESL_OPTIONS options[] = {
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options]";
-static char banner[] = "unit test driver for the generic checkpointed frameshift Forward and Backward";
+static char banner[] = "unit test driver for the generic checkpointed frameshift Forward and Backward, and stochastic traces from the Forward";
 
 int
 main(int argc, char **argv)
@@ -423,6 +513,7 @@ main(int argc, char **argv)
   if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal("failed to sample an HMM");
 
   utest_fwdback_chk_frameshift(r, abcAA, abcDNA, gcode, bgAA, bgDNA, hmm, nseq);
+  utest_stotrace_chk_frameshift(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, 3*M+150, 10);
 
   p7_hmm_Destroy(hmm);
   p7_bg_Destroy(bgAA);

@@ -1502,6 +1502,7 @@ extern int p7_GStochasticTraceChk(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *ds
 
 /*generic_stotrace_frameshift.c */
 extern int p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, P7_TRACE *tr);
+extern int p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, P7_TRACE **tr);
 
 /* generic_viterbi.c */
 extern int p7_GViterbi     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);

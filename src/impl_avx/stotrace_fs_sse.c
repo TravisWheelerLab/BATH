@@ -23,21 +23,78 @@
 #include "hmmer.h"
 #include "impl_avx.h"
 
+/* What the choice functions read of a frameshift Forward matrix: the
+ * model length, the row pointers and the special states. Filled from a
+ * full Forward matrix (P7_OMX) or from the loaded rows of a checkpointed
+ * one (P7_CHKOMX).
+ */
+typedef struct {
+  int            M;
+  __m128 * const *dpf;
+  const float   *xmx;
+} STO_FS_ROWS;
+
 /* Forward declarations of static helpers */
-static inline int select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
-static inline int select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
-static inline int select_i_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k);
+static inline int select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
+static inline int select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
+static inline int select_i_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
 static inline int select_n_fs(int i);
-static inline int select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k);
-static inline int select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i);
-static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int i, int k, int Q);
+static inline int select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
+static inline int select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
+static inline int select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int *ret_k);
+static inline int select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
+static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const STO_FS_ROWS *ox, int i, int k, int Q);
 
 
 /*****************************************************************
  * 1. Stochastic trace implementation
  *****************************************************************/
+
+/* sto_fs_step()
+ * One step of a stochastic trace back through the frameshift Forward
+ * rows in <ox>: from state <*s0> at row <*i> and model position <*k>,
+ * choose the state before it (and for M, its codon length), append it
+ * to <tr>, and update <*s0>, <*i> and <*k>. Reads rows <*i> and <*i>-3
+ * of <ox>.
+ */
+static int
+sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, P7_TRACE *tr, int *s0, int *i, int *k)
+{
+  int Q = p7O_NQF(ox->M);
+  int c, s1;
+  int status;
+
+  switch (*s0) {
+  case p7T_M: s1 = select_m_fs(rng, om_fs, ox, *i, *k);  (*k)--;    break;
+  case p7T_D: s1 = select_d_fs(rng, om_fs, ox, *i, *k);  (*k)--;    break;
+  case p7T_I: s1 = select_i_fs(rng, om_fs, ox, *i, *k);  (*i) -= 3; break;
+  case p7T_N: s1 = select_n_fs(*i);                                 break;
+  case p7T_C: s1 = select_c_fs(rng, om_fs, ox, *i);                 break;
+  case p7T_J: s1 = select_j_fs(rng, om_fs, ox, *i);                 break;
+  case p7T_E: s1 = select_e_fs(rng, om_fs, ox, *i, k);              break;
+  case p7T_B: s1 = select_b_fs(rng, om_fs, ox, *i);                 break;
+  default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
+  }
+  if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Stochastic traceback choice failed");
+
+  /* For M states: stochastically select codon length c (1..5) from C1..C5 cells.
+   * If the codon would extend before the sequence start, revert to B.
+   */
+  if (s1 == p7T_M) {
+    c = select_codon_len_fs(rng, ox, *i, *k, Q);
+    if (*i - c < 0) s1 = p7T_B;
+  } else {
+    c = 0;
+  }
+
+  if ((status = p7_trace_fs_Append(tr, s1, *k, *i, c)) != eslOK) return status;
+
+  /* For NCJ states: deferred i decrement (one nucleotide per step). */
+  if ((s1 == p7T_N || s1 == p7T_C || s1 == p7T_J) && s1 == *s0) (*i)--;
+  *s0 = s1;
+  *i -= c;
+  return eslOK;
+}
 
 /* Function:  p7_StochasticTrace_Frameshift_sse()
  *
@@ -53,50 +110,121 @@ p7_StochasticTrace_Frameshift_sse(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L
                                    const P7_FS_OPROFILE *om_fs, const P7_OMX *ox,
                                    P7_TRACE *tr)
 {
-  int Q = p7O_NQF(ox->M);
-  int i = L;
-  int k = 0;
-  int c = 0;
-  int s0, s1;
-  int status;
+  STO_FS_ROWS fx;
+  int         i = L;
+  int         k = 0;
+  int         s0;
+  int         status;
 
-  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, c)) != eslOK) return status;
-  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, c)) != eslOK) return status;
+  fx.M   = ox->M;
+  fx.dpf = ox->dpf;
+  fx.xmx = ox->xmx;
+
+  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, 0)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) return status;
   s0 = p7T_C;
-
   while (s0 != p7T_S)
-    {
-      switch (s0) {
-      case p7T_M: s1 = select_m_fs(rng, om_fs, ox, i, k);  k--;    break;
-      case p7T_D: s1 = select_d_fs(rng, om_fs, ox, i, k);  k--;    break;
-      case p7T_I: s1 = select_i_fs(rng, om_fs, ox, i, k);  i -= 3; break;
-      case p7T_N: s1 = select_n_fs(i);                              break;
-      case p7T_C: s1 = select_c_fs(rng, om_fs, ox, i);             break;
-      case p7T_J: s1 = select_j_fs(rng, om_fs, ox, i);             break;
-      case p7T_E: s1 = select_e_fs(rng, om_fs, ox, i, &k);         break;
-      case p7T_B: s1 = select_b_fs(rng, om_fs, ox, i);             break;
-      default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
-      }
-      if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Stochastic traceback choice failed");
-
-      if (s1 == p7T_M) {
-        c = select_codon_len_fs(rng, ox, i, k, Q);
-        if (i - c < 0) s1 = p7T_B;
-      } else {
-        c = 0;
-      }
-
-      if ((status = p7_trace_fs_Append(tr, s1, k, i, c)) != eslOK) return status;
-
-      if ((s1 == p7T_N || s1 == p7T_C || s1 == p7T_J) && s1 == s0) i--;
-
-      s0 = s1;
-      i -= c;
-    }
+    if ((status = sto_fs_step(rng, om_fs, &fx, tr, &s0, &i, &k)) != eslOK) return status;
 
   tr->M = om_fs->M;
   tr->L = L;
   return p7_trace_fs_Reverse(tr);
+}
+
+
+/* Function:  p7_StochasticTraceChk_Frameshift_sse()
+ * Synopsis:  Sample tracebacks from a checkpointed frameshift Forward matrix.
+ *
+ * Purpose:   Sample <ntr> stochastic tracebacks of the 5-codon profile
+ *            <om_fs> against <dsq> of length <L> from the checkpointed
+ *            Forward matrix <cx> that <p7_ForwardChk_Frameshift_sse()>
+ *            filled: trace <t> into <tr[t]>, with its own random number
+ *            generator <rng[t]>. Each trace makes the same choices, in
+ *            the same order, as <p7_StochasticTrace_Frameshift_sse()> on
+ *            the full Forward matrix with the same generator, so the
+ *            traces are identical to it.
+ *
+ *            All traces are sampled together. The blocks of <cx> are
+ *            loaded from the last to the first, each computed again from
+ *            its checkpoint by <p7_ForwardChkLoad_Frameshift_sse()> with
+ *            <ov> as workspace, and every trace is taken back through the
+ *            rows of the loaded block before the next block is loaded, so
+ *            the Forward matrix is computed again only once for all the
+ *            traces. On return block 0 of <cx> is loaded.
+ *
+ * Args:      rng   - <ntr> random number generators, one per trace
+ *            ntr   - number of traces
+ *            dsq   - digital sequence, 1..L
+ *            L     - length of dsq
+ *            om_fs - 5-codon frameshift profile
+ *            cx    - checkpointed Forward matrix from p7_ForwardChk_Frameshift_sse()
+ *            ov    - workspace for the profile's M
+ *            tr    - <ntr> empty traces; RETURN: the sampled traces
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEMEM> on allocation error; <eslEINVAL> if a trace isn't
+ *            empty, <cx> isn't a checkpointed frameshift Forward matrix for
+ *            this comparison, or a choice fails.
+ */
+int
+p7_StochasticTraceChk_Frameshift_sse(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                                     P7_CHKOMX *cx, P7_OIVX *ov, P7_TRACE **tr)
+{
+  STO_FS_ROWS fx;
+  int        *s0 = NULL;
+  int        *i  = NULL;
+  int        *k  = NULL;
+  int         b, t;
+  int         status;
+
+  if (cx->dir != p7_CHK_FORWARD || cx->nscells != p7X_NSCELLS_FS || cx->L != L || cx->M != om_fs->M)
+    ESL_EXCEPTION(eslEINVAL, "checkpointed frameshift Forward matrix doesn't match");
+  for (t = 0; t < ntr; t++)
+    if (tr[t]->N != 0) ESL_EXCEPTION(eslEINVAL, "trace not empty; needs to be Reuse()'d?");
+
+  ESL_ALLOC(s0, sizeof(int) * ESL_MAX(1, ntr));
+  ESL_ALLOC(i,  sizeof(int) * ESL_MAX(1, ntr));
+  ESL_ALLOC(k,  sizeof(int) * ESL_MAX(1, ntr));
+  for (t = 0; t < ntr; t++)
+    {
+      i[t] = L;
+      k[t] = 0;
+      if ((status = p7_trace_fs_Append(tr[t], p7T_T, 0, L, 0)) != eslOK) goto ERROR;
+      if ((status = p7_trace_fs_Append(tr[t], p7T_C, 0, L, 0)) != eslOK) goto ERROR;
+      s0[t] = p7T_C;
+    }
+
+  fx.M   = om_fs->M;
+  fx.dpf = cx->dpf;
+  fx.xmx = cx->xmx;
+
+  /* a step from row i reads rows i and i-3, which are loaded with the
+   * block holding row i and the 5 rows saved before it */
+  for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
+    {
+      if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift_sse(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
+      for (t = 0; t < ntr; t++)
+        while (s0[t] != p7T_S && i[t] >= b)
+          if ((status = sto_fs_step(rng[t], om_fs, &fx, tr[t], &s0[t], &i[t], &k[t])) != eslOK) goto ERROR;
+    }
+
+  for (t = 0; t < ntr; t++)
+    {
+      tr[t]->M = om_fs->M;
+      tr[t]->L = L;
+      if ((status = p7_trace_fs_Reverse(tr[t])) != eslOK) goto ERROR;
+    }
+  free(s0);
+  free(i);
+  free(k);
+  return eslOK;
+
+ ERROR:
+  free(s0);
+  free(i);
+  free(k);
+  return status;
 }
 
 
@@ -106,7 +234,7 @@ p7_StochasticTrace_Frameshift_sse(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L
 
 /* M(i,k) is reached from B(i), M(i,k-1), I(i,k-1), or D(i,k-1). Same row i. */
 static inline int
-select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k)
 {
   int     Q     = p7O_NQF(ox->M);
   int     q     = (k-1) % Q;
@@ -138,7 +266,7 @@ select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
 
 /* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i. */
 static inline int
-select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k)
 {
   int     Q     = p7O_NQF(ox->M);
   int     q     = (k-1) % Q;
@@ -169,7 +297,7 @@ select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
 
 /* I(i,k) is reached from M(i-3,k) or I(i-3,k). */
 static inline int
-select_i_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int k)
+select_i_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k)
 {
   int     Q    = p7O_NQF(ox->M);
   int     q    = (k-1) % Q;
@@ -198,7 +326,7 @@ select_n_fs(int i)
  * Scale-factor adjustment uses cumscale(i-3) as common denominator.
  */
 static inline int
-select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
+select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i)
 {
   float loop = om_fs->xf[p7O_C][p7O_LOOP];
   float s_im2, s_im1, s_i;
@@ -220,7 +348,7 @@ select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
 
 /* J(i) is reached from E(i) or J at codon offsets i-3, i-2, i-1. */
 static inline int
-select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
+select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i)
 {
   float loop = om_fs->xf[p7O_J][p7O_LOOP];
   float s_im2, s_im1, s_i;
@@ -244,7 +372,7 @@ select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
  * Uses on-the-fly FChoose algorithm with E(i) as normalizer.
  */
 static inline int
-select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i, int *ret_k)
+select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int *ret_k)
 {
   int    Q    = p7O_NQF(ox->M);
   double sum  = 0.0;
@@ -277,7 +405,7 @@ select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
 
 /* B(i) is reached from N(i) or J(i). Same row, no scale adjustment needed. */
 static inline int
-select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, int i)
+select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i)
 {
   float path[2];
   int   state[2] = { p7T_N, p7T_J };
@@ -292,7 +420,7 @@ select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_OMX *ox, 
  * Stochastically select codon length c in 1..5 from C1..C5 cells at (i,k).
  */
 static inline int
-select_codon_len_fs(ESL_RANDOMNESS *rng, const P7_OMX *ox, int i, int k, int Q)
+select_codon_len_fs(ESL_RANDOMNESS *rng, const STO_FS_ROWS *ox, int i, int k, int Q)
 {
   int   q = (k-1) % Q;
   int   r = (k-1) / Q;

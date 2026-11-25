@@ -961,11 +961,11 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
  * The alignment is an optimal accuracy alignment (sensu IH Holmes),
  * also obtained in unilocal mode.
  * 
- * The Forward and Backward calculations for this domain use the
- * pipeline's frameshift DP matrices <pli->fwd_fs> (full) and
- * <pli->bck_fs> (PARSER_ROWS_BWD rows). The Backward pass writes the
- * posteriors over the Forward matrix, and the OA alignment is written
- * over the posteriors.
+ * The Backward is filled into the pipeline's checkpointed matrix
+ * <pli->chk>, with 5 saved rows; domains whose Backward score is
+ * already above the reporting threshold are dropped there. Then one
+ * sweep through the rows computes the Forward, posterior and OA rows
+ * and null2, and stores what the OA trace reads in <pli->oat_fs>.
  *
  * The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
@@ -983,6 +983,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
 {
 
   P7_DOMAIN *dom           = NULL;
+  P7_CHKOMX *cx            = pli->chk;
   int            Ld            = j-i+1;
   int            z1, z2;
   float          domcorrection = 0.0;
@@ -995,8 +996,6 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   float          null2[p7_MAXCODE];
   int            status;
   int            t, u, v, w, x;
-  P7_OMX    *ox1 = pli->fwd_fs;
-  P7_OMX    *ox2 = pli->bck_fs; 
 
   if (om_fs5->codon_lengths != 5) ESL_XEXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
 
@@ -1005,13 +1004,15 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   p7_bg_SetLength(bg, Ld/3);
   p7_bg_fs_NullOne(bg, windowsq->dsq+i-1, Ld/3, &nullsc);
  
-  /* Forward */
+  /* Backward, checkpointed; a row of the frameshift Backward reads the 5 rows after it */
   p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
-  p7_omx_GrowTo_dpf(ox1, om_fs5->M, Ld, Ld);
-  if ((status = p7_Forward_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, pli->ov5, &envsc)) == eslERANGE) return eslOK;
-  if (status != eslOK) ESL_XEXCEPTION(status, "forward frameshift failed");
+  if ((status = p7_chkomx_SetDirection(cx, p7_CHK_BACKWARD, 5)) != eslOK) goto ERROR;
+  if ((status = p7_chkomx_GrowTo(cx, om_fs5->M, Ld, p7_chk_BlockRows(om_fs5->M, Ld, 5, p7X_NSCELLS))) != eslOK) goto ERROR;
+  status = p7_BackwardChk_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, cx, pli->ov5, &bcksc);
+  if (status == eslERANGE) return eslOK;   /* Backward score underflow */
+  if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 
-  seqscore = (envsc-nullsc) / eslCONST_LOG2; 
+  seqscore = (bcksc-nullsc) / eslCONST_LOG2; 
   P = esl_exp_surv(seqscore,  om_fs5->evparam[p7_FTAUFS5],  om_fs5->evparam[p7_FLAMBDA]);   
 
   /* DNA windows often contain one true positive domain and one or more low 
@@ -1020,27 +1021,14 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
    * we do any further calculations */
 
   pli->Z = (float)pli->nres / (float)(gm_fs5->max_length*3);  /* nres counts nucleotides, as in p7_tophits_ComputeEvalues_BATH() */
-  if (pli->inc_by_E  && P * pli->Z > pli->E) {
-    p7_omx_Reuse(ox1);
-    return eslOK;
-  }
+  if (pli->inc_by_E  && P * pli->Z > pli->E) return eslOK;
 
-  /* Backward in a ring of rows, writing the posteriors over the Forward matrix */
-  p7_omx_GrowTo_dpf(ox2, om_fs5->M, PARSER_ROWS_BWD, Ld);
-  status = p7_BackwardDecoding_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, ox1, ox2, pli->ov5, &bcksc);
-  if (status == eslERANGE && bcksc == -eslINFINITY) return eslOK;   /* Backward score underflow */
-  if (status == eslERANGE) return eslFAIL;                          /* posterior overflow; domain treated as garbage */
-  if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
+  /* Forward score, null2 and the optimal accuracy alignment */
+  status = p7_OptimalAccuracySweep_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, cx, pli->ov5, pli->oat_fs, null2, &envsc, &oasc);
+  if (status == eslERANGE) return eslFAIL;   /* rare: Forward score or posterior out of range; domain treated as garbage */
+  if (status != eslOK) goto ERROR;
 
-  /* Compute bias correction, from the posteriors before the OA overwrites them */
-  p7_Null2_fs_ByExpectation(om_fs5, ox1, null2);
-
-  /* Find an optimal accuracy alignment, written over the posteriors; the
-   * trace reads the posteriors of the special states from a copy */
-  ESL_REALLOC(pli->fs_ppx, sizeof(float) * (Ld+1) * p7X_NXCELLS);
-  esl_vec_FCopy(ox1->xmx, (Ld+1) * p7X_NXCELLS, pli->fs_ppx);
-  p7_OptimalAccuracy_Frameshift(om_fs5, ox1, ox1, &oasc);
-  p7_OATrace_Frameshift(om_fs5, pli->fs_ppx, ox1, ddef->tr);
+  if ((status = p7_OATraceSweep_Frameshift(om_fs5, pli->oat_fs, ddef->tr)) != eslOK) goto ERROR;
 
   /* hack the trace's sq coords to be correct w.r.t. original dsq */
   for (z = 0; z < ddef->tr->N; z++)    
@@ -1167,17 +1155,11 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
 
   ddef->ndom++;
   p7_trace_Reuse(ddef->tr);
-  
-  p7_omx_Reuse(ox1);
-  p7_omx_Reuse(ox2);
-
   return eslOK;
 
  ERROR:
   p7_trace_Reuse(ddef->tr);
-  p7_omx_Reuse(ox1);
-  p7_omx_Reuse(ox2);
-  return eslEMEM;
+  return status;
 }
 
 /* rescore_isolated_domain_bath() 
@@ -1229,6 +1211,7 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
   int        status;
 
   p7_oprofile_ReconfigLength(om, Ld);
+  if ((status = p7_chkomx_SetDirection(cx, p7_CHK_BACKWARD, 1)) != eslOK) return status;
   if ((status = p7_chkomx_GrowTo(cx, om->M, Ld, p7_chk_BlockRows(om->M, Ld, 1, p7X_NSCELLS))) != eslOK) return status;
 
   /* rare: numeric overflow in Backward or the posteriors; domain is assumed to be repetitive garbage [J3/119-121] */

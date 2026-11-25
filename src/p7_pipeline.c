@@ -96,10 +96,10 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   int          status;
 
   ESL_ALLOC(pli, sizeof(P7_PIPELINE));
-  pli->fs_ppx = NULL;
   pli->chk    = NULL;
   pli->oat    = NULL;
-  pli->oxf_fs = pli->oxb_fs = pli->fwd_fs = pli->bck_fs = NULL;
+  pli->oat_fs = NULL;
+  pli->oxf_fs = pli->oxb_fs = pli->fwd_fs = NULL;
   pli->ov3    = pli->ov5    = NULL;
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
@@ -115,10 +115,10 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    if ((pli->oxf  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
    if ((pli->oxb  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
 
-   /* Create the matrices for domain definition in the non-frameshift
-   * pipeline branch: a checkpointed matrix, used in the forward direction
-   * for the stochastic traces of multidomain regions and in the backward
-   * direction for rescoring each domain, and the OA trace storage
+   /* Create the matrices for domain definition: a checkpointed matrix,
+   * used in the forward direction for the stochastic traces of
+   * multidomain regions and in the backward direction for rescoring
+   * each domain (in both pipeline branches), and the OA trace storage
    */
    if ((pli->chk  = p7_chkomx_Create(M_hint, L_hint, p7_chk_BlockRows(M_hint, L_hint, 1, p7X_NSCELLS), 1, p7X_NSCELLS, p7_CHK_BACKWARD)) == NULL) goto ERROR;
    if ((pli->oat  = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES, 1))   == NULL) goto ERROR;
@@ -134,12 +134,12 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
       if ((pli->ov3     = p7_oivx_Create(M_hint, p7P_3CODONS))                              == NULL) goto ERROR;
       if ((pli->ov5     = p7_oivx_Create(M_hint, p7P_5CODONS))                              == NULL) goto ERROR;
 
-      /* Create the frameshift matrices for the frameshift pipeline alignment: a full
-       * Forward matrix, which then holds the posteriors and the OA alignment, and a
-       * Backward matrix with PARSER_ROWS_BWD rows
+      /* Create the full frameshift Forward matrix for the stochastic traces of
+       * multidomain regions, and the OA trace storage for frameshift domain
+       * rescoring
        */ 
       if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
-      if ((pli->bck_fs = p7_omx_Create_dpf(M_hint, PARSER_ROWS_BWD, L_hint, p7G_NSCELLS)) == NULL) goto ERROR;
+      if ((pli->oat_fs = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES_FS, 1))      == NULL) goto ERROR;
     }
 
   /* Normally, we reinitialize the RNG to the original seed every time we're
@@ -267,7 +267,6 @@ p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
     p7_omx_Reuse(pli->oxf_fs);
     p7_omx_Reuse(pli->oxb_fs);
     p7_omx_Reuse(pli->fwd_fs);
-    p7_omx_Reuse(pli->bck_fs);
   }
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
@@ -287,14 +286,13 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxf_fs);
   p7_omx_Destroy(pli->oxb_fs);
   p7_omx_Destroy(pli->fwd_fs);
-  p7_omx_Destroy(pli->bck_fs);
-  if (pli->fs_ppx != NULL) free(pli->fs_ppx);
   p7_oivx_Destroy(pli->ov3);
   p7_oivx_Destroy(pli->ov5);
   p7_omx_Destroy(pli->oxf);
   p7_omx_Destroy(pli->oxb);
   if (pli->chk != NULL) p7_chkomx_Destroy(pli->chk);
   if (pli->oat != NULL) p7_oatmx_Destroy(pli->oat);
+  if (pli->oat_fs != NULL) p7_oatmx_Destroy(pli->oat_fs);
   esl_randomness_Destroy(pli->r);
   p7_domaindef_Destroy_BATH(pli->ddef);
   free(pli);

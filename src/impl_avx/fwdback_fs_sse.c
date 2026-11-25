@@ -2554,10 +2554,12 @@ backward_frameshift_chk_block_sse(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_f
  *            opt_sc - optRETURN: Backward lod score in nats
  *
  * Returns:   <eslOK> on success.
+ *            <eslERANGE> if the score underflows to 0; <*opt_sc> is then
+ *            -infinity.
  *
  * Throws:    <eslEINVAL> if <cx> isn't set up for this computation or
  *            <om_fs> isn't a 5-codon profile.
- *            <eslERANGE> if the score is NaN, underflows to 0 or overflows.
+ *            <eslERANGE> if the score is NaN or overflows.
  *            <eslEMEM> on allocation failure.
  */
 int
@@ -2593,7 +2595,7 @@ p7_BackwardChk_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *o
   free(zero_mem);
 
   if      (isnan(xNtot))      ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-  else if (xNtot == 0.0f)     ESL_EXCEPTION(eslERANGE, "backward score underflow (is 0.0)");
+  else if (xNtot == 0.0f)     { if (opt_sc != NULL) *opt_sc = -eslINFINITY; return eslERANGE; }
   else if (isinf(xNtot) == 1) ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
 
   if (opt_sc != NULL) *opt_sc = totscale + logf(xNtot);

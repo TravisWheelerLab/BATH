@@ -1,7 +1,8 @@
 /* Forward/Backward dispatcher.
  * Provides the non-suffixed p7_Forward, p7_ForwardParser, p7_Backward,
- * p7_BackwardParser, p7_BackwardDecoding, p7_BackwardChk and
- * p7_BackwardChkLoad declared in impl_avx.h.
+ * p7_BackwardParser, p7_BackwardDecoding, p7_BackwardChk,
+ * p7_BackwardChkLoad, p7_ForwardChk and p7_ForwardChkLoad declared in
+ * impl_avx.h.
  * Delegates to the fastest available ISA implementation at runtime.
  */
 
@@ -233,6 +234,55 @@ p7_BackwardChkLoad_Dispatcher(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKO
   return eslENORESULT;
 #endif
 }
+/* Forward declarations of dispatchers */
+static int p7_ForwardChk_Dispatcher    (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
+static int p7_ForwardChkLoad_Dispatcher(const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
+
+/* Global function pointers, initially pointing at the dispatchers */
+int (*p7_ForwardChk)    (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc) = p7_ForwardChk_Dispatcher;
+int (*p7_ForwardChkLoad)(const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b)     = p7_ForwardChkLoad_Dispatcher;
+
+/* Function:  p7_ForwardChk_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for the checkpointed Forward.
+ *            See p7_ForwardChk_avx().
+ */
+static int
+p7_ForwardChk_Dispatcher(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_ForwardChk = p7_ForwardChk_avx; return p7_ForwardChk_avx(dsq, L, om, cx, opt_sc); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_ForwardChk = p7_ForwardChk_sse;
+  return p7_ForwardChk_sse(dsq, L, om, cx, opt_sc);
+#else
+  p7_Die("p7_ForwardChk: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+/* Function:  p7_ForwardChkLoad_Dispatcher()
+ *
+ * Purpose:   Self-patching dispatcher for computing one block of a
+ *            checkpointed Forward again. See p7_ForwardChkLoad_avx().
+ */
+static int
+p7_ForwardChkLoad_Dispatcher(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b)
+{
+#ifdef eslENABLE_AVX
+  if (esl_cpu_has_avx()) { p7_ForwardChkLoad = p7_ForwardChkLoad_avx; return p7_ForwardChkLoad_avx(dsq, om, cx, b); }
+#endif
+#ifdef eslENABLE_SSE
+  p7_ForwardChkLoad = p7_ForwardChkLoad_sse;
+  return p7_ForwardChkLoad_sse(dsq, om, cx, b);
+#else
+  p7_Die("p7_ForwardChkLoad: no SIMD implementation available");
+  return eslENORESULT;
+#endif
+}
+
+
 /*****************************************************************
  * 4. Benchmark driver.
  *****************************************************************/
@@ -545,7 +595,8 @@ utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, 
 }
 
 /* utest_backward_chk()
- * Checkpointed Backward with its own scale factors on random sequences
+ * Checkpointed Backward with its own scale factors, and checkpointed
+ * Forward, on random sequences
  * and the model's consensus between random flanks, up to length <L>:
  *   - a fill in one block and a fill in blocks of 1..8 rows give
  *     identical scores, special states and scale factors;
@@ -553,6 +604,9 @@ utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, 
  *     sweep reads them, is identical to the one-block fill;
  *   - scores and cells (with each matrix's own row scale factors
  *     taken out) agree with p7_Backward() up to rounding.
+ *   - the same matrix, turned around by p7_chkomx_SetDirection(),
+ *     filled by the checkpointed Forward and each block loaded again
+ *     from the last to the first, is identical to p7_Forward().
  * With <require_scaling>, fail if no row was rescaled. With <use_sse>,
  * the _sse versions are called directly, so an AVX CPU also tests the
  * SSE engine.
@@ -577,7 +631,9 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L
   float      (*omx_get)   (const P7_OMX *, int, int, int)          = use_sse ? p7_omx_FGetMDI_sse      : p7_omx_FGetMDI;
   int        (*bck_chk)   (const ESL_DSQ *, int, const P7_OPROFILE *, P7_CHKOMX *, float *) = use_sse ? p7_BackwardChk_sse     : p7_BackwardChk;
   int        (*bck_load)  (const ESL_DSQ *, const P7_OPROFILE *, P7_CHKOMX *, int)          = use_sse ? p7_BackwardChkLoad_sse : p7_BackwardChkLoad;
-  float        bsc, sc1, sc2;
+  int        (*fwd_chk)   (const ESL_DSQ *, int, const P7_OPROFILE *, P7_CHKOMX *, float *) = use_sse ? p7_ForwardChk_sse      : p7_ForwardChk;
+  int        (*fwd_load)  (const ESL_DSQ *, const P7_OPROFILE *, P7_CHKOMX *, int)          = use_sse ? p7_ForwardChkLoad_sse  : p7_ForwardChkLoad;
+  float        fsc, bsc, sc1, sc2;
   float        a, c;
   double       d;
   int          nscaled = 0;
@@ -631,12 +687,12 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L
 
       if (use_sse)
         {
-          if (p7_Forward_sse (dsq, Ln, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+          if (p7_Forward_sse (dsq, Ln, om, oxf,      &fsc) != eslOK) esl_fatal(msg);
           if (p7_Backward_sse(dsq, Ln, om, oxf, oxb, &bsc) != eslOK) esl_fatal(msg);
         }
       else
         {
-          if (p7_Forward (dsq, Ln, om, oxf,      NULL) != eslOK) esl_fatal(msg);
+          if (p7_Forward (dsq, Ln, om, oxf,      &fsc) != eslOK) esl_fatal(msg);
           if (p7_Backward(dsq, Ln, om, oxf, oxb, &bsc) != eslOK) esl_fatal(msg);
         }
 
@@ -664,6 +720,27 @@ utest_backward_chk(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states changed by loading", msg);
+
+      /* the same matrix turned around for the checkpointed Forward, whose
+       * fill and every block loaded again, from the last down to the first,
+       * are identical to p7_Forward() */
+      if (p7_chkomx_SetDirection(cx2, p7_CHK_FORWARD, 1) != eslOK) esl_fatal(msg);
+      if (chk_growto(cx2, M, Ln, blockR)                 != eslOK) esl_fatal(msg);
+      if (fwd_chk(dsq, Ln, om, cx2, &sc2)                != eslOK) esl_fatal(msg);
+      if (sc2 != fsc) esl_fatal("%s: checkpointed Forward score %f, p7_Forward() %f", msg, sc2, fsc);
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (cx2->xmx[i*p7X_NXCELLS+x] != oxf->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: checkpointed Forward special states differ", msg);
+      for (b = (Ln / blockR) * blockR; b >= 0; b -= blockR)
+        {
+          if (fwd_load(dsq, om, cx2, b) != eslOK) esl_fatal(msg);
+          for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
+            for (k = 1; k <= M; k++)
+              for (s = 0; s < p7X_NSCELLS; s++)
+                if (chk_get(cx2, s, i, k) != omx_get(oxf, s, i, k))
+                  esl_fatal("%s: checkpointed Forward block %d differs at row %d, k %d", msg, b, i, k);
+        }
+      if (p7_chkomx_SetDirection(cx2, p7_CHK_BACKWARD, 1) != eslOK) esl_fatal(msg);
 
       /* log of the product of each matrix's scale factors for rows i..L */
       lsf1[Ln+1] = lsf2[Ln+1] = 0.;

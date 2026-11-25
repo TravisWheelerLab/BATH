@@ -832,6 +832,8 @@ extern int (*p7_BackwardParser)  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *
 extern int (*p7_BackwardDecoding)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,       P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int (*p7_BackwardChk)     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int (*p7_BackwardChkLoad) (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
+extern int (*p7_ForwardChk)      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
+extern int (*p7_ForwardChkLoad)  (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 /* fwdback_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Forward_sse         (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
@@ -842,6 +844,8 @@ extern int p7_BackwardDecoding_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern void p7_ForwardRow_sse      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m128 *dpc, const __m128 *dpp, int i);
 extern int p7_BackwardChk_sse     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_sse (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
+extern int p7_ForwardChk_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
+extern int p7_ForwardChkLoad_sse  (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 #endif
 
 /* fwdback_avx.c — AVX2 implementations */
@@ -854,6 +858,8 @@ extern int p7_BackwardDecoding_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern void p7_ForwardRow_avx      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m256 *dpc, const __m256 *dpp, int i);
 extern int p7_BackwardChk_avx     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_avx (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
+extern int p7_ForwardChk_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
+extern int p7_ForwardChkLoad_avx  (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 #endif
 
 /* fwdback_fs.c — self-patching dispatchers */

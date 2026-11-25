@@ -5,6 +5,7 @@
  *    1. p7_Forward_avx, p7_ForwardParser_avx, p7_Backward_avx, p7_BackwardParser_avx
  *    2. Static engine implementations (forward_engine_avx, backward_engine_avx)
  *    3. p7_BackwardChk_avx, p7_BackwardChkLoad_avx: checkpointed Backward
+ *       p7_ForwardChk_avx, p7_ForwardChkLoad_avx: checkpointed Forward
  */
 
 #include "p7_config.h"
@@ -758,5 +759,97 @@ p7_BackwardChkLoad_avx(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx,
   backward_chk_block_avx(dsq, om, cx, b, NULL, BWD_SCALE_STORED);
   return eslOK;
 }
+
+/* Function:  p7_ForwardChk_avx()
+ * Synopsis:  Checkpointed Forward, AVX2.
+ *
+ * Purpose:   Forward of profile <om> against <dsq> of length <L> into
+ *            the checkpointed matrix <cx>. Each row is computed as in
+ *            <p7_Forward_avx()>, by <p7_ForwardRow_avx()>, so cells,
+ *            special states, scale factors and score are identical to
+ *            it.
+ *
+ *            Rows are computed from 0 up to <L>, one block at a time;
+ *            checkpoints of the rows before each block are saved, so
+ *            <p7_ForwardChkLoad_avx()> can compute any block again, with
+ *            identical values. On return the block holding row <L> is
+ *            loaded and the special states and scale factors of all rows
+ *            are in <cx->xmx>.
+ *
+ *            The caller creates <cx> with <p7_CHK_FORWARD> (or sets that
+ *            direction with <p7_chkomx_SetDirection()>), <p7X_NSCELLS>
+ *            vectors per stripe and at least 1 saved row, and grows it
+ *            for <om->M> by <L> with the block size it wants
+ *            (<p7_chkomx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq (>= 1)
+ *            om     - profile
+ *            cx     - checkpointed DP matrix
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation.
+ *            <eslERANGE> if the score is NaN, underflows to 0 or overflows.
+ */
+int
+p7_ForwardChk_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc)
+{
+  float totscale = 0.0f;
+  float xC;
+  int   b, i;
+  int   status;
+
+  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 1 || cx->nscells != p7X_NSCELLS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed Forward");
+  if (L < 1) ESL_EXCEPTION(eslEINVAL, "sequence length must be >= 1");
+
+  cx->M = om->M;
+  cx->L = L;
+
+  for (b = 0; b <= L; b += cx->blockR)
+    {
+      if ((status = p7_chkomx_StartBlock_avx(cx, b)) != eslOK) return status;
+      for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
+        p7_ForwardRow_avx(dsq, om, cx->xmx, &totscale, cx->dpf_avx[i], (i > 0 ? cx->dpf_avx[i-1] : NULL), i);
+    }
+  xC = cx->xmx[L*p7X_NXCELLS+p7X_C];
+
+  if      (isnan(xC))      ESL_EXCEPTION(eslERANGE, "forward score is NaN");
+  else if (xC == 0.0f)     ESL_EXCEPTION(eslERANGE, "forward score underflow (is 0.0)");
+  else if (isinf(xC) == 1) ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+
+  if (opt_sc != NULL) *opt_sc = totscale + log(xC * om->xf[p7O_C][p7O_MOVE]);
+  return eslOK;
+}
+
+
+/* Function:  p7_ForwardChkLoad_avx()
+ * Synopsis:  Compute one block of a checkpointed Forward again.
+ *
+ * Purpose:   After <p7_ForwardChk_avx()> has filled <cx>, compute block
+ *            <b> (a multiple of <cx->blockR>) again from the checkpoint
+ *            before it, loading the block and its saved rows into <cx>.
+ *            Values are identical to those of the fill. Blocks are loaded
+ *            in decreasing order, as a computation that runs backward
+ *            through the rows reads them (<p7_chkomx_LoadBlock()>).
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if block <b> can't be loaded.
+ */
+int
+p7_ForwardChkLoad_avx(const ESL_DSQ *dsq, const P7_OPROFILE *om, P7_CHKOMX *cx, int b)
+{
+  float totscale = 0.0f;   /* unused: the scale factors are already in <cx->xmx> */
+  int   i;
+  int   status;
+
+  if ((status = p7_chkomx_LoadBlock_avx(cx, b)) != eslOK) return status;
+  for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
+    p7_ForwardRow_avx(dsq, om, cx->xmx, &totscale, cx->dpf_avx[i], (i > 0 ? cx->dpf_avx[i-1] : NULL), i);
+  return eslOK;
+}
+
 
 #endif /* eslENABLE_AVX */

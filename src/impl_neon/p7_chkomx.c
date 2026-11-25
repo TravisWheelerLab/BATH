@@ -133,7 +133,8 @@ p7_chkomx_Create(int allocM, int allocL, int blockR, int saveR, int nscells, int
   for (i = 0; i < cx->allocP; i++) cx->dpf[i] = NULL;
 
   cx->allocK = allocL / blockR;
-  ESL_ALLOC(cx->ck_mem, sizeof(float32x4_t) * (size_t) cx->allocK * saveR * cx->allocQ4 * nscells + 15);
+  cx->nckvec = (size_t) cx->allocK * saveR * cx->allocQ4 * nscells;
+  ESL_ALLOC(cx->ck_mem, sizeof(float32x4_t) * cx->nckvec + 15);
 
   cx->allocXR = allocL + 1;
   ESL_ALLOC(cx->x_mem, sizeof(float) * cx->allocXR * p7X_NXCELLS + 15);
@@ -157,7 +158,12 @@ p7_chkomx_Create(int allocM, int allocL, int blockR, int saveR, int nscells, int
  *            comparison of a model of size <allocM> to a sequence of
  *            length <allocL> in blocks of <blockR> rows, reallocating as
  *            needed. The direction, saved rows and cells per stripe stay
- *            as they were set by p7_chkomx_Create(); <saveR> must be <= <blockR>.
+ *            as they were set by p7_chkomx_Create() or
+ *            p7_chkomx_SetDirection(); <saveR> must be <= <blockR>.
+ *
+ *            Memory is reallocated only when this computation needs more
+ *            than is held, with rows of this model's width, so <cx>
+ *            holds the most any one computation has needed.
  *
  *            All row pointers are set to NULL and no block is loaded
  *            afterwards; any stored rows and checkpoints are invalid.
@@ -170,27 +176,31 @@ int
 p7_chkomx_GrowTo(P7_CHKOMX *cx, int allocM, int allocL, int blockR)
 {
   void  *p;
-  int    nqf  = ESL_MAX(cx->allocQ4, p7O_NQF(allocM));
-  int    R    = ESL_MAX(cx->allocR, cx->saveR + blockR);
-  int    K    = allocL / blockR;
-  size_t nvec = (size_t) R * nqf * cx->nscells;
+  int    nqf    = p7O_NQF(allocM);
+  int    R      = cx->saveR + blockR;
+  int    K      = allocL / blockR;
+  size_t nvec   = (size_t) R * nqf * cx->nscells;
+  size_t nckvec = (size_t) K * cx->saveR * nqf * cx->nscells;
   int    i;
   int    status;
 
   if (blockR < 1 || cx->saveR > blockR) ESL_EXCEPTION(eslEINVAL, "bad block size %d for %d saved rows", blockR, cx->saveR);
-  cx->blockR = blockR;
-  cx->allocR = R;
 
+  /* Storage is reallocated only when this computation needs more than
+   * is held, and rows take the width of this model, so the memory held
+   * is the most any one computation has needed. */
   if (nvec > cx->nvec) {
     ESL_RALLOC(cx->dp_mem, p, sizeof(float32x4_t) * nvec + 15);
     cx->nvec = nvec;
   }
-
-  if (K > cx->allocK || nqf > cx->allocQ4) {
-    ESL_RALLOC(cx->ck_mem, p, sizeof(float32x4_t) * (size_t) ESL_MAX(K, cx->allocK) * cx->saveR * nqf * cx->nscells + 15);
-    cx->allocK = ESL_MAX(K, cx->allocK);
+  if (nckvec > cx->nckvec) {
+    ESL_RALLOC(cx->ck_mem, p, sizeof(float32x4_t) * nckvec + 15);
+    cx->nckvec = nckvec;
   }
+  cx->blockR = blockR;
   cx->allocQ4 = nqf;
+  cx->allocR = (int) (cx->nvec / ((size_t) nqf * cx->nscells));
+  cx->allocK = (cx->saveR > 0 ? (int) (cx->nckvec / ((size_t) cx->saveR * nqf * cx->nscells)) : K);
 
   if (allocL + 1 > cx->allocP) {
     ESL_RALLOC(cx->dpf, p, sizeof(float32x4_t *) * (allocL + 1));
@@ -602,6 +612,25 @@ utest_isa(const CHKOMX_ISA *isa)
   if (p7_chkomx_SetDirection(cx, 2, 3)               != eslEINVAL) esl_fatal("%s: SetDirection with bad direction accepted", isa->name);
   if (p7_chkomx_SetDirection(cx, p7_CHK_FORWARD, 0)  != eslEINVAL) esl_fatal("%s: SetDirection with saveR < 1 accepted", isa->name);
   isa->Destroy(cx);
+
+  /* The memory held is the most any one computation has needed, not
+   * the most rows times the widest model: a tall narrow fill and a fill
+   * with many narrow checkpoints, then a wide short one. */
+  {
+    size_t q4   = ESL_MAX(2, (4   - 1) / isa->V + 1);
+    size_t q400 = ESL_MAX(2, (400 - 1) / isa->V + 1);
+
+    if ((cx = isa->Create(4, 10, 10, 1, p7X_NSCELLS, p7_CHK_BACKWARD)) == NULL) esl_fatal("%s: Create failed", isa->name);
+    if (isa->GrowTo(cx, 4,   3000, 3001) != eslOK) esl_fatal("%s: GrowTo (tall) failed", isa->name);
+    utest_blocks_backward(cx, isa, 4, 3000);
+    if (isa->GrowTo(cx, 4,   3000, 1)    != eslOK) esl_fatal("%s: GrowTo (many checkpoints) failed", isa->name);
+    utest_blocks_backward(cx, isa, 4, 3000);
+    if (isa->GrowTo(cx, 400, 100,  10)   != eslOK) esl_fatal("%s: GrowTo (wide) failed", isa->name);
+    utest_blocks_backward(cx, isa, 400, 100);
+    if (cx->nvec   != ESL_MAX(3002 * q4, 11 * q400) * p7X_NSCELLS) esl_fatal("%s: row storage %zu is not the largest single need", isa->name, cx->nvec);
+    if (cx->nckvec != ESL_MAX(3000 * q4, 10 * q400) * p7X_NSCELLS) esl_fatal("%s: checkpoint storage %zu is not the largest single need", isa->name, cx->nckvec);
+    isa->Destroy(cx);
+  }
 
   if (isa->Create(7, 50, 4, 5, p7X_NSCELLS, p7_CHK_FORWARD) != NULL) esl_fatal("%s: saveR > blockR accepted", isa->name);
   if (isa->Create(7, 50, 8, 5, p7X_NSCELLS, 2)              != NULL) esl_fatal("%s: bad direction accepted", isa->name);

@@ -478,14 +478,15 @@ typedef struct p7_chkomx_s {
 
   float32x4_t **dpf;   /* row pointers [0..L]                                  */
   void     *dp_mem;    /* storage for allocR rows                              */
-  int       allocR;    /* rows of storage in dp_mem: >= saveR + blockR             */
+  int       allocR;    /* rows of the current width that fit in dp_mem: >= saveR + blockR */
   int       allocP;    /* entries in the row pointer array; allocP >= L+1      */
   int       allocQ4;   /* float stripes per row     (allocQ4*4 >= M)           */
   size_t    nvec;      /* current allocation size of dp_mem, in vectors        */
+  size_t    nckvec;    /* current allocation size of ck_mem, in vectors        */
 
   /* Checkpoints: saveR rows each */
   void     *ck_mem;
-  int       allocK;    /* checkpoints allocated                                */
+  int       allocK;    /* checkpoints of the current width that fit in ck_mem  */
   int       nK;        /* checkpoints saved                                    */
 
   /* X states for every row */

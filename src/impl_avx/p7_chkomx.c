@@ -357,6 +357,25 @@ utest_isa(const CHKOMX_ISA *isa)
   if (p7_chkomx_SetDirection(cx, p7_CHK_FORWARD, 0)  != eslEINVAL) esl_fatal("%s: SetDirection with saveR < 1 accepted", isa->name);
   isa->Destroy(cx);
 
+  /* The memory held is the most any one computation has needed, not
+   * the most rows times the widest model: a tall narrow fill and a fill
+   * with many narrow checkpoints, then a wide short one. */
+  {
+    size_t q4   = ESL_MAX(2, (4   - 1) / isa->V + 1);
+    size_t q400 = ESL_MAX(2, (400 - 1) / isa->V + 1);
+
+    if ((cx = isa->Create(4, 10, 10, 1, p7X_NSCELLS, p7_CHK_BACKWARD)) == NULL) esl_fatal("%s: Create failed", isa->name);
+    if (isa->GrowTo(cx, 4,   3000, 3001) != eslOK) esl_fatal("%s: GrowTo (tall) failed", isa->name);
+    utest_blocks_backward(cx, isa, 4, 3000);
+    if (isa->GrowTo(cx, 4,   3000, 1)    != eslOK) esl_fatal("%s: GrowTo (many checkpoints) failed", isa->name);
+    utest_blocks_backward(cx, isa, 4, 3000);
+    if (isa->GrowTo(cx, 400, 100,  10)   != eslOK) esl_fatal("%s: GrowTo (wide) failed", isa->name);
+    utest_blocks_backward(cx, isa, 400, 100);
+    if (cx->nvec   != ESL_MAX(3002 * q4, 11 * q400) * p7X_NSCELLS) esl_fatal("%s: row storage %zu is not the largest single need", isa->name, cx->nvec);
+    if (cx->nckvec != ESL_MAX(3000 * q4, 10 * q400) * p7X_NSCELLS) esl_fatal("%s: checkpoint storage %zu is not the largest single need", isa->name, cx->nckvec);
+    isa->Destroy(cx);
+  }
+
   if (isa->Create(7, 50, 4, 5, p7X_NSCELLS, p7_CHK_FORWARD) != NULL) esl_fatal("%s: saveR > blockR accepted", isa->name);
   if (isa->Create(7, 50, 8, 5, p7X_NSCELLS, 2)              != NULL) esl_fatal("%s: bad direction accepted", isa->name);
 }

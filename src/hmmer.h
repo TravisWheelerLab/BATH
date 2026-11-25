@@ -679,12 +679,14 @@ typedef struct p7_chkgmx_s {
 
   float   **dp;         /* row pointers [0..L]; indexed [i][k*nscells+s]          */
   float    *dp_mem;     /* storage for allocR rows of allocW*nscells cells        */
-  int       allocR;     /* rows of storage in dp_mem: >= saveR + blockR           */
-  int       allocW;     /* allocated row width: M+1 <= allocW                     */
+  size_t    ndp;        /* current allocation size of dp_mem, in floats           */
+  int       allocR;     /* rows of the current width that fit in dp_mem: >= saveR + blockR */
+  int       allocW;     /* current row width: M+1 <= allocW                       */
   int       allocP;     /* entries in dp[]; allocP >= L+1                         */
 
   float    *ck_mem;     /* checkpoints: saveR rows each                           */
-  int       allocK;     /* checkpoints allocated                                  */
+  size_t    nck;        /* current allocation size of ck_mem, in floats           */
+  int       allocK;     /* checkpoints of the current width that fit in ck_mem    */
   int       nK;         /* checkpoints saved                                      */
 
   float    *xmx;        /* [0..L][0..p7G_NXCELLS-1]; indexed [i*p7G_NXCELLS+s]    */

@@ -139,7 +139,8 @@ p7_chkomx_Create_sse(int allocM, int allocL, int blockR, int saveR, int nscells,
   for (i = 0; i < cx->allocP; i++) cx->dpf[i] = NULL;
 
   cx->allocK = allocL / blockR;
-  ESL_ALLOC(cx->ck_mem, sizeof(__m128) * (size_t) cx->allocK * saveR * cx->allocQ4 * nscells + 15);
+  cx->nckvec = (size_t) cx->allocK * saveR * cx->allocQ4 * nscells;
+  ESL_ALLOC(cx->ck_mem, sizeof(__m128) * cx->nckvec + 15);
 
   cx->allocXR = allocL + 1;
   ESL_ALLOC(cx->x_mem, sizeof(float) * cx->allocXR * p7X_NXCELLS + 15);
@@ -163,7 +164,12 @@ p7_chkomx_Create_sse(int allocM, int allocL, int blockR, int saveR, int nscells,
  *            comparison of a model of size <allocM> to a sequence of
  *            length <allocL> in blocks of <blockR> rows, reallocating as
  *            needed. The direction, saved rows and cells per stripe stay
- *            as they were set by p7_chkomx_Create_sse(); <saveR> must be <= <blockR>.
+ *            as they were set by p7_chkomx_Create_sse() or
+ *            p7_chkomx_SetDirection(); <saveR> must be <= <blockR>.
+ *
+ *            Memory is reallocated only when this computation needs more
+ *            than is held, with rows of this model's width, so <cx>
+ *            holds the most any one computation has needed.
  *
  *            All row pointers are set to NULL and no block is loaded
  *            afterwards; any stored rows and checkpoints are invalid.
@@ -176,27 +182,31 @@ int
 p7_chkomx_GrowTo_sse(P7_CHKOMX *cx, int allocM, int allocL, int blockR)
 {
   void  *p;
-  int    nqf  = ESL_MAX(cx->allocQ4, p7O_NQF(allocM));
-  int    R    = ESL_MAX(cx->allocR, cx->saveR + blockR);
-  int    K    = allocL / blockR;
-  size_t nvec = (size_t) R * nqf * cx->nscells;
+  int    nqf    = p7O_NQF(allocM);
+  int    R      = cx->saveR + blockR;
+  int    K      = allocL / blockR;
+  size_t nvec   = (size_t) R * nqf * cx->nscells;
+  size_t nckvec = (size_t) K * cx->saveR * nqf * cx->nscells;
   int    i;
   int    status;
 
   if (blockR < 1 || cx->saveR > blockR) ESL_EXCEPTION(eslEINVAL, "bad block size %d for %d saved rows", blockR, cx->saveR);
-  cx->blockR = blockR;
-  cx->allocR = R;
 
+  /* Storage is reallocated only when this computation needs more than
+   * is held, and rows take the width of this model, so the memory held
+   * is the most any one computation has needed. */
   if (nvec > cx->nvec) {
     ESL_RALLOC(cx->dp_mem, p, sizeof(__m128) * nvec + 15);
     cx->nvec = nvec;
   }
-
-  if (K > cx->allocK || nqf > cx->allocQ4) {
-    ESL_RALLOC(cx->ck_mem, p, sizeof(__m128) * (size_t) ESL_MAX(K, cx->allocK) * cx->saveR * nqf * cx->nscells + 15);
-    cx->allocK = ESL_MAX(K, cx->allocK);
+  if (nckvec > cx->nckvec) {
+    ESL_RALLOC(cx->ck_mem, p, sizeof(__m128) * nckvec + 15);
+    cx->nckvec = nckvec;
   }
+  cx->blockR = blockR;
   cx->allocQ4 = nqf;
+  cx->allocR = (int) (cx->nvec / ((size_t) nqf * cx->nscells));
+  cx->allocK = (cx->saveR > 0 ? (int) (cx->nckvec / ((size_t) cx->saveR * nqf * cx->nscells)) : K);
 
   if (allocL + 1 > cx->allocP) {
     ESL_RALLOC(cx->dpf, p, sizeof(__m128 *) * (allocL + 1));

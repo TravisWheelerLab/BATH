@@ -169,6 +169,7 @@ if ($verbose) { print "$tag...\n"; }
 
 unlink <$tmppfx.out*>;
 unlink <$tmppfx.bhmm*>;
+unlink "$tmppfx.hmm";
 unlink "$tmppfx.sto";
 unlink "$tmppfx.db";
 unlink "$tmppfx.key";

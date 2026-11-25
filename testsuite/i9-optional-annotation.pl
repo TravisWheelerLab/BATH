@@ -113,8 +113,8 @@ if ($h3::qname[2]   ne "ali2")                 { die "FAIL: on line 2 query name
 if ($h3::qacc[2]    ne "-")                    { die "FAIL: on line 2 query accession\n";  }
 
 print "ok\n";
-#unlink "$tmppfx.sto";
-#unlink "$tmppfx.seq";
-#unlink "$tmppfx.tbl";
+unlink "$tmppfx.sto";
+unlink "$tmppfx.seq";
+unlink "$tmppfx.tbl";
 unlink <$tmppfx.bhmm*>;
 exit 0;

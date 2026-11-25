@@ -114,12 +114,11 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
    if ((pli->oxb  = p7_omx_Create(M_hint, 0, L_hint)) == NULL) goto ERROR;
 
    /* Create the matrices for domain definition in the non-frameshift
-   * pipeline branch: a full Forward matrix and one-row workspace for the
-   * stochastic traces of multidomain regions, and for rescoring each
-   * domain a checkpointed Backward matrix and the OA trace storage
+   * pipeline branch: a full Forward matrix for the stochastic traces of
+   * multidomain regions, and for rescoring each domain a checkpointed
+   * Backward matrix and the OA trace storage
    */
    if ((pli->fwd  = p7_omx_Create(M_hint, L_hint, L_hint)) == NULL) goto ERROR;
-   if ((pli->bck  = p7_omx_Create(M_hint, 0,      L_hint)) == NULL) goto ERROR;
    if ((pli->chk  = p7_chkomx_Create(M_hint, L_hint, p7_chk_BlockRows(M_hint, L_hint, 1, p7X_NSCELLS), 1, p7X_NSCELLS, p7_CHK_BACKWARD)) == NULL) goto ERROR;
    if ((pli->oat  = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES, 1))   == NULL) goto ERROR;
 
@@ -266,7 +265,6 @@ p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
   p7_omx_Reuse(pli->fwd);
-  p7_omx_Reuse(pli->bck);
   p7_domaindef_Reuse(pli->ddef);
   return eslOK;
 }
@@ -290,7 +288,6 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
   p7_omx_Destroy(pli->oxf);
   p7_omx_Destroy(pli->oxb);
   p7_omx_Destroy(pli->fwd);
-  p7_omx_Destroy(pli->bck);
   if (pli->chk != NULL) p7_chkomx_Destroy(pli->chk);
   if (pli->oat != NULL) p7_oatmx_Destroy(pli->oat);
   esl_randomness_Destroy(pli->r);
@@ -1478,7 +1475,7 @@ p7_pli_Frameshift(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROF
           
         p7_BackwardParser(orfsq->dsq, orfsq->n, om, pli_tmp->oxf_holder[i], pli->oxb, NULL);
           
-        status = p7_domaindef_ByPosteriorHeuristics_BATH(orfsq, pli_tmp->tmpseq, dnasq->n, om, gm, pli_tmp->oxf_holder[i], pli->oxb, pli->fwd, pli->bck, pli->chk, pli->oat, pli->ddef);
+        status = p7_domaindef_ByPosteriorHeuristics_BATH(orfsq, pli_tmp->tmpseq, dnasq->n, om, gm, pli_tmp->oxf_holder[i], pli->oxb, pli->fwd, pli->chk, pli->oat, pli->ddef);
   
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions == 0 || pli->ddef->nenvelopes == 0) {
@@ -1756,7 +1753,7 @@ p7_Pipeline_BATH(P7_PIPELINE *pli, P7_OPROFILE *om, P7_PROFILE *gm, P7_FS_OPROFI
 
         p7_BackwardParser(orfsq->dsq, orfsq->n, om, pli->oxf, pli->oxb, NULL);
 
-        status = p7_domaindef_ByPosteriorHeuristics_BATH(orfsq, pli_tmp->tmpseq, dnasq->n, om, gm, pli->oxf, pli->oxb, pli->fwd, pli->bck, pli->chk, pli->oat, pli->ddef);
+        status = p7_domaindef_ByPosteriorHeuristics_BATH(orfsq, pli_tmp->tmpseq, dnasq->n, om, gm, pli->oxf, pli->oxb, pli->fwd, pli->chk, pli->oat, pli->ddef);
         if (status != eslOK) ESL_FAIL(status, pli->errbuf, "domain definition workflow failure"); /* eslERANGE can happen */
         if (pli->ddef->nregions   == 0)  continue; /* score passed threshold but there's no discrete domains here     */
         if (pli->ddef->nenvelopes == 0)  continue; /* rarer: region was found, stochastic clustered, no envelope found*/

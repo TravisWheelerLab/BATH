@@ -22,10 +22,10 @@
 
 static int is_multidomain_region  (P7_DOMAINDEF *ddef, int i, int j);
 static int is_multidomain_region_frameshift  (P7_DOMAINDEF *ddef, int i, int j);
-static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc);
+static int region_trace_ensemble  (P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
 static int region_trace_ensemble_frameshift  (P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs, const ESL_DSQ *dsq, const ESL_ALPHABET *abc, int ireg, int jreg, const P7_OMX *fwd, int *ret_nc);
 static int rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_OPROFILE *om_fs5, P7_FS_PROFILE *gm_fs5, ESL_SQ *windowsq, int i, int j, P7_BG *bg,  const ESL_GENCODE *gcode);
-static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j, int null2_is_done);
+static int rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j);
 
 /*****************************************************************
  * 1. The P7_DOMAINDEF object: allocation, reuse, destruction
@@ -403,10 +403,8 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         ddef->nclustered++;
       
        /* Resolve the region into domains by stochastic trace
-        * clustering; assign position-specific null2 model by
-        * stochastic trace clustering; there is redundancy
-        * here; we will consolidate later if null2 strategy
-        * works
+        * clustering. Each domain's null2 comes from its own
+        * posteriors when it is rescored.
         */
         
         p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
@@ -418,7 +416,6 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
 
         p7_fs_oprofile_ReconfigUnihit(om_fs5, saveL);
        
-        /* ddef->n2sc is now set on i..j by the traceback-dependent method */
         last_j2 = 0;
         
         for (d = 0; d < nc; d++) {
@@ -486,7 +483,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            calculations) and obtain an optimal accuracy alignment.
  *            Regions that look like more than one domain are split by
  *            clustering stochastic traces, which use <fwd> as a full
- *            Forward matrix and <bck> as one-row workspace. Each domain
+ *            Forward matrix. Each domain
  *            is scored and aligned with a checkpointed Backward in <chk>
  *            and an OA sweep that stores what the OA trace reads in
  *            <oat>. Caller provides a
@@ -502,7 +499,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
  *            models.
  */
 int
-p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_OMX *bck, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef)
+p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_OPROFILE *om, P7_PROFILE *gm, P7_OMX *oxf, P7_OMX *oxb, P7_OMX *fwd, P7_CHKOMX *chk, P7_OATMX *oat, P7_DOMAINDEF *ddef)
 {
   int i, j;
   int triggered;
@@ -516,7 +513,6 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
   if ((status = p7_domaindef_GrowTo(ddef, orfsq->n))      != eslOK) return status;  /* ddef's btot,etot,mocc now ready for seq of length n */
   if ((status = p7_DomainDecoding(om, oxf, oxb, ddef)) != eslOK) return status;  /* ddef->{btot,etot,mocc} now made.                    */
 
-  esl_vec_FSet(ddef->n2sc, orfsq->n+1, 0.0);          /* ddef->n2sc null2 scores are initialized                        */
   ddef->nexpected = ddef->btot[orfsq->n];             /* posterior expectation for # of domains (same as etot[orfsq->n])   */
 
   p7_oprofile_ReconfigUnihit(om, saveL);     /* process each domain in unihit mode, regardless of om->mode     */
@@ -547,19 +543,15 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
             ddef->nclustered++;
 
             /* Resolve the region into domains by stochastic trace
-             * clustering; assign position-specific null2 model by
-             * stochastic trace clustering; there is redundancy
-             * here; we will consolidate later if null2 strategy
-             * works
+             * clustering. Each domain's null2 comes from its own
+             * posteriors when it is rescored.
              */
             p7_omx_GrowTo(fwd, om->M, j-i+1, j-i+1);   /* full Forward matrix for the stochastic traces */
-            p7_omx_GrowTo(bck, om->M, 0, j-i+1);       /* one core row: Null2_ByTrace needs no more */
             p7_oprofile_ReconfigMultihit(om, saveL);
             p7_Forward(orfsq->dsq+i-1, j-i+1, om, fwd, NULL);
 		
-            region_trace_ensemble(ddef, om, orfsq->dsq, i, j, fwd, bck, &nc);
+            region_trace_ensemble(ddef, om, orfsq->dsq, i, j, fwd, &nc);
             p7_oprofile_ReconfigUnihit(om, saveL);
-            /* ddef->n2sc is now set on i..j by the traceback-dependent method */
 	    
             last_j2 = 0;
             if(nc == 0) ddef->nenvelopes++;
@@ -585,7 +577,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
                  * happens. [xref J5/130].
               */
               ddef->nenvelopes++;
-              if (rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i2, j2, TRUE) == eslOK)
+              if (rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i2, j2) == eslOK)
               last_j2 = j2;
           }
             p7_spensemble_Reuse(ddef->sp);
@@ -596,7 +588,7 @@ p7_domaindef_ByPosteriorHeuristics_BATH(const ESL_ORF *orfsq, const ESL_SQ *wind
 		
             /* The region looks simple, single domain; convert the region to an envelope. */
             ddef->nenvelopes++;
-            rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i, j, FALSE);
+            rescore_isolated_domain_bath(ddef, om, gm, orfsq, windowsq, ntsqlen, chk, oat, i, j);
         }
         i     = -1;
         triggered = FALSE;
@@ -731,11 +723,6 @@ is_multidomain_region_frameshift(P7_DOMAINDEF *ddef, int i, int j)
  * configuration used to score the complete sequence (if it weren't
  * multihit, we wouldn't be worried about multiple domains).
  * 
- * Caller also provides a DP matrix in <wrk> containing at least one
- * row, for use as temporary workspace. (This will typically be the
- * caller's Backwards matrix, which we haven't yet used at this point
- * in the processing pipeline.)
- * 
  * Caller provides <ddef>, which defines heuristic parameters that
  * control the clustering, and provides working space for the
  * calculation and the answers. The <ddef->sp> object must have been
@@ -753,30 +740,21 @@ is_multidomain_region_frameshift(P7_DOMAINDEF *ddef, int i, int j)
  * 
  * Other information on what's happened in working memory:
  * 
- * <ddef->n2sc[ireg..jreg]> now contains log f'(x_i) / f(x_i) null2 scores
- *    for each residue.
- *
  * <ddef->sp> gets filled in, and upon return, it's holding the answers 
  *    (the cluster definitions). When the caller is done retrieving those
  *    answers, it needs to <p7_spensemble_Reuse()> it before calling
  *    <region_trace_ensemble()> again.
  *    
  * <ddef->tr> is used as working memory for sampled traces.
- *    
- * <wrk> has had its zero row clobbered as working space for a null2 calculation.
  */
 static int
 region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *dsq, int ireg, int jreg, 
-          const P7_OMX *fwd, P7_OMX *wrk, int *ret_nc)
+          const P7_OMX *fwd, int *ret_nc)
 {
   int    Lr  = jreg-ireg+1;
   int    t, d, d2;
   int    nov, n;
   int    nc;
-  int    pos;
-  float  null2[p7_MAXCODE];
-
-  esl_vec_FSet(ddef->n2sc+ireg, Lr, 0.0); /* zero the null2 scores in region */
 
   /* By default, we make results reproducible by forcing a reset of
    * the RNG to its originally seeded state.
@@ -784,35 +762,19 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
   if (ddef->do_reseeding) 
     esl_randomness_Init(ddef->r, esl_randomness_GetSeed(ddef->r));
 
-  /* Collect an ensemble of sampled traces; calculate null2 odds ratios from these */
+  /* Collect an ensemble of sampled traces */
   for (t = 0; t < ddef->nsamples; t++)
-  {
+    {
       p7_StochasticTrace(ddef->r, dsq+ireg-1, Lr, om, fwd, ddef->tr);
       p7_trace_Index(ddef->tr);
 
-      pos = 1;
       for (d = 0; d < ddef->tr->ndom; d++)
-      {
         p7_spensemble_Add(ddef->sp, t, ddef->tr->sqfrom[d]+ireg-1, ddef->tr->sqto[d]+ireg-1, ddef->tr->hmmfrom[d], ddef->tr->hmmto[d]);
 
-        p7_Null2_ByTrace(om, ddef->tr, ddef->tr->tfrom[d], ddef->tr->tto[d], wrk, null2);
-    /* residues outside domains get bumped +1: because f'(x) = f(x), so f'(x)/f(x) = 1 in these segments */
-    for (; pos <= ddef->tr->sqfrom[d]; pos++) ddef->n2sc[ireg+pos-1] += 1.0;
-
-    /* Residues inside domains get bumped by their null2 ratio */
-    for (; pos <= ddef->tr->sqto[d];   pos++) ddef->n2sc[ireg+pos-1] += null2[dsq[ireg+pos-1]];
-  }
-      /* the remaining residues in the region outside any domains get +1 */
-      for (; pos <= Lr; pos++)  ddef->n2sc[ireg+pos-1] += 1.0;
-
-      p7_trace_Reuse(ddef->tr);        
+      p7_trace_Reuse(ddef->tr);
     }
 
-  /* Convert the accumulated n2sc[] ratios in this region to log odds null2 scores on each residue. */
-  for (pos = ireg; pos <= jreg; pos++)
-    ddef->n2sc[pos] = logf(ddef->n2sc[pos] / (float) ddef->nsamples);
-
-  /* Cluster the ensemble of traces to break region into envelopes. */
+/* Cluster the ensemble of traces to break region into envelopes. */
   p7_spensemble_Cluster(ddef->sp, ddef->min_overlap, ddef->of_smaller, ddef->max_diagdiff, ddef->min_posterior, ddef->min_endpointp, &nc);
 
   /* A little hacky now. Remove "dominated" domains relative to seq coords. */
@@ -894,16 +856,13 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
   int    t, d, d2;
   int    nov, n;
   int    nc;
-  float   n2sc[Lr];
-
-  esl_vec_FSet(n2sc, Lr, 0.0); /* zero the null2 scores in region */
 
   /* By default, we make results reproducible by forcing a reset of
    * the RNG to its originally seeded state.
    */
   if (ddef->do_reseeding) 
     esl_randomness_Init(ddef->r, esl_randomness_GetSeed(ddef->r));
-  /* Collect an ensemble of sampled traces; calculate null2 odds ratios from these */
+  /* Collect an ensemble of sampled traces */
   for (t = 0; t < ddef->nsamples; t++)
     {
 
@@ -1207,9 +1166,8 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * 
  * The caller provides a checkpointed Backward matrix <cx> and the OA
  * trace storage <ox>. The Backward is filled into <cx>, then one sweep
- * through the rows computes the Forward, posterior and OA rows (and,
- * unless <null2_is_done>, null2) and stores what the OA trace reads in
- * <ox>. The caller also provides a <P7_DOMAINDEF> object (ddef)
+ * through the rows computes the Forward, posterior and OA rows and
+ * null2, and stores what the OA trace reads in <ox>. The caller also provides a <P7_DOMAINDEF> object (ddef)
  * which is (efficiently, we trust) managing any necessary temporary
  * working space and heuristic thresholds.
  *
@@ -1225,7 +1183,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
  * 
  */
 static int
-rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j, int null2_is_done)
+rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm, const ESL_ORF *orfsq, const ESL_SQ *windowsq, const int64_t ntsqlen, P7_CHKOMX *cx, P7_OATMX *ox, int i, int j)
 {
 
   P7_DOMAIN *dom           = NULL;
@@ -1247,7 +1205,7 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
   if (status != eslOK)     return status;
 
   /* Forward score, null2 and the optimal accuracy alignment */
-  status = p7_OptimalAccuracySweep(orfsq->dsq + i-1, Ld, om, cx, ox, (null2_is_done ? NULL : null2), &envsc, &oasc);
+  status = p7_OptimalAccuracySweep(orfsq->dsq + i-1, Ld, om, cx, ox, null2, &envsc, &oasc);
   if (status == eslERANGE) return eslFAIL;
   if (status != eslOK)     return status;
 
@@ -1293,14 +1251,9 @@ rescore_isolated_domain_bath(P7_DOMAINDEF *ddef, P7_OPROFILE *om, P7_PROFILE *gm
   else
     p7_trace_fs_Convert(ddef->tr, ntsqlen - orfsq->start + 1, windowsq->start);
 
-  if (!null2_is_done) {
-    for (pos = i; pos <= j; pos++) {
-      ddef->n2sc[pos]  = logf(null2[orfsq->dsq[pos]]);
-    }
-  }
-  
+  /* null2 by expectation, from this envelope's posteriors */
   for (pos = i; pos <= j; pos++)
-    domcorrection   += ddef->n2sc[pos];
+    domcorrection   += logf(null2[orfsq->dsq[pos]]);
   dom->domcorrection = ESL_MAX(0.0, domcorrection); /* in units of NATS */
   
   /* Use trace to find start and end positions */

@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 
 #include <arm_neon.h>		/* NEON */
 
@@ -2361,6 +2362,204 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
 }
 
 
+/* fwd_fs_ring_load()
+ * Ring entries before row <b> (> 0) is computed again: rows b-4 .. b-1
+ * (from 0), from the special states stored in <xmx>, each multiplied by
+ * the inverse scale factors of the rows computed after it up to b-1, in
+ * the same order as when the rows were first computed, so the entries
+ * are identical.
+ */
+static void
+fwd_fs_ring_load(P7_FS_FWDRING *rg, const float *xmx, int b)
+{
+  float sf;
+  int   j, r, s;
+
+  for (r = 0; r < PARSER_ROWS_FWD; r++)
+    rg->xN[r] = rg->xB[r] = rg->xJ[r] = rg->xC[r] = 0.0f;
+  for (j = ESL_MAX(0, b-PARSER_ROWS_FWD); j < b; j++)
+    {
+      s = j % PARSER_ROWS_FWD;
+      rg->xN[s] = xmx[j*p7X_NXCELLS+p7X_N];
+      rg->xB[s] = xmx[j*p7X_NXCELLS+p7X_B];
+      rg->xJ[s] = xmx[j*p7X_NXCELLS+p7X_J];
+      rg->xC[s] = xmx[j*p7X_NXCELLS+p7X_C];
+      for (r = j+1; r < b; r++)
+        if (xmx[r*p7X_NXCELLS+p7X_SCALE] > 1.0f)
+          {
+            sf = 1.0f / xmx[r*p7X_NXCELLS+p7X_SCALE];
+            rg->xN[s] *= sf; rg->xB[s] *= sf; rg->xJ[s] *= sf; rg->xC[s] *= sf;
+          }
+    }
+}
+
+
+/* forward_ivx_load()
+ * Codon partial sums before row <b> (> 0) is computed again: rows
+ * b-4 .. b-1 (from 1) into <ivx>, each from the row before it (core
+ * cells in <dp>, xB in <xmx>) as p7_ForwardRow_Frameshift() computes
+ * it, then multiplied by the inverse scale factors of its own row and
+ * the rows after it up to b-1, in the same order as when the rows were
+ * first computed, so the values are identical. The other slots are set
+ * to 0.
+ */
+static void
+forward_ivx_load(const P7_FS_OPROFILE *om_fs, float32x4_t * const *dp, const float *xmx, float32x4_t **ivx, int b)
+{
+  float32x4_t   zerov = vmovq_n_f32(0.0f);
+  float32x4_t   mpv, dpv, ipv, xBv, sv, sfv;
+  float32x4_t  *tp;
+  float32x4_t  *dpp;
+  int  Q = p7O_NQF(om_fs->M);
+  int  q, r, j, slot;
+
+  for (r = 0; r < p7P_5CODONS; r++)
+    for (q = 0; q < Q; q++)
+      ivx[r][q] = zerov;
+
+  for (r = ESL_MAX(1, b-4); r < b; r++)
+    {
+      slot = r % p7P_5CODONS;
+      dpp  = dp[r-1];
+      xBv  = vmovq_n_f32(xmx[(r-1)*p7X_NXCELLS+p7X_B]);
+      mpv  = vextq_f32(zerov, MMO_FS(dpp,Q-1,p7X_FS_C0), 3);
+      dpv  = vextq_f32(zerov, DMO_FS(dpp,Q-1), 3);
+      ipv  = vextq_f32(zerov, IMO_FS(dpp,Q-1), 3);
+      tp   = om_fs->tfv;
+      for (q = 0; q < Q; q++)
+        {
+          sv  =            vmulq_f32(xBv, *tp);  tp++;
+          sv  = vaddq_f32(sv,   vmulq_f32(mpv, *tp)); tp++;
+          sv  = vaddq_f32(sv,   vmulq_f32(ipv, *tp)); tp++;
+          sv  = vaddq_f32(sv,   vmulq_f32(dpv, *tp)); tp++;
+          tp += 3;
+          ivx[slot][q] = sv;
+          mpv = MMO_FS(dpp,q,p7X_FS_C0); dpv = DMO_FS(dpp,q); ipv = IMO_FS(dpp,q);
+        }
+      for (j = r; j < b; j++)
+        if (xmx[j*p7X_NXCELLS+p7X_SCALE] > 1.0f)
+          {
+            sfv = vmovq_n_f32(1.0f / xmx[j*p7X_NXCELLS+p7X_SCALE]);
+            for (q = 0; q < Q; q++) ivx[slot][q] = vmulq_f32(ivx[slot][q], sfv);
+          }
+    }
+}
+
+
+/* Function:  p7_ForwardChk_Frameshift()
+ * Synopsis:  Frameshift Forward in a checkpointed matrix.
+ *
+ * Purpose:   The Forward algorithm of <p7_Forward_Frameshift()> for the
+ *            5-codon profile <om_fs> against <dsq> of length <L>, computed
+ *            in the checkpointed matrix <cx>, with <ov> as workspace. Each
+ *            row is computed by <p7_ForwardRow_Frameshift()>, so cells,
+ *            special states, scale factors and score are identical to
+ *            <p7_Forward_Frameshift()>.
+ *
+ *            Rows are computed from 0 up to <L>, one block at a time;
+ *            checkpoints of the 5 rows before each block are saved, so
+ *            <p7_ForwardChkLoad_Frameshift()> can compute any block
+ *            again, with identical values. On return the block holding
+ *            row <L> is loaded and the special states and scale factors
+ *            of all rows are in <cx->xmx>.
+ *
+ *            The caller creates <cx> with <p7_CHK_FORWARD> (or sets that
+ *            direction with <p7_chkomx_SetDirection()>), <p7X_NSCELLS_FS>
+ *            vectors per stripe and at least 5 saved rows, and grows it
+ *            for <om_fs->M> by <L> with the block size it wants
+ *            (<p7_chkomx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq (>= 1)
+ *            om_fs  - 5-codon frameshift profile
+ *            cx     - checkpointed DP matrix
+ *            ov     - workspace for the profile's M
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslERANGE> if the score underflows to 0 (L > 1); <*opt_sc>
+ *            is then -infinity.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation or
+ *            <om_fs> isn't a 5-codon profile.
+ *            <eslERANGE> if the score is NaN or overflows.
+ */
+int
+p7_ForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+{
+  P7_FS_FWDRING rg;
+  float         totscale = 0.0f;
+  float         xCL, xCLm1, xCLm2, xCtot;
+  int           b, i;
+  int           status;
+
+  if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
+  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 5 || cx->nscells != p7X_NSCELLS_FS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed frameshift Forward");
+  if (L < 1) ESL_EXCEPTION(eslEINVAL, "sequence length must be >= 1");
+
+  cx->M = om_fs->M;
+  cx->L = L;
+
+  for (b = 0; b <= L; b += cx->blockR)
+    {
+      if ((status = p7_chkomx_StartBlock(cx, b)) != eslOK) return status;
+      for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
+        p7_ForwardRow_Frameshift(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
+                                     (i >= 1) ? cx->dpf[i-1] : NULL, (i >= 3) ? cx->dpf[i-3] : NULL, i);
+    }
+
+  xCL   = rg.xC[   L    %PARSER_ROWS_FWD];
+  xCLm1 = rg.xC[((L-1)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD];
+  xCLm2 = rg.xC[((L-2)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD];
+  xCtot = xCL + xCLm1*om_fs->xf[p7O_C][p7O_LOOP] + xCLm2*om_fs->xf[p7O_C][p7O_LOOP];
+
+  if      (isnan(xCtot))         ESL_EXCEPTION(eslERANGE, "forward score is NaN");
+  else if (isinf(xCtot) == 1)    ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+  else if (L > 1 && xCtot == 0.0f) { if (opt_sc) *opt_sc = -eslINFINITY; return eslERANGE; }
+  if (opt_sc != NULL) *opt_sc = totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
+  return eslOK;
+}
+
+
+/* Function:  p7_ForwardChkLoad_Frameshift()
+ * Synopsis:  Compute one block of a checkpointed frameshift Forward again.
+ *
+ * Purpose:   After <p7_ForwardChk_Frameshift()> has filled <cx> for
+ *            <om_fs> and <dsq>, compute block <b> (a multiple of
+ *            <cx->blockR>) again from the checkpoint before it, with <ov>
+ *            as workspace: the codon partial sums of the 4 rows before
+ *            the block are computed from the saved rows and the special
+ *            states of the rows before it are taken from <cx->xmx>
+ *            first. Values are identical to those of the fill. Blocks are
+ *            loaded in decreasing order, as a computation that runs
+ *            backward through the rows reads them
+ *            (<p7_chkomx_LoadBlock()>).
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if block <b> can't be loaded.
+ */
+int
+p7_ForwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+{
+  P7_FS_FWDRING rg;
+  float         totscale = 0.0f;   /* unused: the scale factors are already in <cx->xmx> */
+  int           i;
+  int           status;
+
+  if ((status = p7_chkomx_LoadBlock(cx, b)) != eslOK) return status;
+  if (b > 0)
+    {
+      fwd_fs_ring_load(&rg, cx->xmx, b);
+      forward_ivx_load(om_fs, cx->dpf, cx->xmx, ov->ivx, b);
+    }
+  for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
+    p7_ForwardRow_Frameshift(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
+                                 (i >= 1) ? cx->dpf[i-1] : NULL, (i >= 3) ? cx->dpf[i-3] : NULL, i);
+  return eslOK;
+}
+
+
 
 /* Function:  p7_Backward_Frameshift()
  * Synopsis:  NEON-accelerated frameshift-aware Backward algorithm, 5 codon lengths, full matrix.
@@ -3642,8 +3841,9 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   p7_gmx_Destroy(gx);
 }
 
-/* utest_backward_chk_fs()
- * Checkpointed frameshift Backward with its own scale factors on random
+/* utest_fwdback_chk_fs()
+ * Checkpointed frameshift Forward, and Backward with its own scale
+ * factors, on random
  * DNA and the back-translated model consensus between random flanks,
  * DNA lengths 15..<L>:
  *   - a fill in one block and a fill in blocks of 5..12 rows give
@@ -3651,14 +3851,19 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
  *   - every block loaded again, in increasing order as a forward
  *     sweep reads them, is identical to the one-block fill;
  *   - scores and cells (with each matrix's own row scale factors
- *     taken out) agree with p7_Backward_Frameshift() up to rounding.
- * With <require_scaling>, fail if no row was rescaled.
+ *     taken out) agree with p7_Backward_Frameshift() up to rounding;
+ *   - the checkpointed Forward, in one block and in blocks of 5..12
+ *     rows, has the same score, special states, scale factors and
+ *     cells as p7_Forward_Frameshift(), and so does every block
+ *     loaded again, last to first, as a backward pass reads them.
+ * With <require_scaling>, fail if no Backward or no Forward row was
+ * rescaled.
  */
 static void
-utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
+utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA,
                       P7_CODONTABLE *codon_table, int M, int L, int N, int require_scaling)
 {
-  char           *msg    = "checkpointed frameshift backward unit test failed";
+  char           *msg    = "checkpointed frameshift forward/backward unit test failed";
   P7_HMM         *hmm    = NULL;
   P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, 5);
   P7_FS_OPROFILE *om_fs5 = NULL;
@@ -3671,15 +3876,21 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
   P7_OIVX        *ov5    = NULL;
   P7_CHKOMX      *cx1    = NULL;
   P7_CHKOMX      *cx2    = NULL;
+  P7_CHKOMX      *fcx1   = NULL;
+  P7_CHKOMX      *fcx2   = NULL;
   int           (*chk_growto)(P7_CHKOMX *, int, int, int)       = p7_chkomx_GrowTo;
   float         (*chk_get)   (const P7_CHKOMX *, int, int, int) = p7_chkomx_FGetMDI;
   float         (*omx_get)   (const P7_OMX *, int, int, int)    = p7_omx_FGetMDI;
   int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_BackwardChk_Frameshift;
   int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_BackwardChkLoad_Frameshift;
-  float           bsc, sc1, sc2;
+  int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_ForwardChk_Frameshift;
+  int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_ForwardChkLoad_Frameshift;
+  size_t          rowbytes = sizeof(float32x4_t) * p7O_NQF(M) * p7X_NSCELLS_FS;
+  float           bsc, fsc, sc1, sc2;
   float           a, c;
   double          d;
   int             nscaled = 0;
+  int             fnscaled = 0;
   int             n, Ln, blockR, b, i, j, k, s, x, start;
 
   /* a sampled model with sharpened match emissions and M->M transitions,
@@ -3702,6 +3913,8 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
   ov5 = p7_oivx_Create(M, p7P_5CODONS);
   cx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
   cx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
+  fcx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
+  fcx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
 
   for (n = 0; n < N; n++)
     {
@@ -3719,7 +3932,7 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
         }
 
       p7_fs_oprofile_ReconfigLength(om_fs5, Ln/3);
-      if (p7_Forward_Frameshift (dsq, Ln, om_fs5, fwd,      ov5, NULL) != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
       if (p7_Backward_Frameshift(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
 
       blockR = 5 + esl_rnd_Roll(r, 8);
@@ -3747,6 +3960,30 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
         for (x = 0; x < p7X_NXCELLS; x++)
           if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states changed by loading", msg);
 
+      /* checkpointed Forward, one block and blocked: identical to the full matrix */
+      if (chk_growto(fcx1, M, Ln, Ln+1)   != eslOK) esl_fatal(msg);
+      if (chk_growto(fcx2, M, Ln, blockR) != eslOK) esl_fatal(msg);
+      if (fwd_chk(dsq, Ln, om_fs5, fcx1, ov5, &sc1) != eslOK) esl_fatal(msg);
+      if (fwd_chk(dsq, Ln, om_fs5, fcx2, ov5, &sc2) != eslOK) esl_fatal(msg);
+      if (sc1 != fsc || sc2 != fsc) esl_fatal("%s: Forward scores differ (%f %f %f)", msg, fsc, sc1, sc2);
+      for (i = 0; i <= Ln; i++)
+        {
+          for (x = 0; x < p7X_NXCELLS; x++)
+            if (fcx1->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x] || fcx2->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x])
+              esl_fatal("%s: Forward special state %d of row %d differs", msg, x, i);
+          if (memcmp((void *) fcx1->dpf[i], (void *) fwd->dpf[i], rowbytes) != 0) esl_fatal("%s: one-block Forward row %d differs", msg, i);
+          if (fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0f) fnscaled++;
+        }
+      for (b = (Ln / blockR) * blockR; b >= 0; b -= blockR)
+        {
+          if (fwd_load(dsq, om_fs5, fcx2, ov5, b) != eslOK) esl_fatal(msg);
+          for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
+            if (memcmp((void *) fcx2->dpf[i], (void *) fwd->dpf[i], rowbytes) != 0) esl_fatal("%s: loaded Forward block %d differs at row %d", msg, b, i);
+        }
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (fcx2->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Forward special states changed by loading", msg);
+
       /* log of the product of each matrix's scale factors for rows i..L */
       lsf1[Ln+1] = lsf2[Ln+1] = 0.;
       for (i = Ln; i >= 1; i--)
@@ -3770,6 +4007,7 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
             }
     }
   if (require_scaling && nscaled == 0) esl_fatal("%s: no row was rescaled; test is too weak", msg);
+  if (require_scaling && fnscaled == 0) esl_fatal("%s: no Forward row was rescaled; test is too weak", msg);
 
   free(dsq);
   free(lsf1);
@@ -3782,6 +4020,8 @@ utest_backward_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
   p7_oivx_Destroy(ov5);
   p7_chkomx_Destroy(cx1);
   p7_chkomx_Destroy(cx2);
+  p7_chkomx_Destroy(fcx1);
+  p7_chkomx_Destroy(fcx2);
   p7_fs_oprofile_Destroy(om_fs5);
 }
 
@@ -3842,8 +4082,8 @@ main(int argc, char **argv)
   utest_fwdbackfs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, N);
   utest_backward_decoding_fs(r, abcAA, gcode, bgAA, ct, M, N);
   utest_backward_rowL_scale_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 10);
-  utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 3*M+150, N,  TRUE);
-  utest_backward_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, 1, 60,      10, FALSE);
+  utest_fwdback_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, M, 3*M+150, N,  TRUE);
+  utest_fwdback_chk_fs(r, abcAA, abcDNA, gcode, bgAA, bgDNA, ct, 1, 60,      10, FALSE);
 
   esl_alphabet_Destroy(abcDNA);
   esl_alphabet_Destroy(abcAA);

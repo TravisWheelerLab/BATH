@@ -1695,6 +1695,204 @@ p7_Forward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 /* end p7_Forward_Frameshift_avx() */
 
 
+/* fwd_fs_ring_load()
+ * Ring entries before row <b> (> 0) is computed again: rows b-4 .. b-1
+ * (from 0), from the special states stored in <xmx>, each multiplied by
+ * the inverse scale factors of the rows computed after it up to b-1, in
+ * the same order as when the rows were first computed, so the entries
+ * are identical.
+ */
+static void
+fwd_fs_ring_load(P7_FS_FWDRING *rg, const float *xmx, int b)
+{
+  float sf;
+  int   j, r, s;
+
+  for (r = 0; r < PARSER_ROWS_FWD; r++)
+    rg->xN[r] = rg->xB[r] = rg->xJ[r] = rg->xC[r] = 0.0f;
+  for (j = ESL_MAX(0, b-PARSER_ROWS_FWD); j < b; j++)
+    {
+      s = j % PARSER_ROWS_FWD;
+      rg->xN[s] = xmx[j*p7X_NXCELLS+p7X_N];
+      rg->xB[s] = xmx[j*p7X_NXCELLS+p7X_B];
+      rg->xJ[s] = xmx[j*p7X_NXCELLS+p7X_J];
+      rg->xC[s] = xmx[j*p7X_NXCELLS+p7X_C];
+      for (r = j+1; r < b; r++)
+        if (xmx[r*p7X_NXCELLS+p7X_SCALE] > 1.0f)
+          {
+            sf = 1.0f / xmx[r*p7X_NXCELLS+p7X_SCALE];
+            rg->xN[s] *= sf; rg->xB[s] *= sf; rg->xJ[s] *= sf; rg->xC[s] *= sf;
+          }
+    }
+}
+
+
+/* forward_ivx_load_avx()
+ * Codon partial sums before row <b> (> 0) is computed again: rows
+ * b-4 .. b-1 (from 1) into <ivx>, each from the row before it (core
+ * cells in <dp>, xB in <xmx>) as p7_ForwardRow_Frameshift_avx() computes
+ * it, then multiplied by the inverse scale factors of its own row and
+ * the rows after it up to b-1, in the same order as when the rows were
+ * first computed, so the values are identical. The other slots are set
+ * to 0.
+ */
+static void
+forward_ivx_load_avx(const P7_FS_OPROFILE *om_fs, __m256 * const *dp, const float *xmx, __m256 **ivx, int b)
+{
+  __m256   zerov = _mm256_setzero_ps();
+  __m256   mpv, dpv, ipv, xBv, sv, sfv;
+  __m256  *tp;
+  __m256  *dpp;
+  int  Q = p7O_NQF_AVX(om_fs->M);
+  int  q, r, j, slot;
+
+  for (r = 0; r < p7P_5CODONS; r++)
+    for (q = 0; q < Q; q++)
+      ivx[r][q] = zerov;
+
+  for (r = ESL_MAX(1, b-4); r < b; r++)
+    {
+      slot = r % p7P_5CODONS;
+      dpp  = dp[r-1];
+      xBv  = _mm256_set1_ps(xmx[(r-1)*p7X_NXCELLS+p7X_B]);
+      mpv  = esl_avx_rightshiftz_float(MMO_FS(dpp,Q-1,p7X_FS_C0));
+      dpv  = esl_avx_rightshiftz_float(DMO_FS(dpp,Q-1));
+      ipv  = esl_avx_rightshiftz_float(IMO_FS(dpp,Q-1));
+      tp   = om_fs->tfv_avx;
+      for (q = 0; q < Q; q++)
+        {
+          sv  =            _mm256_mul_ps(xBv, *tp);  tp++;
+          sv  = _mm256_add_ps(sv,   _mm256_mul_ps(mpv, *tp)); tp++;
+          sv  = _mm256_add_ps(sv,   _mm256_mul_ps(ipv, *tp)); tp++;
+          sv  = _mm256_add_ps(sv,   _mm256_mul_ps(dpv, *tp)); tp++;
+          tp += 3;
+          ivx[slot][q] = sv;
+          mpv = MMO_FS(dpp,q,p7X_FS_C0); dpv = DMO_FS(dpp,q); ipv = IMO_FS(dpp,q);
+        }
+      for (j = r; j < b; j++)
+        if (xmx[j*p7X_NXCELLS+p7X_SCALE] > 1.0f)
+          {
+            sfv = _mm256_set1_ps(1.0f / xmx[j*p7X_NXCELLS+p7X_SCALE]);
+            for (q = 0; q < Q; q++) ivx[slot][q] = _mm256_mul_ps(ivx[slot][q], sfv);
+          }
+    }
+}
+
+
+/* Function:  p7_ForwardChk_Frameshift_avx()
+ * Synopsis:  Frameshift Forward in a checkpointed matrix.
+ *
+ * Purpose:   The Forward algorithm of <p7_Forward_Frameshift_avx()> for the
+ *            5-codon profile <om_fs> against <dsq> of length <L>, computed
+ *            in the checkpointed matrix <cx>, with <ov> as workspace. Each
+ *            row is computed by <p7_ForwardRow_Frameshift_avx()>, so cells,
+ *            special states, scale factors and score are identical to
+ *            <p7_Forward_Frameshift_avx()>.
+ *
+ *            Rows are computed from 0 up to <L>, one block at a time;
+ *            checkpoints of the 5 rows before each block are saved, so
+ *            <p7_ForwardChkLoad_Frameshift_avx()> can compute any block
+ *            again, with identical values. On return the block holding
+ *            row <L> is loaded and the special states and scale factors
+ *            of all rows are in <cx->xmx>.
+ *
+ *            The caller creates <cx> with <p7_CHK_FORWARD> (or sets that
+ *            direction with <p7_chkomx_SetDirection()>), <p7X_NSCELLS_FS>
+ *            vectors per stripe and at least 5 saved rows, and grows it
+ *            for <om_fs->M> by <L> with the block size it wants
+ *            (<p7_chkomx_GrowTo()>).
+ *
+ * Args:      dsq    - sequence in digitized form, 1..L
+ *            L      - length of dsq (>= 1)
+ *            om_fs  - 5-codon frameshift profile
+ *            cx     - checkpointed DP matrix
+ *            ov     - workspace for the profile's M
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Returns:   <eslOK> on success.
+ *            <eslERANGE> if the score underflows to 0 (L > 1); <*opt_sc>
+ *            is then -infinity.
+ *
+ * Throws:    <eslEINVAL> if <cx> isn't set up for this computation or
+ *            <om_fs> isn't a 5-codon profile.
+ *            <eslERANGE> if the score is NaN or overflows.
+ */
+int
+p7_ForwardChk_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+{
+  P7_FS_FWDRING rg;
+  float         totscale = 0.0f;
+  float         xCL, xCLm1, xCLm2, xCtot;
+  int           b, i;
+  int           status;
+
+  if (om_fs->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
+  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 5 || cx->nscells != p7X_NSCELLS_FS)
+    ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed frameshift Forward");
+  if (L < 1) ESL_EXCEPTION(eslEINVAL, "sequence length must be >= 1");
+
+  cx->M = om_fs->M;
+  cx->L = L;
+
+  for (b = 0; b <= L; b += cx->blockR)
+    {
+      if ((status = p7_chkomx_StartBlock_avx(cx, b)) != eslOK) return status;
+      for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
+        p7_ForwardRow_Frameshift_avx(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx_avx, cx->dpf_avx[i],
+                                     (i >= 1) ? cx->dpf_avx[i-1] : NULL, (i >= 3) ? cx->dpf_avx[i-3] : NULL, i);
+    }
+
+  xCL   = rg.xC[   L    %PARSER_ROWS_FWD];
+  xCLm1 = rg.xC[((L-1)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD];
+  xCLm2 = rg.xC[((L-2)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD];
+  xCtot = xCL + xCLm1*om_fs->xf[p7O_C][p7O_LOOP] + xCLm2*om_fs->xf[p7O_C][p7O_LOOP];
+
+  if      (isnan(xCtot))         ESL_EXCEPTION(eslERANGE, "forward score is NaN");
+  else if (isinf(xCtot) == 1)    ESL_EXCEPTION(eslERANGE, "forward score overflow (is infinity)");
+  else if (L > 1 && xCtot == 0.0f) { if (opt_sc) *opt_sc = -eslINFINITY; return eslERANGE; }
+  if (opt_sc != NULL) *opt_sc = totscale + logf(xCtot * om_fs->xf[p7O_C][p7O_MOVE]);
+  return eslOK;
+}
+
+
+/* Function:  p7_ForwardChkLoad_Frameshift_avx()
+ * Synopsis:  Compute one block of a checkpointed frameshift Forward again.
+ *
+ * Purpose:   After <p7_ForwardChk_Frameshift_avx()> has filled <cx> for
+ *            <om_fs> and <dsq>, compute block <b> (a multiple of
+ *            <cx->blockR>) again from the checkpoint before it, with <ov>
+ *            as workspace: the codon partial sums of the 4 rows before
+ *            the block are computed from the saved rows and the special
+ *            states of the rows before it are taken from <cx->xmx>
+ *            first. Values are identical to those of the fill. Blocks are
+ *            loaded in decreasing order, as a computation that runs
+ *            backward through the rows reads them
+ *            (<p7_chkomx_LoadBlock()>).
+ *
+ * Returns:   <eslOK> on success.
+ * Throws:    <eslEINVAL> if block <b> can't be loaded.
+ */
+int
+p7_ForwardChkLoad_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+{
+  P7_FS_FWDRING rg;
+  float         totscale = 0.0f;   /* unused: the scale factors are already in <cx->xmx> */
+  int           i;
+  int           status;
+
+  if ((status = p7_chkomx_LoadBlock_avx(cx, b)) != eslOK) return status;
+  if (b > 0)
+    {
+      fwd_fs_ring_load(&rg, cx->xmx, b);
+      forward_ivx_load_avx(om_fs, cx->dpf_avx, cx->xmx, ov->ivx_avx, b);
+    }
+  for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
+    p7_ForwardRow_Frameshift_avx(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx_avx, cx->dpf_avx[i],
+                                 (i >= 1) ? cx->dpf_avx[i-1] : NULL, (i >= 3) ? cx->dpf_avx[i-3] : NULL, i);
+  return eslOK;
+}
+
+
 /* Function:  p7_Backward_Frameshift_avx()
  * Synopsis:  AVX2 frameshift-aware Backward, 5 codon lengths, full O(ML) matrix.
  */

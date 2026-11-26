@@ -139,7 +139,10 @@ p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float
       rsc2 = gm_fs5->rsc[c2];
 
       for (k = 1; k <= M; k++) {
-        IVX5(2,k) = XMX_FS(1,p7G_B) + TSC(p7P_BM,k-1);
+        IVX5(2,k) = p7_FLogsum(MMX_FS(1,k-1,p7G_C0) + TSC(p7P_MM,k-1),
+                    p7_FLogsum(IMX_FS(1,k-1)        + TSC(p7P_IM,k-1),
+                    p7_FLogsum(DMX_FS(1,k-1)        + TSC(p7P_DM,k-1),
+                               XMX_FS(1,p7G_B)      + TSC(p7P_BM,k-1))));
         MMX_FS(2,k,p7G_C1) = IVX5(2,k) + MSC_FS1(k);
         MMX_FS(2,k,p7G_C2) = IVX5(1,k) + MSC_FS2(k);
         MMX_FS(2,k,p7G_C3) = -eslINFINITY;
@@ -256,7 +259,7 @@ p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float
   c5 = p7P_CODON5_FS5(t, u, v, w, x);
   c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
   rsc5 = gm_fs5->rsc[c5];
-  ivx_5 = (i-5) % p7P_5CODONS;
+  ivx_5 = (i-4) % p7P_5CODONS;
 
   MMX_FS(i,0,p7G_C0) = MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3)
   = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = IMX_FS(i,0) = DMX_FS(i,0) = -eslINFINITY;
@@ -716,7 +719,10 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
   rsc2 = gm_fs5->rsc[c2];
 
   for (k = 1; k < M; k++) {
-    IVX5(2,k) = XMX(1,p7G_B) + TSC(p7P_BM,k-1);
+    IVX5(2,k) = p7_FLogsum(MMX(1,k-1)      + TSC(p7P_MM,k-1),
+                p7_FLogsum(IMX(1,k-1)      + TSC(p7P_IM,k-1),
+                p7_FLogsum(DMX(1,k-1)      + TSC(p7P_DM,k-1),
+                           XMX(1,p7G_B)    + TSC(p7P_BM,k-1))));
     MMX(2,k)  = IVX5(2,k) + MSC_FS1(k);
     MMX(2,k)  = p7_FLogsum(MMX(2,k), IVX5(1,k) + MSC_FS2(k)); //IVX5(1,k) now holds the i-2 transition
 	IMX(2,k)  = -eslINFINITY;
@@ -728,7 +734,10 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
                               XMX(2,p7G_E)));
   }
 
-  IVX5(2,M) = XMX(1,p7G_B) + TSC(p7P_BM,M-1);
+  IVX5(2,M) = p7_FLogsum(MMX(1,M-1)      + TSC(p7P_MM,M-1),
+              p7_FLogsum(IMX(1,M-1)      + TSC(p7P_IM,M-1),
+              p7_FLogsum(DMX(1,M-1)      + TSC(p7P_DM,M-1),
+                         XMX(1,p7G_B)    + TSC(p7P_BM,M-1))));
   MMX(2,M)  = IVX5(2,M) + p7P_MSC_CODON(gm_fs5, M, c1);
   MMX(2,M)  = p7_FLogsum(MMX(2,M), IVX5(1,M) + p7P_MSC_CODON(gm_fs5, M, c2)); //IVX5(1,M) now holds the i-2 transition
   IMX(2,M)  = -eslINFINITY;
@@ -855,7 +864,7 @@ p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
     ivx_2 = (i-1) % p7P_5CODONS;
     ivx_3 = (i-2) % p7P_5CODONS;
     ivx_4 = (i-3) % p7P_5CODONS;
-    ivx_5 = (i-5) % p7P_5CODONS;
+    ivx_5 = (i-4) % p7P_5CODONS;
 
     MMX(curr,0) =  IMX(curr,0)        = DMX(curr,0)        = -eslINFINITY;
  
@@ -2401,6 +2410,7 @@ main(int argc, char **argv)
 #include "esl_getopts.h"
 #include "esl_random.h"
 #include "esl_randomseq.h"
+#include "esl_vectorops.h"
 
 static void
 utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_HMM *hmm, P7_PROFILE *gm, P7_FS_PROFILE *gm_fs3, P7_FS_PROFILE *gm_fs5, int nseq, int L)
@@ -2604,6 +2614,72 @@ utest_backward_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_CODONTABLE
 
 
 
+
+/* utest_fwdback_agree_fs()
+ * The frameshift Forward, Forward parser (5 codon lengths) and Backward
+ * must sum the same paths: on random DNA and on the back-translated
+ * consensus of <hmm> with two nucleotides deleted and two inserted,
+ * with the model's frameshift probability raised to 0.05 so that codon
+ * lengths other than 3 carry weight, the three scores must agree to
+ * within 0.01 nats.
+ */
+static void
+utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_BG *bgDNA, P7_HMM *hmm, int nseq)
+{
+  char          *msg     = "frameshift Forward/Backward agreement unit test failed";
+  int            M       = hmm->M;
+  int            L       = 3*M + 100;
+  float          fsprob  = hmm->fsprob;
+  P7_FS_PROFILE *gm_fs5  = p7_profile_fs_Create(M, abcAA, 5);
+  P7_GMX        *fx      = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
+  P7_GMX        *px      = p7_gmx_Create(M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
+  P7_GMX        *bx      = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_IVX        *iv      = p7_ivx_Create(M, p7P_5CODONS);
+  ESL_SQ        *sq      = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ       *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
+  ESL_DSQ       *tmp     = malloc(sizeof(ESL_DSQ) * (L+2));
+  float          fsc, psc, bsc;
+  int            n, i, j, Ln, start, del1, del2, ins1, ins2;
+
+  hmm->fsprob = 0.05;
+  p7_emit_SimpleConsensus(hmm, sq);
+  for (n = 0; n < nseq; n++)
+    {
+      Ln = 3*M + 60;
+      esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, tmp);
+      if (n % 2 == 1)
+        {
+          start = 1 + esl_rnd_Roll(r, Ln - 3*M + 1);
+          for (i = 1, j = start; i <= M; i++, j += 3) p7_codontable_GetCodon(codon_table, r, sq->dsq[i], tmp+j);
+        }
+      del1 = 1 + esl_rnd_Roll(r, Ln);  del2 = 1 + esl_rnd_Roll(r, Ln);
+      ins1 = 1 + esl_rnd_Roll(r, Ln);  ins2 = 1 + esl_rnd_Roll(r, Ln);
+      for (i = 1, j = 1; i <= Ln; i++)
+        {
+          if (i == del1 || i == del2) continue;
+          if (i == ins1 || i == ins2) dsq[j++] = esl_rnd_Roll(r, 4);
+          dsq[j++] = tmp[i];
+        }
+      Ln = j - 1;
+
+      if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL)          != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift              (dsq, Ln, gm_fs5, fx, iv, &fsc)   != eslOK) esl_fatal(msg);
+      if (p7_GForwardParser_Frameshift_5Codons(dsq, Ln, gm_fs5, px, iv, &psc)   != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift             (dsq, Ln, gm_fs5, bx, iv, &bsc)   != eslOK) esl_fatal(msg);
+      if (fabs(fsc - bsc) > 0.01 || fabs(psc - bsc) > 0.01)
+        esl_fatal("%s: Forward %.4f, Forward parser %.4f, Backward %.4f nats", msg, fsc, psc, bsc);
+    }
+
+  hmm->fsprob = fsprob;
+  free(dsq);
+  free(tmp);
+  esl_sq_Destroy(sq);
+  p7_ivx_Destroy(iv);
+  p7_gmx_Destroy(fx);
+  p7_gmx_Destroy(px);
+  p7_gmx_Destroy(bx);
+  p7_profile_fs_Destroy(gm_fs5);
+}
 #endif /*p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE*/
 /*------------------------- end, unit tests ---------------------*/
 
@@ -2673,6 +2749,7 @@ main(int argc, char **argv)
 
   utest_forward_fs    (go, r, abcAA, ct, bgAA, hmm, gm, gm_fs3, gm_fs5, nseq, L);
   utest_backward_decoding_fs(r, abcAA, ct, bgAA, hmm, gm, gm_fs5, nseq, L);
+  utest_fwdback_agree_fs(r, abcAA, abcDNA, gcode, ct, bgAA, bgDNA, hmm, nseq);
 
   p7_profile_fs_Destroy(gm_fs5);
   p7_profile_fs_Destroy(gm_fs3);

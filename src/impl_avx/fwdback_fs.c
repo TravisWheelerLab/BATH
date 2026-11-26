@@ -955,6 +955,24 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   p7_gmx_Destroy(gx);
 }
 
+/* fs_row_mdi_differs()
+ * TRUE if the M (C0), D and I cells of the 3-cell row <cr> and the
+ * 8-cell row <fr>, <Q> stripes of vectors of <vbytes> bytes, are not
+ * bit-identical.
+ */
+static int
+fs_row_mdi_differs(const void *cr, const void *fr, int Q, size_t vbytes)
+{
+  const char *c = cr, *f = fr;
+  int q;
+  for (q = 0; q < Q; q++)
+    if (memcmp(c + (q*p7X_NSCELLS + p7X_M) * vbytes, f + (q*p7X_NSCELLS_FS + p7X_FS_M) * vbytes, vbytes) != 0 ||
+        memcmp(c + (q*p7X_NSCELLS + p7X_D) * vbytes, f + (q*p7X_NSCELLS_FS + p7X_FS_D) * vbytes, vbytes) != 0 ||
+        memcmp(c + (q*p7X_NSCELLS + p7X_I) * vbytes, f + (q*p7X_NSCELLS_FS + p7X_FS_I) * vbytes, vbytes) != 0)
+      return TRUE;
+  return FALSE;
+}
+
 /* utest_fwdback_chk_fs()
  * Checkpointed frameshift Forward, and Backward with its own scale
  * factors, on random
@@ -968,8 +986,11 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
  *     taken out) agree with p7_Backward_Frameshift() up to rounding;
  *   - the checkpointed Forward, in one block and in blocks of 5..12
  *     rows, has the same score, special states, scale factors and
- *     cells as p7_Forward_Frameshift(), and so does every block
- *     loaded again, last to first, as a backward pass reads them.
+ *     M (C0), D and I cells as p7_Forward_Frameshift(), and so does
+ *     every block loaded again, last to first, as a backward pass
+ *     reads them;
+ *   - the 5-codon Forward parser has the same score, special states
+ *     and scale factors as p7_Forward_Frameshift().
  * With <require_scaling>, fail if no Backward or no Forward row was
  * rescaled. With <use_sse>,
  * the _sse versions are called directly, so an AVX CPU also tests the
@@ -989,6 +1010,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
   double         *lsf2   = malloc(sizeof(double) * (L+2));
   P7_OMX         *fwd    = NULL;
   P7_OMX         *bck    = NULL;
+  P7_OMX         *pfx    = NULL;
   P7_OIVX        *ov5    = NULL;
   P7_CHKOMX      *cx1    = NULL;
   P7_CHKOMX      *cx2    = NULL;
@@ -1001,8 +1023,10 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
   int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_BackwardChkLoad_Frameshift_sse : p7_BackwardChkLoad_Frameshift;
   int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_ForwardChk_Frameshift_sse      : p7_ForwardChk_Frameshift;
   int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_ForwardChkLoad_Frameshift_sse  : p7_ForwardChkLoad_Frameshift;
-  size_t          rowbytes = use_sse ? sizeof(__m128) * p7O_NQF(M) * p7X_NSCELLS_FS : sizeof(__m256) * p7O_NQF_AVX(M) * p7X_NSCELLS_FS;
-  float           bsc, fsc, sc1, sc2;
+  int           (*fwd_p5)    (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)    = use_sse ? p7_ForwardParser_Frameshift_5Codons_sse : p7_ForwardParser_Frameshift_5Codons;
+  int             Q        = use_sse ? p7O_NQF(M) : p7O_NQF_AVX(M);
+  size_t          vbytes   = use_sse ? sizeof(__m128) : sizeof(__m256);
+  float           bsc, fsc, psc, sc1, sc2;
   float           a, c;
   double          d;
   int             nscaled = 0;
@@ -1028,11 +1052,12 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
       p7_fs_oprofile_Convert_sse(gm_fs5, om_fs5);
       fwd = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS_FS);
       bck = p7_omx_Create_dpf_sse(M, L, L, p7X_NSCELLS);
+      pfx = p7_omx_Create_dpf_sse(M, PARSER_ROWS_FWD, L, p7X_NSCELLS);
       ov5 = p7_oivx_Create_sse(M, p7P_5CODONS);
       cx1 = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
       cx2 = p7_chkomx_Create_sse(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
-      fcx1 = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
-      fcx2 = p7_chkomx_Create_sse(M, L, 5,   5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
+      fcx1 = p7_chkomx_Create_sse(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_FORWARD);
+      fcx2 = p7_chkomx_Create_sse(M, L, 5,   5, p7X_NSCELLS, p7_CHK_FORWARD);
     }
   else
     {
@@ -1040,11 +1065,12 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
       p7_fs_oprofile_Convert(gm_fs5, om_fs5);
       fwd = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS_FS);
       bck = p7_omx_Create_dpf(M, L, L, p7X_NSCELLS);
+      pfx = p7_omx_Create_dpf(M, PARSER_ROWS_FWD, L, p7X_NSCELLS);
       ov5 = p7_oivx_Create(M, p7P_5CODONS);
       cx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_BACKWARD);
       cx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS, p7_CHK_BACKWARD);
-      fcx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
-      fcx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS_FS, p7_CHK_FORWARD);
+      fcx1 = p7_chkomx_Create(M, L, L+1, 5, p7X_NSCELLS, p7_CHK_FORWARD);
+      fcx2 = p7_chkomx_Create(M, L, 5,   5, p7X_NSCELLS, p7_CHK_FORWARD);
     }
 
   for (n = 0; n < N; n++)
@@ -1111,18 +1137,25 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
           for (x = 0; x < p7X_NXCELLS; x++)
             if (fcx1->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x] || fcx2->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x])
               esl_fatal("%s: Forward special state %d of row %d differs", msg, x, i);
-          if (memcmp((use_sse ? (void *) fcx1->dpf[i] : (void *) fcx1->dpf_avx[i]), (use_sse ? (void *) fwd->dpf[i] : (void *) fwd->dpf_avx[i]), rowbytes) != 0) esl_fatal("%s: one-block Forward row %d differs", msg, i);
+          if (fs_row_mdi_differs((use_sse ? (void *) fcx1->dpf[i] : (void *) fcx1->dpf_avx[i]), (use_sse ? (void *) fwd->dpf[i] : (void *) fwd->dpf_avx[i]), Q, vbytes)) esl_fatal("%s: one-block Forward row %d differs", msg, i);
           if (fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] > 1.0f) fnscaled++;
         }
       for (b = (Ln / blockR) * blockR; b >= 0; b -= blockR)
         {
           if (fwd_load(dsq, om_fs5, fcx2, ov5, b) != eslOK) esl_fatal(msg);
           for (i = b; i <= ESL_MIN(Ln, b + blockR - 1); i++)
-            if (memcmp((use_sse ? (void *) fcx2->dpf[i] : (void *) fcx2->dpf_avx[i]), (use_sse ? (void *) fwd->dpf[i] : (void *) fwd->dpf_avx[i]), rowbytes) != 0) esl_fatal("%s: loaded Forward block %d differs at row %d", msg, b, i);
+            if (fs_row_mdi_differs((use_sse ? (void *) fcx2->dpf[i] : (void *) fcx2->dpf_avx[i]), (use_sse ? (void *) fwd->dpf[i] : (void *) fwd->dpf_avx[i]), Q, vbytes)) esl_fatal("%s: loaded Forward block %d differs at row %d", msg, b, i);
         }
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (fcx2->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Forward special states changed by loading", msg);
+
+      /* 5-codon Forward parser: identical score, special states and scale factors */
+      if (fwd_p5(dsq, Ln, om_fs5, pfx, ov5, &psc) != eslOK) esl_fatal(msg);
+      if (psc != fsc) esl_fatal("%s: Forward parser score %f, p7_Forward_Frameshift() %f", msg, psc, fsc);
+      for (i = 0; i <= Ln; i++)
+        for (x = 0; x < p7X_NXCELLS; x++)
+          if (pfx->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Forward parser special state %d of row %d differs", msg, x, i);
 
       /* log of the product of each matrix's scale factors for rows i..L */
       lsf1[Ln+1] = lsf2[Ln+1] = 0.;
@@ -1159,6 +1192,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
     {
       p7_omx_Destroy_sse(fwd);
       p7_omx_Destroy_sse(bck);
+      p7_omx_Destroy_sse(pfx);
       p7_oivx_Destroy_sse(ov5);
       p7_chkomx_Destroy_sse(cx1);
       p7_chkomx_Destroy_sse(cx2);
@@ -1170,6 +1204,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
     {
       p7_omx_Destroy(fwd);
       p7_omx_Destroy(bck);
+      p7_omx_Destroy(pfx);
       p7_oivx_Destroy(ov5);
       p7_chkomx_Destroy(cx1);
       p7_chkomx_Destroy(cx2);

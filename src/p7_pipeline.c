@@ -99,7 +99,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
   pli->chk    = NULL;
   pli->oat    = NULL;
   pli->oat_fs = NULL;
-  pli->oxf_fs = pli->oxb_fs = pli->fwd_fs = NULL;
+  pli->oxf_fs = pli->oxb_fs = NULL;
   pli->ov3    = pli->ov5    = NULL;
 
   pli->do_alignment_score_calc = (go ? esl_opt_IsUsed(go, "--splice") : 0);
@@ -134,11 +134,7 @@ p7_pipeline_Create_BATH(ESL_GETOPTS *go, int M_hint, int L_hint, enum p7_pipemod
       if ((pli->ov3     = p7_oivx_Create(M_hint, p7P_3CODONS))                              == NULL) goto ERROR;
       if ((pli->ov5     = p7_oivx_Create(M_hint, p7P_5CODONS))                              == NULL) goto ERROR;
 
-      /* Create the full frameshift Forward matrix for the stochastic traces of
-       * multidomain regions, and the OA trace storage for frameshift domain
-       * rescoring
-       */ 
-      if ((pli->fwd_fs = p7_omx_Create_dpf(M_hint, L_hint, L_hint, p7G_NSCELLS_FS)) == NULL) goto ERROR;
+      /* OA trace storage for frameshift domain rescoring */
       if ((pli->oat_fs = p7_oatmx_Create(M_hint, L_hint, p7OAT_NPLANES_FS, 1))      == NULL) goto ERROR;
     }
 
@@ -266,7 +262,6 @@ p7_pipeline_Reuse_BATH(P7_PIPELINE *pli)
   if (pli->fs_pipe) {
     p7_omx_Reuse(pli->oxf_fs);
     p7_omx_Reuse(pli->oxb_fs);
-    p7_omx_Reuse(pli->fwd_fs);
   }
   p7_omx_Reuse(pli->oxf);
   p7_omx_Reuse(pli->oxb);
@@ -285,7 +280,6 @@ p7_pipeline_Destroy_BATH(P7_PIPELINE *pli)
  
   p7_omx_Destroy(pli->oxf_fs);
   p7_omx_Destroy(pli->oxb_fs);
-  p7_omx_Destroy(pli->fwd_fs);
   p7_oivx_Destroy(pli->ov3);
   p7_oivx_Destroy(pli->ov5);
   p7_omx_Destroy(pli->oxf);

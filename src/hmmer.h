@@ -855,6 +855,7 @@ p7_oatmx_SetField(P7_OATMX *ox, int i, int b, int p0, int nbits, int v)
 #define DMX_FS(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define XMX_FS(i,s)   (xmx[(i)     * p7G_NXCELLS    + (s)])
 
+
 #define TSC(s,k) (tsc[(k) * p7P_NTRANS + (s)])
 #define MSC(k)   (rsc[(k) * p7P_NR     + p7P_MSC])
 #define ISC(k)   (rsc[(k) * p7P_NR     + p7P_ISC])
@@ -1269,7 +1270,6 @@ typedef struct p7_pipeline_s {
   P7_OATMX   *oat_fs; /* the same for frameshift domain rescoring (--fs only)  */
   P7_OMX     *oxf_fs; /* three-row Forward matrix for frameshift forward only  */
   P7_OMX     *oxb_fs; /* five-row Backward matrix for frameshift backward only */
-  P7_OMX     *fwd_fs; /* full frameshift Fwd matrix for multidomain regions    */
   P7_OIVX    *ov3;    /* pre-allocated IVX buffer for 3-codon forward/backward */
   P7_OIVX    *ov5;    /* pre-allocated IVX buffer for 5-codon forward/backward */
 
@@ -1465,7 +1465,8 @@ extern int p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* generic_fwdback_frameshift.c */
-extern void p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
+extern void p7_GForwardRow_Frameshift (const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
+extern void p7_GForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
 extern void p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
 extern int p7_GForward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
@@ -1500,7 +1501,6 @@ extern int p7_GStochasticTrace(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
 extern int p7_GStochasticTraceChk(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, P7_TRACE **tr);
 
 /*generic_stotrace_frameshift.c */
-extern int p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, const P7_GMX *gx, P7_TRACE *tr);
 extern int p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, P7_TRACE **tr);
 
 /* generic_viterbi.c */

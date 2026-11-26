@@ -1,4 +1,4 @@
-/* Stochastic traceback of a Forward matrix; frameshift aware version.
+/* Stochastic traceback of a checkpointed Forward matrix; frameshift aware version.
  * 
  * Contents:
  *   1. Stochastic traceback implementation.
@@ -63,9 +63,9 @@ select_m_joint_fs(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *
       if (p < 0) continue;
       e = gm_fs->rsc[cidx[c]][k];
       sc[(c-1)*4 + 0] = XMX_FS(p,p7G_B)      + TSC(p7P_BM,k-1) + e;
-      sc[(c-1)*4 + 1] = MMX_FS(p,k-1,p7G_C0) + TSC(p7P_MM,k-1) + e;
-      sc[(c-1)*4 + 2] = IMX_FS(p,k-1)        + TSC(p7P_IM,k-1) + e;
-      sc[(c-1)*4 + 3] = DMX_FS(p,k-1)        + TSC(p7P_DM,k-1) + e;
+      sc[(c-1)*4 + 1] = MMX(p,k-1) + TSC(p7P_MM,k-1) + e;
+      sc[(c-1)*4 + 2] = IMX(p,k-1)        + TSC(p7P_IM,k-1) + e;
+      sc[(c-1)*4 + 3] = DMX(p,k-1)        + TSC(p7P_DM,k-1) + e;
     }
   esl_vec_FLogNorm(sc, 20);
   z = esl_rnd_FChoose(r, sc, 20);
@@ -76,7 +76,8 @@ select_m_joint_fs(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *
 
 /* gsto_fs_step()
  * One step of a stochastic trace back through the frameshift Forward
- * rows <dp> and special states <xmx> of the sequence <dsq>: from state
+ * 3-cell rows <dp> (D, I and M, the C0 sum, of a checkpointed Forward
+ * matrix) and special states <xmx> of the sequence <dsq>: from state
  * <*ret_sprv> at row <*ret_i> and model position <*ret_k>, choose the
  * state before it, append it to <tr>, and update <*ret_sprv>, <*ret_i>
  * and <*ret_k>. An M state is appended with codon length 0; the step
@@ -133,8 +134,8 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
     if (p7_fs_profile_IsLocal(gm_fs)) 
     { /* local models come from any M, D */
       sc[0] = sc[M+1] = -eslINFINITY;
-      for (k = 1; k <= M; k++) sc[k]   = MMX_FS(i,k,p7G_C0);
-      for (k = 2; k <= M; k++) sc[k+M] = DMX_FS(i,k);
+      for (k = 1; k <= M; k++) sc[k]   = MMX(i,k);
+      for (k = 2; k <= M; k++) sc[k+M] = DMX(i,k);
       esl_vec_FLogNorm(sc, 2*M+1); /* now sc is a prob vector */
       k = esl_rnd_FChoose(r, sc, 2*M+1);
       if (k <= M)    scur = p7T_M;
@@ -143,8 +144,8 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
     else 
     {     /* glocal models come from M_M or D_M  */
       k     = M;
-      sc[0] = MMX_FS(i,M,p7G_C0);
-      sc[1] = DMX_FS(i,M);
+      sc[0] = MMX(i,M);
+      sc[1] = DMX(i,M);
       esl_vec_FLogNorm(sc, 2); /* now sc is a prob vector */
       scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
     }
@@ -161,9 +162,9 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
 
     /* D connects from M,D at i,k-1 */
     case p7T_D:
-      if (DMX_FS(i, k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
-      sc[0] = MMX_FS(i, k-1,p7G_C0) + TSC(p7P_MD, k-1);
-      sc[1] = DMX_FS(i, k-1) + TSC(p7P_DD, k-1);
+      if (DMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible D reached at k=%d,i=%d", k,i);
+      sc[0] = MMX(i,k-1) + TSC(p7P_MD, k-1);
+      sc[1] = DMX(i,k-1) + TSC(p7P_DD, k-1);
       esl_vec_FLogNorm(sc, 2); 
       scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_D;
       k--;
@@ -171,9 +172,9 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
 
     /* I connects from M,I at i-1,k */
     case p7T_I:
-      if (IMX_FS(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
-      sc[0] = MMX_FS(i-3,k, p7G_C0) + TSC(p7P_MI, k);
-      sc[1] = IMX_FS(i-3,k) + TSC(p7P_II, k);
+      if (IMX(i,k) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible I reached at k=%d,i=%d", k,i);
+      sc[0] = MMX(i-3,k) + TSC(p7P_MI, k);
+      sc[1] = IMX(i-3,k) + TSC(p7P_II, k);
 
       esl_vec_FLogNorm(sc, 2); 
       scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_M : p7T_I;
@@ -229,60 +230,6 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
 }
 
 
-/* Function:  p7_GStochasticTrace_Frameshift()
- * Synopsis:  Stochastic traceback of a frameshift-aware Forward matrix.
- *
- * Purpose:   Stochastic traceback of Forward matrix <gx> to
- *            sample an alignment of digital sequence <dsq>
- *            (of length <L>) to the profile <gm_fs5>. 
- *            
- *            The sampled traceback is returned in <tr>, which the
- *            caller must have at least made an initial allocation of
- *            (the <tr> will be grown as needed here).
- *
- * Args:      r      - source of random numbers
- *            dsq    - digital sequence aligned to, 1..L 
- *            L      - length of dsq
- *            gm_fs5    - profile
- *            mx     - Forward matrix to trace, L x M
- *            tr     - storage for the recovered traceback.
- *
- * Returns:   <eslOK> on success.
- */
-int
-p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs, const P7_GMX *gx, P7_TRACE *tr)
-{
-  int     status;
-  int     i;      /* position in seq (1..L) */
-  int     k;      /* position in model (1..M) */ 
-  int     M   = gm_fs->M;
-  float  *sc;      /* scores of possible choices: up to 2M-1, in the case of exits to E  */
-  int     sprv;
-
-  /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */
-  ESL_ALLOC(sc, sizeof(float) * ESL_MAX(2*M+1, 20)); 
-
-  k = 0;
-  i = L;    
-  if ((status = p7_trace_fs_Append(tr, p7T_T, k, i, 0)) != eslOK) goto ERROR;
-  if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) goto ERROR;
-  sprv = p7T_C;
-
-  while (sprv != p7T_S) 
-    if ((status = gsto_fs_step(r, gm_fs, gx->dp, gx->xmx, dsq, sc, tr, &sprv, &i, &k)) != eslOK) goto ERROR;
-
-  if ((status = p7_trace_fs_Reverse(tr)) != eslOK) goto ERROR;
-  tr->M = gm_fs->M;
-  tr->L = L;
-  free(sc);
-  return eslOK;
-
- ERROR:
-  if (sc != NULL) free(sc);
-  return status;
-}
-
-
 /* Function:  p7_GStochasticTraceChk_Frameshift()
  * Synopsis:  Sample tracebacks from a checkpointed frameshift Forward matrix.
  *
@@ -290,10 +237,7 @@ p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
  *            <gm_fs5> against <dsq> of length <L> from the checkpointed
  *            Forward matrix <cx> that <p7_GForwardChk_Frameshift()>
  *            filled: trace <t> into <tr[t]>, with its own random number
- *            generator <r[t]>. Each trace makes the same choices, in the
- *            same order, as <p7_GStochasticTrace_Frameshift()> on the
- *            full Forward matrix with the same generator, so the traces
- *            are identical to it.
+ *            generator <r[t]>.
  *
  *            All traces are sampled together. The blocks of <cx> are
  *            loaded from the last to the first, each computed again from
@@ -329,7 +273,7 @@ p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *ds
   int    b, t;
   int    status;
 
-  if (cx->dir != p7_CHK_FORWARD || cx->nscells != p7G_NSCELLS_FS || cx->L != L || cx->M != gm_fs5->M)
+  if (cx->dir != p7_CHK_FORWARD || cx->nscells != p7G_NSCELLS || cx->L != L || cx->M != gm_fs5->M)
     ESL_EXCEPTION(eslEINVAL, "checkpointed frameshift Forward matrix doesn't match");
 
   ESL_ALLOC(sc,   sizeof(float) * ESL_MAX(2*gm_fs5->M+1, 20));
@@ -429,13 +373,14 @@ main(int argc, char **argv)
   P7_BG          *bgAA    = NULL;
   P7_BG          *bgDNA   = NULL;
   P7_FS_PROFILE  *gm_fs5   = NULL;
-  P7_GMX         *fwd     = NULL;
+  P7_CHKGMX      *cx      = NULL;
   P7_IVX         *iv      = NULL;
-  P7_TRACE       *tr      = NULL;
+  ESL_RANDOMNESS **rng    = NULL;
+  P7_TRACE      **tr      = NULL;
   int             L       = esl_opt_GetInteger(go, "-L");
   int             N       = esl_opt_GetInteger(go, "-N");
   ESL_DSQ        *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
-  int             i;
+  int             t;
   float           sc, fsc;
   float           bestsc  = -eslINFINITY;
 
@@ -450,25 +395,25 @@ main(int argc, char **argv)
   p7_bg_SetLength(bgDNA, L/3);
   gm_fs5 = p7_profile_fs_Create(hmm->M, abcAA, 5);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
-  fwd = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  cx  = p7_chkgmx_Create(gm_fs5->M, L, L+1, 5, p7G_NSCELLS, p7_CHK_FORWARD);
   iv  = p7_ivx_Create(gm_fs5->M, p7P_5CODONS); 
-  tr  = p7_trace_fs_Create();
+  rng = malloc(sizeof(ESL_RANDOMNESS *) * N);
+  tr  = malloc(sizeof(P7_TRACE *) * N);
+  for (t = 0; t < N; t++) { rng[t] = esl_randomness_Create(1 + esl_rnd_Roll(r, 1000000)); tr[t] = p7_trace_fs_Create(); }
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
-  p7_GForward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc);
+  p7_chkgmx_GrowTo(cx, gm_fs5->M, L, L+1);
+  p7_GForwardChk_Frameshift(dsq, L, gm_fs5, cx, iv, &fsc);
 
   esl_stopwatch_Start(w);
-  for (i = 0; i < N; i++)
-    {
-      p7_GStochasticTrace_Frameshift(r, dsq, L, gm_fs5, fwd, tr);
-      p7_trace_Reuse(tr);
-    }
+  p7_GStochasticTraceChk_Frameshift(rng, N, dsq, L, gm_fs5, cx, iv, tr);
   esl_stopwatch_Stop(w);
   esl_stopwatch_Display(stdout, w, "# CPU time: ");
 
   free(dsq);
-  p7_trace_fs_Destroy(tr);
-  p7_gmx_Destroy(fwd);
+  for (t = 0; t < N; t++) { esl_randomness_Destroy(rng[t]); p7_trace_fs_Destroy(tr[t]); }
+  free(rng); free(tr);
+  p7_chkgmx_Destroy(cx);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs5);
   p7_bg_Destroy(bgAA);

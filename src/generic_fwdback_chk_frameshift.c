@@ -44,9 +44,8 @@
 
 /* forward_ivx_row()
  * The codon partial sums of Forward row <r> (>= 1) into <ivx>, from row
- * r-1 (core cells and special states) of the Forward matrix <dp>,
- * <xmx>. Same calculation as p7_GForwardRow_Frameshift() does for row
- * <r>.
+ * r-1 (core cells of the 3-cell rows <dp>, special states in <xmx>).
+ * Same calculation as p7_GForwardRow3_Frameshift() does for row <r>.
  */
 static void
 forward_ivx_row(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, float *ivx, int r)
@@ -61,9 +60,9 @@ forward_ivx_row(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, float
       IVX5(slot,k) = XMX_FS(r-1,p7G_B) + TSC(p7P_BM,k-1);
   else
     for (k = 1; k <= M; k++)
-      IVX5(slot,k) = p7_FLogsum(MMX_FS(r-1,k-1,p7G_C0) + TSC(p7P_MM,k-1),
-                     p7_FLogsum(IMX_FS(r-1,k-1)        + TSC(p7P_IM,k-1),
-                     p7_FLogsum(DMX_FS(r-1,k-1)        + TSC(p7P_DM,k-1),
+      IVX5(slot,k) = p7_FLogsum(MMX(r-1,k-1)          + TSC(p7P_MM,k-1),
+                     p7_FLogsum(IMX(r-1,k-1)          + TSC(p7P_IM,k-1),
+                     p7_FLogsum(DMX(r-1,k-1)          + TSC(p7P_DM,k-1),
                                 XMX_FS(r-1,p7G_B)      + TSC(p7P_BM,k-1))));
 }
 
@@ -75,7 +74,8 @@ forward_ivx_row(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, float
  *            codon lengths) for <gm_fs5> against <dsq> of length <L>,
  *            computed in the checkpointed matrix <cx>, with <iv> as
  *            workspace. Each row is computed by
- *            <p7_GForwardRow_Frameshift()>, so values and score are
+ *            <p7_GForwardRow3_Frameshift()> and holds the D, I and M (C0
+ *            sum) cells, so these cells, special states and score are
  *            identical to <p7_GForward_Frameshift()>.
  *
  *            Rows are computed from 0 up to <L>, one block at a time;
@@ -86,7 +86,7 @@ forward_ivx_row(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, float
  *
  *            The caller creates <cx> with <p7_CHK_FORWARD> (or sets that
  *            direction with <p7_chkgmx_SetDirection()>),
- *            <p7G_NSCELLS_FS> cells per model position and at least 5
+ *            <p7G_NSCELLS> cells per model position and at least 5
  *            saved rows, and grows it for <gm_fs5->M> by <L> with the
  *            block size it wants (<p7_chkgmx_GrowTo()>).
  *
@@ -114,7 +114,7 @@ p7_GForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5
   int     status;
 
   if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
-  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 5 || cx->nscells != p7G_NSCELLS_FS)
+  if (cx->dir != p7_CHK_FORWARD || cx->saveR < 5 || cx->nscells != p7G_NSCELLS)
     ESL_EXCEPTION(eslEINVAL, "matrix not set up for the checkpointed frameshift Forward");
 
   cx->M = gm_fs5->M;
@@ -124,7 +124,7 @@ p7_GForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5
     {
       if ((status = p7_chkgmx_StartBlock(cx, b)) != eslOK) return status;
       for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
-        p7_GForwardRow_Frameshift(dsq, gm_fs5, cx->dp, cx->xmx, iv->ivx, i);
+        p7_GForwardRow3_Frameshift(dsq, gm_fs5, cx->dp, cx->xmx, iv->ivx, i);
     }
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX_FS(L,p7G_C),
@@ -144,8 +144,9 @@ p7_GForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5
  *            the checkpoint before it, with <iv> as workspace: the codon
  *            partial sums of the 4 rows before the block are computed
  *            from the saved rows first. Afterwards rows <b> ..
- *            <b>+<blockR>-1 (up to <cx->L>) hold the same values as rows
- *            of the full matrix from <p7_GForward_Frameshift()>. Blocks
+ *            <b>+<blockR>-1 (up to <cx->L>) hold the same D, I and M (C0)
+ *            values as rows of the full matrix from
+ *            <p7_GForward_Frameshift()>. Blocks
  *            are loaded in decreasing order, as a computation that runs
  *            backward through the rows reads them
  *            (<p7_chkgmx_LoadBlock()>).
@@ -173,7 +174,7 @@ p7_GForwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P
     }
 
   for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
-    p7_GForwardRow_Frameshift(dsq, gm_fs5, cx->dp, cx->xmx, ivx, i);
+    p7_GForwardRow3_Frameshift(dsq, gm_fs5, cx->dp, cx->xmx, ivx, i);
   return eslOK;
 }
 
@@ -281,8 +282,10 @@ p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, 
 
 /* compare_block()
  * Every cell, k = 0..M, of the rows of the loaded block <b> of <cx>
- * must equal the same rows of the full matrix <gx> exactly. <what>
- * names the matrix in the error message.
+ * must equal the same cell of the same rows of the full matrix <gx>
+ * exactly; <gx> may have more cells per position (8-cell frameshift
+ * Forward rows against 3-cell checkpointed ones). <what> names the
+ * matrix in the error message.
  */
 static void
 compare_block(const char *msg, const char *what, const P7_CHKGMX *cx, const P7_GMX *gx, int b)
@@ -291,7 +294,7 @@ compare_block(const char *msg, const char *what, const P7_CHKGMX *cx, const P7_G
 
   for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
     for (j = 0; j < (cx->M+1) * cx->nscells; j++)
-      if (cx->dp[i][j] != gx->dp[i][j])
+      if (cx->dp[i][j] != gx->dp[i][(j / cx->nscells) * gx->nscells + j % cx->nscells])
         esl_fatal("%s: %s row %d, k %d, cell %d differs (block size %d)", msg, what, i, j / cx->nscells, j % cx->nscells, cx->blockR);
 }
 
@@ -315,7 +318,9 @@ compare_specials(const char *msg, const char *what, const P7_CHKGMX *cx, const P
  * initialization, and block sizes from 5 rows to more than L. Scores
  * and special states must be identical, and every block loaded again,
  * Forward last to first and Backward first to last, must hold the same
- * rows as the full matrix. Sequences contain a few N's so the codon
+ * rows as the full matrix (the D, I and M cells for the 3-cell
+ * checkpointed Forward). The 5-codon Forward parser must give the full
+ * Forward's score and special states exactly. Sequences contain a few N's so the codon
  * lookups for non-ACGT nucleotides are exercised.
  */
 static void
@@ -330,13 +335,14 @@ utest_fwdback_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   P7_GMX        *gx       = p7_gmx_Create(hmm->M, 301, 301, p7G_NSCELLS);
   P7_GMX        *fx       = p7_gmx_Create(hmm->M, 301, 301, p7G_NSCELLS_FS);
   P7_CHKGMX     *cx       = p7_chkgmx_Create(hmm->M, 301, 8, 5, p7G_NSCELLS, p7_CHK_BACKWARD);
-  P7_CHKGMX     *fcx      = p7_chkgmx_Create(hmm->M, 301, 8, 5, p7G_NSCELLS_FS, p7_CHK_FORWARD);
+  P7_CHKGMX     *fcx      = p7_chkgmx_Create(hmm->M, 301, 8, 5, p7G_NSCELLS, p7_CHK_FORWARD);
+  P7_GMX        *px       = p7_gmx_Create(hmm->M, PARSER_ROWS_FWD, 301, p7G_NSCELLS);
   P7_IVX        *iv       = p7_ivx_Create(hmm->M, p7P_5CODONS);
   ESL_DSQ       *dsq      = malloc(sizeof(ESL_DSQ) * (301 + 2));
-  float          sc, fsc, chk_sc;
-  int            n, j, q, b, i, L;
+  float          sc, fsc, psc, chk_sc;
+  int            n, j, q, b, i, x, L;
 
-  if (gm_fs5 == NULL || gx == NULL || fx == NULL || cx == NULL || fcx == NULL || iv == NULL || dsq == NULL) esl_fatal("%s: allocation failed", msg);
+  if (gm_fs5 == NULL || gx == NULL || fx == NULL || cx == NULL || fcx == NULL || px == NULL || iv == NULL || dsq == NULL) esl_fatal("%s: allocation failed", msg);
 
   for (n = 0; n < nseq; n++)
     for (j = 0; j < nL; j++)
@@ -348,6 +354,12 @@ utest_fwdback_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
         if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, ESL_MAX(1, L/3), p7_UNILOCAL) != eslOK) esl_fatal(msg);
         if (p7_GForward_Frameshift (dsq, L, gm_fs5, fx, iv, &fsc)  != eslOK) esl_fatal(msg);
         if (p7_GBackward_Frameshift(dsq, L, gm_fs5, gx, iv, &sc)   != eslOK) esl_fatal(msg);
+
+        if (p7_GForwardParser_Frameshift_5Codons(dsq, L, gm_fs5, px, iv, &psc) != eslOK) esl_fatal(msg);
+        if (psc != fsc) esl_fatal("%s: Forward parser score %f, full Forward %f, L %d", msg, psc, fsc, L);
+        for (i = 0; i <= L; i++)
+          for (x = 0; x < p7G_NXCELLS; x++)
+            if (px->xmx[i*p7G_NXCELLS + x] != fx->xmx[i*p7G_NXCELLS + x]) esl_fatal("%s: Forward parser special state %d of row %d differs, L %d", msg, x, i, L);
 
         for (q = 0; q < nB; q++)
           {
@@ -383,18 +395,18 @@ utest_fwdback_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   p7_chkgmx_Destroy(fcx);
   p7_gmx_Destroy(gx);
   p7_gmx_Destroy(fx);
+  p7_gmx_Destroy(px);
   p7_profile_fs_Destroy(gm_fs5);
 }
 
 /* utest_stotrace_chk_frameshift():
- * Stochastic traces from a checkpointed frameshift Forward matrix against
- * p7_GStochasticTrace_Frameshift() on the full Forward matrix. For random
- * DNA and the back-translated consensus of a model with sharpened match
+ * Stochastic traces from a checkpointed frameshift Forward matrix in one
+ * block against the same matrix in blocks of 5..12 rows. For random DNA
+ * and the back-translated consensus of a model with sharpened match
  * emissions between random flanks, <ntr> traces sampled together by
- * p7_GStochasticTraceChk_Frameshift() must be identical (states, k, i and
- * codon lengths) to those sampled one at a time with the same per-trace
- * random number generators, with the checkpointed matrix in one block and
- * in blocks of 5..12 rows.
+ * p7_GStochasticTraceChk_Frameshift() from each must be identical
+ * (states, k, i and codon lengths) with the same per-trace random number
+ * generators, and valid.
  */
 static void
 utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int L, int N)
@@ -404,19 +416,19 @@ utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHAB
   P7_HMM          *hmm    = NULL;
   P7_CODONTABLE   *ct     = p7_codontable_Create(gcode);
   P7_FS_PROFILE   *gm_fs5 = p7_profile_fs_Create(M, abcAA, p7P_5CODONS);
-  P7_GMX          *fx     = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
-  P7_CHKGMX       *cx     = p7_chkgmx_Create(M, L, L+1, 5, p7G_NSCELLS_FS, p7_CHK_FORWARD);
+  P7_CHKGMX       *cx1    = p7_chkgmx_Create(M, L, L+1, 5, p7G_NSCELLS, p7_CHK_FORWARD);
+  P7_CHKGMX       *cx2    = p7_chkgmx_Create(M, L, 8,   5, p7G_NSCELLS, p7_CHK_FORWARD);
   P7_IVX          *iv     = p7_ivx_Create(M, p7P_5CODONS);
   ESL_SQ          *sq     = esl_sq_CreateDigital(abcAA);
   ESL_DSQ         *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
-  ESL_RANDOMNESS  *rng1   = esl_randomness_Create(1);
   ESL_RANDOMNESS **rng    = malloc(sizeof(ESL_RANDOMNESS *) * ntr);
-  P7_TRACE        *tr1    = p7_trace_fs_Create();
+  P7_TRACE       **tr1    = malloc(sizeof(P7_TRACE *) * ntr);
   P7_TRACE       **tr2    = malloc(sizeof(P7_TRACE *) * ntr);
   uint32_t        *seed   = malloc(sizeof(uint32_t) * ntr);
+  char             errbuf[eslERRBUFSIZE];
   int              n, Ln, blockR, start, i, j, t, z, k, x;
 
-  for (t = 0; t < ntr; t++) { rng[t] = esl_randomness_Create(1); tr2[t] = p7_trace_fs_Create(); }
+  for (t = 0; t < ntr; t++) { rng[t] = esl_randomness_Create(1); tr1[t] = p7_trace_fs_Create(); tr2[t] = p7_trace_fs_Create(); }
 
   if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
   for (k = 1; k <= M; k++)
@@ -440,36 +452,36 @@ utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHAB
           for (i = 1, j = start; i <= M; i++, j += 3)
             p7_codontable_GetCodon(ct, r, sq->dsq[i], dsq+j);
         }
-      blockR = (n % 3 == 2) ? Ln+1 : 5 + esl_rnd_Roll(r, 8);
+      blockR = 5 + esl_rnd_Roll(r, 8);
 
       if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL) != eslOK) esl_fatal(msg);
-      if (p7_GForward_Frameshift(dsq, Ln, gm_fs5, fx, iv, NULL)         != eslOK) esl_fatal(msg);
-      if (p7_chkgmx_GrowTo(cx, M, Ln, blockR)                           != eslOK) esl_fatal(msg);
-      if (p7_GForwardChk_Frameshift(dsq, Ln, gm_fs5, cx, iv, NULL)      != eslOK) esl_fatal(msg);
+      if (p7_chkgmx_GrowTo(cx1, M, Ln, Ln+1)                            != eslOK) esl_fatal(msg);
+      if (p7_chkgmx_GrowTo(cx2, M, Ln, blockR)                          != eslOK) esl_fatal(msg);
+      if (p7_GForwardChk_Frameshift(dsq, Ln, gm_fs5, cx1, iv, NULL)     != eslOK) esl_fatal(msg);
+      if (p7_GForwardChk_Frameshift(dsq, Ln, gm_fs5, cx2, iv, NULL)     != eslOK) esl_fatal(msg);
 
       for (t = 0; t < ntr; t++) { seed[t] = 1 + esl_rnd_Roll(r, 1000000); esl_randomness_Init(rng[t], seed[t]); }
-      if (p7_GStochasticTraceChk_Frameshift(rng, ntr, dsq, Ln, gm_fs5, cx, iv, tr2) != eslOK) esl_fatal(msg);
+      if (p7_GStochasticTraceChk_Frameshift(rng, ntr, dsq, Ln, gm_fs5, cx1, iv, tr1) != eslOK) esl_fatal(msg);
+      for (t = 0; t < ntr; t++) esl_randomness_Init(rng[t], seed[t]);
+      if (p7_GStochasticTraceChk_Frameshift(rng, ntr, dsq, Ln, gm_fs5, cx2, iv, tr2) != eslOK) esl_fatal(msg);
       for (t = 0; t < ntr; t++)
         {
-          esl_randomness_Init(rng1, seed[t]);
-          if (p7_GStochasticTrace_Frameshift(rng1, dsq, Ln, gm_fs5, fx, tr1) != eslOK) esl_fatal(msg);
-          if (tr1->N != tr2[t]->N) esl_fatal("%s: trace %d lengths differ (%d %d)", msg, t, tr1->N, tr2[t]->N);
-          for (z = 0; z < tr1->N; z++)
-            if (tr1->st[z] != tr2[t]->st[z] || tr1->k[z] != tr2[t]->k[z] || tr1->i[z] != tr2[t]->i[z] || tr1->c[z] != tr2[t]->c[z])
+          if (p7_trace_fs_Validate(tr1[t], abcDNA, dsq, errbuf) != eslOK) esl_fatal("%s: invalid trace: %s", msg, errbuf);
+          if (tr1[t]->N != tr2[t]->N) esl_fatal("%s: trace %d lengths differ (%d %d)", msg, t, tr1[t]->N, tr2[t]->N);
+          for (z = 0; z < tr1[t]->N; z++)
+            if (tr1[t]->st[z] != tr2[t]->st[z] || tr1[t]->k[z] != tr2[t]->k[z] || tr1[t]->i[z] != tr2[t]->i[z] || tr1[t]->c[z] != tr2[t]->c[z])
               esl_fatal("%s: trace %d differs at %d (block size %d)", msg, t, z, blockR);
-          p7_trace_Reuse(tr1);
+          p7_trace_Reuse(tr1[t]);
           p7_trace_Reuse(tr2[t]);
         }
     }
 
-  for (t = 0; t < ntr; t++) { esl_randomness_Destroy(rng[t]); p7_trace_fs_Destroy(tr2[t]); }
-  free(rng); free(tr2); free(seed); free(dsq);
-  esl_randomness_Destroy(rng1);
-  p7_trace_fs_Destroy(tr1);
+  for (t = 0; t < ntr; t++) { esl_randomness_Destroy(rng[t]); p7_trace_fs_Destroy(tr1[t]); p7_trace_fs_Destroy(tr2[t]); }
+  free(rng); free(tr1); free(tr2); free(seed); free(dsq);
   esl_sq_Destroy(sq);
   p7_ivx_Destroy(iv);
-  p7_chkgmx_Destroy(cx);
-  p7_gmx_Destroy(fx);
+  p7_chkgmx_Destroy(cx1);
+  p7_chkgmx_Destroy(cx2);
   p7_profile_fs_Destroy(gm_fs5);
   p7_codontable_Destroy(ct);
   p7_hmm_Destroy(hmm);
@@ -480,8 +492,8 @@ utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHAB
  * back-translated consensus of a model with sharpened match emissions
  * between random flanks, with two nucleotides deleted and two inserted,
  * and the model's frameshift probability raised to 0.05 so that codon
- * lengths other than 3 occur, <N> traces are sampled with
- * p7_GStochasticTrace_Frameshift(). For each codon length c = 1..5 the
+ * lengths other than 3 occur, <N> traces are sampled together with
+ * p7_GStochasticTraceChk_Frameshift() (blocks of 5..12 rows). For each codon length c = 1..5 the
  * mean number of M states with that codon length per trace, and the mean
  * number of I states, must be within 5 standard errors (plus 0.01) of
  * the sum of the matching posterior probabilities from
@@ -498,14 +510,18 @@ utest_stotrace_posterior_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_
   P7_GMX         *fx     = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
   P7_GMX         *bx     = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_5CODONS);
+  P7_CHKGMX      *cx     = p7_chkgmx_Create(M, L, 8, 5, p7G_NSCELLS, p7_CHK_FORWARD);
   ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
   ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
   ESL_DSQ        *tmp    = malloc(sizeof(ESL_DSQ) * (L+2));
-  P7_TRACE       *tr     = p7_trace_fs_Create();
+  ESL_RANDOMNESS **rng   = malloc(sizeof(ESL_RANDOMNESS *) * N);
+  P7_TRACE      **tr     = malloc(sizeof(P7_TRACE *) * N);
   double          expct[6], sum[6], sumsq[6], mean, se;
   char            errbuf[eslERRBUFSIZE];
   int             cnt[6];
   int             i, j, k, x, n, z, c, Ln, start, del1, del2, ins1, ins2;
+
+  for (n = 0; n < N; n++) { rng[n] = esl_randomness_Create(1 + esl_rnd_Roll(r, 1000000)); tr[n] = p7_trace_fs_Create(); }
 
   if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
   for (k = 1; k <= M; k++)
@@ -536,23 +552,24 @@ utest_stotrace_posterior_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_
   Ln = j - 1;
 
   if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL) != eslOK) esl_fatal(msg);
-  if (p7_GForward_Frameshift (dsq, Ln, gm_fs5, fx, iv, NULL) != eslOK) esl_fatal(msg);
+  if (p7_chkgmx_GrowTo(cx, M, Ln, 5 + esl_rnd_Roll(r, 8))                   != eslOK) esl_fatal(msg);
+  if (p7_GForwardChk_Frameshift(dsq, Ln, gm_fs5, cx, iv, NULL)              != eslOK) esl_fatal(msg);
+  if (p7_GStochasticTraceChk_Frameshift(rng, N, dsq, Ln, gm_fs5, cx, iv, tr) != eslOK) esl_fatal(msg);
 
   for (n = 0; n < 6; n++) { sum[n] = sumsq[n] = 0.; }
   for (n = 0; n < N; n++)
     {
-      if (p7_GStochasticTrace_Frameshift(r, dsq, Ln, gm_fs5, fx, tr) != eslOK) esl_fatal(msg);
-      if (p7_trace_fs_Validate(tr, abcDNA, dsq, errbuf)                != eslOK) esl_fatal("%s: invalid trace: %s", msg, errbuf);
+      if (p7_trace_fs_Validate(tr[n], abcDNA, dsq, errbuf) != eslOK) esl_fatal("%s: invalid trace: %s", msg, errbuf);
       for (c = 0; c < 6; c++) cnt[c] = 0;
-      for (z = 0; z < tr->N; z++)
+      for (z = 0; z < tr[n]->N; z++)
         {
-          if      (tr->st[z] == p7T_M) { if (tr->c[z] < 1 || tr->c[z] > 5) esl_fatal("%s: M with codon length %d", msg, tr->c[z]); cnt[tr->c[z]]++; }
-          else if (tr->st[z] == p7T_I) cnt[0]++;
+          if      (tr[n]->st[z] == p7T_M) { if (tr[n]->c[z] < 1 || tr[n]->c[z] > 5) esl_fatal("%s: M with codon length %d", msg, tr[n]->c[z]); cnt[tr[n]->c[z]]++; }
+          else if (tr[n]->st[z] == p7T_I) cnt[0]++;
         }
       for (c = 0; c < 6; c++) { sum[c] += cnt[c]; sumsq[c] += (double) cnt[c] * cnt[c]; }
-      p7_trace_Reuse(tr);
     }
 
+  if (p7_GForward_Frameshift (dsq, Ln, gm_fs5, fx, iv, NULL) != eslOK) esl_fatal(msg);
   if (p7_GBackward_Frameshift(dsq, Ln, gm_fs5, bx, iv, NULL) != eslOK) esl_fatal(msg);
   if (p7_GDecoding_Frameshift(gm_fs5, fx, bx)               != eslOK) esl_fatal(msg);
   for (c = 0; c < 6; c++) expct[c] = 0.;
@@ -571,8 +588,10 @@ utest_stotrace_posterior_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_
         esl_fatal("%s: %s: mean count %.4f per trace, posterior sum %.4f (s.e. %.4f)", msg, c ? "M codon length" : "I", mean, expct[c], se);
     }
 
+  for (n = 0; n < N; n++) { esl_randomness_Destroy(rng[n]); p7_trace_fs_Destroy(tr[n]); }
+  free(rng); free(tr);
   free(dsq); free(tmp);
-  p7_trace_fs_Destroy(tr);
+  p7_chkgmx_Destroy(cx);
   esl_sq_Destroy(sq);
   p7_ivx_Destroy(iv);
   p7_gmx_Destroy(fx);

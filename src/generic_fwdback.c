@@ -1,7 +1,7 @@
 /* Forward/Backward algorithms; generic (non-SIMD) versions.
  * 
  * Contents:
- *   1. Forward, Backward, Hybrid implementations.  
+ *   1. Forward, Backward implementations.
  *   2. Benchmark driver.
  *   3. Unit tests.
  *   4. Test driver.
@@ -15,7 +15,7 @@
 #include "hmmer.h"
 
 /*****************************************************************
- * 1. Forward, Backward, Hybrid implementations.
+ * 1. Forward, Backward implementations.
  *****************************************************************/
 
 /* Function:  p7_GForwardRow()
@@ -288,66 +288,7 @@ p7_GBackward(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float 
 }
 
 
-/* Function:  p7_GHybrid()
- * Synopsis:  The "hybrid" algorithm.
- *
- * Purpose:   The profile HMM version of the Hwa "hybrid" alignment
- *            algorithm \citep{YuHwa02}. The "hybrid" score is the
- *            maximum score in the Forward matrix. 
- *            
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm>, and DP matrix <mx> allocated for at least <gm->M>
- *            by <L> cells; calculate the probability of the sequence
- *            given the model using the Forward algorithm; return
- *            the calculated Forward matrix in <mx>, and optionally
- *            return the Forward score in <opt_fwdscore> and/or the
- *            Hybrid score in <opt_hybscore>.
- *           
- *            This is implemented as a wrapper around <p7_GForward()>.
- *            The Forward matrix and the Forward score obtained from
- *            this routine are identical to what <p7_GForward()> would
- *            return.
- *           
- *            The scores are returned in lod form.  To convert to a
- *            bitscore, the caller needs to subtract a null model lod
- *            score, then convert to bits.
- *           
- * Args:      dsq          - sequence in digitized form, 1..L
- *            L            - length of dsq
- *            gm           - profile. 
- *            gx           - DP matrix with room for an MxL alignment
- *            opt_fwdscore - optRETURN: Forward lod score in nats.
- *            opt_hybscore - optRETURN: Hybrid lod score in nats.
- *
- * Returns:   <eslOK> on success, and results are in <mx>, <opt_fwdscore>,
- *            and <opt_hybscore>.
- */
-int
-p7_GHybrid(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore)
-{
-  float   F    = -eslINFINITY;
-  float   H    = -eslINFINITY;
-  float **dp   = gx->dp;
-  int     i,k;
-  int     status;
-
-  if ((status = p7_GForward(dsq, L, gm, gx, &F)) != eslOK)  goto ERROR;
-  for (i = 1; i <= L; i++)
-    for (k = 1 ; k <= gm->M; k++)
-      H = ESL_MAX(H, MMX(i,k));
-  
-  gx->M = gm->M;
-  gx->L = L;
-  if (opt_fwdscore != NULL) *opt_fwdscore = F;
-  if (opt_hybscore != NULL) *opt_hybscore = H;
-  return eslOK;
-
- ERROR:
-  if (opt_fwdscore != NULL) *opt_fwdscore = 0;
-  if (opt_hybscore != NULL) *opt_hybscore = 0;
-  return status;
-}
-/*------------- end: forward, backward, hybrid ------------------*/
+/*------------- end: forward, backward --------------------------*/
 
 
 

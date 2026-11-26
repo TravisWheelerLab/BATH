@@ -1,6 +1,6 @@
 /* Null2 biased composition correction dispatcher.
- * Provides the non-suffixed p7_Null2_ByExpectation() and p7_Null2_ByTrace()
- * declared in impl_avx.h.  Delegates to the fastest available ISA.
+ * Provides the non-suffixed p7_Null2_ByExpectation() declared in
+ * impl_avx.h.  Delegates to the fastest available ISA.
  */
 
 #include "p7_config.h"
@@ -43,38 +43,6 @@ p7_Null2_ByExpectation_Dispatcher(const P7_OPROFILE *om, const P7_OMX *pp, float
 }
 
 
-/* Forward declaration of dispatcher */
-static int p7_Null2_ByTrace_Dispatcher(const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend,
-                                        P7_OMX *wrk, float *null2);
-
-/* Global function pointer, initially pointing at the dispatcher */
-int (*p7_Null2_ByTrace)(const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend,
-                        P7_OMX *wrk, float *null2) = p7_Null2_ByTrace_Dispatcher;
-
-/* Function:  p7_Null2_ByTrace_Dispatcher()
- *
- * Purpose:   Self-patching dispatcher for null2 estimation (trace).
- *
- * Returns:   <eslOK> on success.
- */
-static int
-p7_Null2_ByTrace_Dispatcher(const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend,
-                             P7_OMX *wrk, float *null2)
-{
-#ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_Null2_ByTrace = p7_Null2_ByTrace_avx512; return p7_Null2_ByTrace_avx512(om, tr, zstart, zend, wrk, null2); }
-#endif
-#ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_Null2_ByTrace = p7_Null2_ByTrace_avx;    return p7_Null2_ByTrace_avx(om, tr, zstart, zend, wrk, null2); }
-#endif
-#ifdef eslENABLE_SSE
-  p7_Null2_ByTrace = p7_Null2_ByTrace_sse;
-  return p7_Null2_ByTrace_sse(om, tr, zstart, zend, wrk, null2);
-#else
-  p7_Die("p7_Null2_ByTrace: no SIMD implementation available");
-  return eslENORESULT;
-#endif
-}
 /*****************************************************************
  * 3. Unit tests
  *****************************************************************/

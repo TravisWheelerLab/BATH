@@ -637,7 +637,6 @@ extern int p7_BackwardChkLoad_Frameshift       (const ESL_DSQ *dsq,        const
 /* null2.c */
 extern int p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);
 extern int p7_Null2_FromCounts   (const P7_OPROFILE *om, float32x4_t *cnt, float *cntx, int Ld, float *null2);
-extern int p7_Null2_ByTrace      (const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 
 /* null2_fs.c */
 extern int p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, float *null2);

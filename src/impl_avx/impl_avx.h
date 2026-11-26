@@ -925,19 +925,16 @@ extern int p7_SSVFilter_BATH_avx (const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7
 
 /* null2.c — self-patching dispatchers */
 extern int (*p7_Null2_ByExpectation)(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);
-extern int (*p7_Null2_ByTrace)      (const P7_OPROFILE *om, const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 
 /* null2_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
 extern int p7_Null2_ByExpectation_sse    (const P7_OPROFILE    *om,    const P7_OMX *pp, float *null2);
 extern int p7_Null2_FromCounts_sse      (const P7_OPROFILE    *om,    __m128 *cnt, float *cntx, int Ld, float *null2);
-extern int p7_Null2_ByTrace_sse          (const P7_OPROFILE    *om,    const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 #endif
 /* null2_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
 extern int p7_Null2_ByExpectation_avx   (const P7_OPROFILE    *om,    const P7_OMX *pp, float *null2);
 extern int p7_Null2_FromCounts_avx      (const P7_OPROFILE    *om,    __m256 *cnt, float *cntx, int Ld, float *null2);
-extern int p7_Null2_ByTrace_avx         (const P7_OPROFILE    *om,    const P7_TRACE *tr, int zstart, int zend, P7_OMX *wrk, float *null2);
 #endif
 
 /* null2_fs.c — self-patching dispatcher */

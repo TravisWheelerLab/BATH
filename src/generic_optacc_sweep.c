@@ -238,10 +238,9 @@ oat_store_row(const P7_PROFILE *gm, float **dp, const float *xmx, const float *p
  *            checkpoint as the sweep reaches it, and store in <ox> what
  *            <p7_GOATraceSweep()> needs for the OA trace.
  *
- *            The posteriors are normalized like <p7_GDecoding()>'s, by
- *            the Forward score, so a two-row Forward pass first computes
- *            that score. Rows of Forward, posterior and OA values are
- *            kept only as long as the next row needs them.
+ *            The posteriors are normalized by the Backward score, as
+ *            <p7_GDecoding()> does. Rows of Forward, posterior and OA
+ *            values are kept only as long as the next row needs them.
  *
  *            If <opt_null2> is non-NULL, the null2 odds ratios of the
  *            sequence are also calculated into it, as
@@ -301,15 +300,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
 
   p7_FLogsumInit();
 
-  /* Forward score, two rows */
-  fdp[0] = mem;
-  p7_GForwardRow(dsq, gm, fdp, fxmx, 0);
-  for (i = 1; i <= L; i++)
-    {
-      fdp[i] = mem + (i%2)*W;
-      p7_GForwardRow(dsq, gm, fdp, fxmx, i);
-    }
-  overall_sc = fxmx[L*p7G_NXCELLS + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
+  overall_sc = cx->xmx[p7G_N];   /* Backward score */
 
   /* the sweep */
   fdp[0] = mem;
@@ -337,7 +328,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
     }
 
   if (opt_null2 != NULL) p7_GNull2_FromCounts(gm, cnt, cntx, L, opt_null2);
-  if (opt_fsc   != NULL) *opt_fsc = overall_sc;
+  if (opt_fsc   != NULL) *opt_fsc = fxmx[L*p7G_NXCELLS + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
   *ret_oasc = oxmx[L*p7G_NXCELLS + p7G_C];
 
   free(mem); free(fdp); free(odp); free(fxmx); free(oxmx);

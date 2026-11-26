@@ -25,7 +25,8 @@
  *            and Backward matrices <fwd>, <bck> for the profile
  *            aligned to that target sequence. The resulting posterior
  *            decoding is stored in a DP matrix <pp>, provided by the
- *            caller.
+ *            caller. The posteriors are normalized by the Backward
+ *            score, as the SIMD decodings and the OA sweeps do.
  *            
  *            Each residue <i> must have been emitted by match state
  *            <1..M>, insert state <1..M-1>, or an NN, CC, or JJ loop
@@ -81,7 +82,7 @@ p7_GDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
   int          L    = fwd->L;
   int          M    = gm->M;
   int          i,k;
-  float        overall_sc = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
+  float        overall_sc = bck->xmx[p7G_N];   /* Backward score */
   float        denom;
   
   pp->M = M;
@@ -140,7 +141,8 @@ p7_GDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
  *            We use this information to calculate the posterior
  *            probabilities that we're in a begin state B, end state
  *            E, or any core model state {M,D,I} at each target
- *            sequence position <i = 1..L>.
+ *            sequence position <i = 1..L>, normalized by the Backward
+ *            score.
  * 
  *            This information is stored in three arrays in
  *            <ddef>. This routine expects that this storage has
@@ -208,7 +210,7 @@ int
 p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef)
 {
   int   L            = fwd->L;
-  float overall_logp = fwd->xmx[p7G_NXCELLS*L + p7G_C] + gm->xsc[p7P_C][p7P_MOVE];
+  float overall_logp = bck->xmx[p7G_N];   /* Backward score */
   float njcp;
   int   i;
 

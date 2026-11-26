@@ -34,15 +34,15 @@ typedef struct {
 } STO_FS_ROWS;
 
 /* Forward declarations of static helpers */
-static inline int select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
+static inline void select_m_joint_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, const ESL_DSQ *dsq, int i, int k, int *ret_c, int *ret_prv);
 static inline int select_d_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
 static inline int select_i_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k);
 static inline int select_n_fs(int i);
 static inline int select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
+static inline int select_c_end_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int L);
 static inline int select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
 static inline int select_e_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int *ret_k);
 static inline int select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i);
-static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const STO_FS_ROWS *ox, int i, int k, int Q);
 
 
 /*****************************************************************
@@ -51,47 +51,50 @@ static inline int select_codon_len_fs(ESL_RANDOMNESS *rng, const STO_FS_ROWS *ox
 
 /* sto_fs_step()
  * One step of a stochastic trace back through the frameshift Forward
- * rows in <ox>: from state <*s0> at row <*i> and model position <*k>,
- * choose the state before it (and for M, its codon length), append it
- * to <tr>, and update <*s0>, <*i> and <*k>. Reads rows <*i> and <*i>-3
- * of <ox>.
+ * rows in <ox> for the sequence <dsq>: from state <*s0> at row <*i> and
+ * model position <*k>, choose the state before it, append it to <tr>,
+ * and update <*s0>, <*i> and <*k>. An M state is appended with codon
+ * length 0; the step from it chooses its codon length and the state
+ * before it together (select_m_joint_fs()) and sets the codon length in
+ * <tr>. Reads rows <*i>-5 .. <*i> of <ox>.
  */
 static int
-sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, P7_TRACE *tr, int *s0, int *i, int *k)
+sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, const ESL_DSQ *dsq, P7_TRACE *tr, int *s0, int *i, int *k)
 {
-  int Q = p7O_NQF_AVX(ox->M);
-  int c, s1;
+  int c, s1, z;
   int status;
 
   switch (*s0) {
-  case p7T_M: s1 = select_m_fs(rng, om_fs, ox, *i, *k);  (*k)--;    break;
+  case p7T_M: select_m_joint_fs(rng, om_fs, ox, dsq, *i, *k, &c, &s1);  tr->c[tr->N-1] = c;  (*i) -= c;  (*k)--;  break;
   case p7T_D: s1 = select_d_fs(rng, om_fs, ox, *i, *k);  (*k)--;    break;
   case p7T_I: s1 = select_i_fs(rng, om_fs, ox, *i, *k);  (*i) -= 3; break;
   case p7T_N: s1 = select_n_fs(*i);                                 break;
-  case p7T_C: s1 = select_c_fs(rng, om_fs, ox, *i);                 break;
-  case p7T_J: s1 = select_j_fs(rng, om_fs, ox, *i);                 break;
+  case p7T_C:   /* first C step: the row the alignment ends at; a C loop appends its three nucleotides */
+    if (tr->N == 2)
+      for (z = select_c_end_fs(rng, om_fs, ox, *i); z > 0; z--)
+        { if ((status = p7_trace_fs_Append(tr, p7T_C, *k, *i, 0)) != eslOK) return status; (*i)--; }
+    s1 = select_c_fs(rng, om_fs, ox, *i);
+    if (s1 == p7T_C)
+      for (z = 0; z < 2; z++)
+        { if ((status = p7_trace_fs_Append(tr, p7T_C, *k, *i, 0)) != eslOK) return status; (*i)--; }
+    break;
+  case p7T_J:   /* a J loop appends its three nucleotides */
+    s1 = select_j_fs(rng, om_fs, ox, *i);
+    if (s1 == p7T_J)
+      for (z = 0; z < 2; z++)
+        { if ((status = p7_trace_fs_Append(tr, p7T_J, *k, *i, 0)) != eslOK) return status; (*i)--; }
+    break;
   case p7T_E: s1 = select_e_fs(rng, om_fs, ox, *i, k);              break;
   case p7T_B: s1 = select_b_fs(rng, om_fs, ox, *i);                 break;
   default: ESL_EXCEPTION(eslEINVAL, "bogus state in traceback");
   }
   if (s1 == -1) ESL_EXCEPTION(eslEINVAL, "Stochastic traceback choice failed");
 
-  /* For M states: stochastically select codon length c (1..5) from C1..C5 cells.
-   * If the codon would extend before the sequence start, revert to B.
-   */
-  if (s1 == p7T_M) {
-    c = select_codon_len_fs(rng, ox, *i, *k, Q);
-    if (*i - c < 0) s1 = p7T_B;
-  } else {
-    c = 0;
-  }
-
-  if ((status = p7_trace_fs_Append(tr, s1, *k, *i, c)) != eslOK) return status;
+  if ((status = p7_trace_fs_Append(tr, s1, *k, *i, 0)) != eslOK) return status;
 
   /* For NCJ states: deferred i decrement (one nucleotide per step). */
   if ((s1 == p7T_N || s1 == p7T_C || s1 == p7T_J) && s1 == *s0) (*i)--;
   *s0 = s1;
-  *i -= c;
   return eslOK;
 }
 
@@ -123,7 +126,7 @@ p7_StochasticTrace_Frameshift_avx(ESL_RANDOMNESS *rng, const ESL_DSQ *dsq, int L
   if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) return status;
   s0 = p7T_C;
   while (s0 != p7T_S)
-    if ((status = sto_fs_step(rng, om_fs, &fx, tr, &s0, &i, &k)) != eslOK) return status;
+    if ((status = sto_fs_step(rng, om_fs, &fx, dsq, tr, &s0, &i, &k)) != eslOK) return status;
 
   tr->M = om_fs->M;
   tr->L = L;
@@ -198,14 +201,14 @@ p7_StochasticTraceChk_Frameshift_avx(ESL_RANDOMNESS **rng, int ntr, const ESL_DS
   fx.dpf = cx->dpf_avx;
   fx.xmx = cx->xmx;
 
-  /* a step from row i reads rows i and i-3, which are loaded with the
+  /* a step from row i reads rows i-5..i, which are loaded with the
    * block holding row i and the 5 rows saved before it */
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
       if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift_avx(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
       for (t = 0; t < ntr; t++)
         while (s0[t] != p7T_S && i[t] >= b)
-          if ((status = sto_fs_step(rng[t], om_fs, &fx, tr[t], &s0[t], &i[t], &k[t])) != eslOK) goto ERROR;
+          if ((status = sto_fs_step(rng[t], om_fs, &fx, dsq, tr[t], &s0[t], &i[t], &k[t])) != eslOK) goto ERROR;
     }
 
   for (t = 0; t < ntr; t++)
@@ -231,37 +234,83 @@ p7_StochasticTraceChk_Frameshift_avx(ESL_RANDOMNESS **rng, int ntr, const ESL_DS
  * 2. Selection helpers
  *****************************************************************/
 
-/* M(i,k) is reached from B(i), M(i,k-1), I(i,k-1), or D(i,k-1). Same row i. */
-static inline int
-select_m_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i, int k)
+/* select_m_joint_fs()
+ * For M at row <i>, model position <k>: choose its codon length c and the
+ * state before it together, from the 20 terms the Forward sums for this
+ * cell: X(i-c, k-1) * t(X->M_k) * e_c(k), for X in B, M, I, D and c = 1..5
+ * (c <= i), where e_c is the emission of the codon of length c that ends
+ * at <i> in <dsq>. Each term is taken from row i-c of <ox> and put on a
+ * common scale with the scale factors of the rows between. Sets <*ret_c>
+ * and <*ret_prv>.
+ */
+static inline void
+select_m_joint_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, const ESL_DSQ *dsq, int i, int k, int *ret_c, int *ret_prv)
 {
   int     Q     = p7O_NQF_AVX(ox->M);
   int     q     = (k-1) % Q;
   int     r     = (k-1) / Q;
-  __m256 *tp    = om_fs->tfv_avx + 7*q;
-  __m256  xBv   = _mm256_set1_ps(ox->xmx[i*p7X_NXCELLS + p7X_B]);
-  __m256  mpv, dpv, ipv;
+  int     st[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
+  __m256  *tp    = om_fs->tfv_avx + 7*q;   /* transitions into M_k: BM, MM, IM, DM */
+  __m256   mpv, dpv, ipv, xBv;
   union { __m256 v; float p[8]; } u;
-  float   path[4];
-  int     state[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
+  double  w[20], lsc[6];
+  double  e, mx;
+  float   tw[4];
+  int     cidx[6];
+  int     t, x1, x2, x3, x4, x5;
+  int     c, p, z;
 
-  if (q > 0) {
-    mpv = MMO_FS(ox->dpf[i], q-1, p7X_FS_C0);
-    dpv = DMO_FS(ox->dpf[i], q-1);
-    ipv = IMO_FS(ox->dpf[i], q-1);
-  } else {
-    mpv = esl_avx_rightshiftz_float(MMO_FS(ox->dpf[i], Q-1, p7X_FS_C0));
-    dpv = esl_avx_rightshiftz_float(DMO_FS(ox->dpf[i], Q-1));
-    ipv = esl_avx_rightshiftz_float(IMO_FS(ox->dpf[i], Q-1));
-  }
+  x1 = (            dsq[i]   < p7P_MAXNUC) ? dsq[i]   : p7P_MAXCODONS5;
+  x2 = (i >= 2 && dsq[i-1] < p7P_MAXNUC) ? dsq[i-1] : p7P_MAXCODONS5;
+  x3 = (i >= 3 && dsq[i-2] < p7P_MAXNUC) ? dsq[i-2] : p7P_MAXCODONS5;
+  x4 = (i >= 4 && dsq[i-3] < p7P_MAXNUC) ? dsq[i-3] : p7P_MAXCODONS5;
+  x5 = (i >= 5 && dsq[i-4] < p7P_MAXNUC) ? dsq[i-4] : p7P_MAXCODONS5;
+  cidx[1] = p7P_MINIDX(p7P_CODON1_FS5(x1),                 p7P_DEGEN5_QC2);
+  cidx[2] = p7P_MINIDX(p7P_CODON2_FS5(x2, x1),             p7P_DEGEN5_QC1);
+  cidx[3] = p7P_MINIDX(p7P_CODON3_FS5(x3, x2, x1),         p7P_DEGEN5_C);
+  cidx[4] = p7P_MINIDX(p7P_CODON4_FS5(x4, x3, x2, x1),     p7P_DEGEN5_QC1);
+  cidx[5] = p7P_MINIDX(p7P_CODON5_FS5(x5, x4, x3, x2, x1), p7P_DEGEN5_QC2);
 
-  u.v = _mm256_mul_ps(xBv, *tp); tp++;  path[0] = u.p[r];
-  u.v = _mm256_mul_ps(mpv, *tp); tp++;  path[1] = u.p[r];
-  u.v = _mm256_mul_ps(ipv, *tp); tp++;  path[2] = u.p[r];
-  u.v = _mm256_mul_ps(dpv, *tp);        path[3] = u.p[r];
-  esl_vec_FNorm(path, 4);
-  return state[esl_rnd_FChoose(rng, path, 4)];
+  /* lsc[c]: sum of the log scale factors of rows i-4 .. i-c, which puts a
+   * value of row i-c on the scale of row i-5 */
+  lsc[5] = 0.;
+  for (c = 4; c >= 1; c--)
+    lsc[c] = lsc[c+1] + ((i-c >= 0) ? log(ox->xmx[(i-c)*p7X_NXCELLS + p7X_SCALE]) : 0.);
+
+  for (c = 1; c <= 5; c++)
+    {
+      p = i - c;
+      for (z = 0; z < 4; z++) w[(c-1)*4 + z] = -eslINFINITY;
+      if (p < 0) continue;
+      xBv = _mm256_set1_ps(ox->xmx[p*p7X_NXCELLS + p7X_B]);
+      if (q > 0) {
+        mpv = MMO_FS(ox->dpf[p], q-1, p7X_FS_C0);
+        dpv = DMO_FS(ox->dpf[p], q-1);
+        ipv = IMO_FS(ox->dpf[p], q-1);
+      } else {
+        mpv = esl_avx_rightshiftz_float(MMO_FS(ox->dpf[p], Q-1, p7X_FS_C0));
+        dpv = esl_avx_rightshiftz_float(DMO_FS(ox->dpf[p], Q-1));
+        ipv = esl_avx_rightshiftz_float(IMO_FS(ox->dpf[p], Q-1));
+      }
+      u.v = _mm256_mul_ps(xBv, tp[0]); tw[0] = u.p[r];
+      u.v = _mm256_mul_ps(mpv, tp[1]); tw[1] = u.p[r];
+      u.v = _mm256_mul_ps(ipv, tp[2]); tw[2] = u.p[r];
+      u.v = _mm256_mul_ps(dpv, tp[3]); tw[3] = u.p[r];
+      u.v = om_fs->rfv_avx[cidx[c]][q];
+      e   = u.p[r];
+      for (z = 0; z < 4; z++)
+        if (tw[z] > 0. && e > 0.) w[(c-1)*4 + z] = log(tw[z]) + log(e) + lsc[c];
+    }
+
+  mx = -eslINFINITY;
+  for (z = 0; z < 20; z++) if (w[z] > mx) mx = w[z];
+  for (z = 0; z < 20; z++) w[z] = (w[z] == -eslINFINITY) ? 0. : exp(w[z] - mx);
+  esl_vec_DNorm(w, 20);
+  z = esl_rnd_DChoose(rng, w, 20);
+  *ret_c   = z / 4 + 1;
+  *ret_prv = st[z % 4];
 }
+
 
 /* D(i,k) is reached from M(i,k-1) or D(i,k-1). Same row i. */
 static inline int
@@ -321,51 +370,52 @@ select_n_fs(int i)
   return (i == 0) ? p7T_S : p7T_N;
 }
 
-/* C(i) is reached from E(i) or C at codon offsets i-3, i-2, i-1.
- * Scale-factor adjustment uses cumscale(i-3) as common denominator.
- */
+/* C(i) is reached from C(i-3) or E(i). Values of rows i-2..i are put on
+ * the scale of row i-3 with their scale factors. */
 static inline int
 select_c_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i)
 {
-  float loop = om_fs->xf[p7O_C][p7O_LOOP];
-  float s_im2, s_im1, s_i;
-  float path[4];
+  float path[2];
 
-  if (i < 4) return p7T_E;
-
-  s_im2 = ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE];
-  s_im1 = ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE];
-  s_i   = ox->xmx[ i   *p7X_NXCELLS + p7X_SCALE];
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_C] * loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_C] * loop  * s_im2;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_C] * loop  * s_im2 * s_im1;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_MOVE] * s_im2 * s_im1 * s_i;
-  esl_vec_FNorm(path, 4);
-  return (esl_rnd_FChoose(rng, path, 4) < 3) ? p7T_C : p7T_E;
+  if (i < 3) return p7T_E;
+  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_C] * om_fs->xf[p7O_C][p7O_LOOP];
+  path[1] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_MOVE]
+          * ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE] * ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE] * ox->xmx[i*p7X_NXCELLS + p7X_SCALE];
+  esl_vec_FNorm(path, 2);
+  return (esl_rnd_FChoose(rng, path, 2) == 0) ? p7T_C : p7T_E;
 }
 
-/* J(i) is reached from E(i) or J at codon offsets i-3, i-2, i-1. */
+/* The row the alignment ends at, as an offset 0, 1 or 2 back from row <L>:
+ * the Forward score sums C(L) + C(L-1) tCC + C(L-2) tCC. */
+static inline int
+select_c_end_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int L)
+{
+  float loop = om_fs->xf[p7O_C][p7O_LOOP];
+  float path[3];
+
+  path[2] = (L >= 2) ? ox->xmx[(L-2)*p7X_NXCELLS + p7X_C] * loop : 0.;
+  path[1] = (L >= 1) ? ox->xmx[(L-1)*p7X_NXCELLS + p7X_C] * loop * ox->xmx[(L-1)*p7X_NXCELLS + p7X_SCALE] : 0.;
+  path[0] = ox->xmx[L*p7X_NXCELLS + p7X_C] * ((L >= 1) ? ox->xmx[(L-1)*p7X_NXCELLS + p7X_SCALE] : 1.) * ox->xmx[L*p7X_NXCELLS + p7X_SCALE];
+  esl_vec_FNorm(path, 3);
+  return esl_rnd_FChoose(rng, path, 3);
+}
+
+
+
+/* J(i) is reached from J(i-3) or E(i), with the scale handling of select_c_fs(). */
 static inline int
 select_j_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS *ox, int i)
 {
-  float loop = om_fs->xf[p7O_J][p7O_LOOP];
-  float s_im2, s_im1, s_i;
-  float path[4];
+  float path[2];
 
-  if (i < 4) return p7T_E;
-
-  s_im2 = ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE];
-  s_im1 = ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE];
-  s_i   = ox->xmx[ i   *p7X_NXCELLS + p7X_SCALE];
-
-  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_J] * loop;
-  path[1] = ox->xmx[(i-2)*p7X_NXCELLS + p7X_J] * loop  * s_im2;
-  path[2] = ox->xmx[(i-1)*p7X_NXCELLS + p7X_J] * loop  * s_im2 * s_im1;
-  path[3] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_LOOP] * s_im2 * s_im1 * s_i;
-  esl_vec_FNorm(path, 4);
-  return (esl_rnd_FChoose(rng, path, 4) < 3) ? p7T_J : p7T_E;
+  if (i < 3) return p7T_E;
+  path[0] = ox->xmx[(i-3)*p7X_NXCELLS + p7X_J] * om_fs->xf[p7O_J][p7O_LOOP];
+  path[1] = ox->xmx[ i   *p7X_NXCELLS + p7X_E] * om_fs->xf[p7O_E][p7O_LOOP]
+          * ox->xmx[(i-2)*p7X_NXCELLS + p7X_SCALE] * ox->xmx[(i-1)*p7X_NXCELLS + p7X_SCALE] * ox->xmx[i*p7X_NXCELLS + p7X_SCALE];
+  esl_vec_FNorm(path, 2);
+  return (esl_rnd_FChoose(rng, path, 2) == 0) ? p7T_J : p7T_E;
 }
+
 
 /* E(i) is reached from any M(i,k=1..M) or D(i,k=2..M).
  * Uses on-the-fly FChoose algorithm with E(i) as normalizer.
@@ -415,24 +465,5 @@ select_b_fs(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const STO_FS_ROWS 
   return state[esl_rnd_FChoose(rng, path, 2)];
 }
 
-/* select_codon_len_fs():
- * Stochastically select codon length c in 1..5 from C1..C5 cells at (i,k).
- */
-static inline int
-select_codon_len_fs(ESL_RANDOMNESS *rng, const STO_FS_ROWS *ox, int i, int k, int Q)
-{
-  int   q = (k-1) % Q;
-  int   r = (k-1) / Q;
-  union { __m256 v; float p[8]; } u;
-  float path[5];
-
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C1); path[0] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C2); path[1] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C3); path[2] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C4); path[3] = u.p[r];
-  u.v = MMO_FS(ox->dpf[i], q, p7X_FS_C5); path[4] = u.p[r];
-  esl_vec_FNorm(path, 5);
-  return esl_rnd_FChoose(rng, path, 5) + 1;  /* returns 1..5 */
-}
 
 #endif /* eslENABLE_AVX */

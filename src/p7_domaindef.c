@@ -894,11 +894,12 @@ region_trace_ensemble_frameshift(P7_DOMAINDEF *ddef, const P7_FS_OPROFILE *om_fs
    */
   if (ddef->do_reseeding) 
     esl_randomness_Init(ddef->r, esl_randomness_GetSeed(ddef->r));
-  /* Collect an ensemble of sampled traces */
+  /* Collect an ensemble of sampled traces, each with its own generator
+   * seeded from <ddef->r> */
   for (t = 0; t < ddef->nsamples; t++)
     {
-
-      p7_StochasticTrace_Frameshift(ddef->r, dsq+ireg-1, Lr, om_fs5, fwd, ddef->tr);
+      esl_randomness_Init(ddef->trng[t], 1 + esl_rnd_Roll(ddef->r, 2147483646));
+      p7_StochasticTrace_Frameshift(ddef->trng[t], dsq+ireg-1, Lr, om_fs5, fwd, ddef->tr);
 
       p7_trace_fs_Index(ddef->tr);
  

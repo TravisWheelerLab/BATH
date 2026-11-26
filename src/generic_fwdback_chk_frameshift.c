@@ -28,6 +28,8 @@
  */
 #include "p7_config.h"
 
+#include <math.h>
+
 #include "easel.h"
 #include "esl_alphabet.h"
 
@@ -472,6 +474,113 @@ utest_stotrace_chk_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHAB
   p7_codontable_Destroy(ct);
   p7_hmm_Destroy(hmm);
 }
+
+/* utest_stotrace_posterior_frameshift():
+ * Stochastic traces must follow the posterior distribution. For the
+ * back-translated consensus of a model with sharpened match emissions
+ * between random flanks, with two nucleotides deleted and two inserted,
+ * and the model's frameshift probability raised to 0.05 so that codon
+ * lengths other than 3 occur, <N> traces are sampled with
+ * p7_GStochasticTrace_Frameshift(). For each codon length c = 1..5 the
+ * mean number of M states with that codon length per trace, and the mean
+ * number of I states, must be within 5 standard errors (plus 0.01) of
+ * the sum of the matching posterior probabilities from
+ * p7_GDecoding_Frameshift(). Every trace must pass p7_trace_fs_Validate().
+ */
+static void
+utest_stotrace_posterior_frameshift(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_BG *bgAA, P7_BG *bgDNA, int M, int N)
+{
+  char           *msg    = "frameshift stochastic trace posterior unit test failed";
+  P7_HMM         *hmm    = NULL;
+  P7_CODONTABLE  *ct     = p7_codontable_Create(gcode);
+  P7_FS_PROFILE  *gm_fs5 = p7_profile_fs_Create(M, abcAA, p7P_5CODONS);
+  int             L      = 3*M + 120;
+  P7_GMX         *fx     = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
+  P7_GMX         *bx     = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_IVX         *iv     = p7_ivx_Create(M, p7P_5CODONS);
+  ESL_SQ         *sq     = esl_sq_CreateDigital(abcAA);
+  ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
+  ESL_DSQ        *tmp    = malloc(sizeof(ESL_DSQ) * (L+2));
+  P7_TRACE       *tr     = p7_trace_fs_Create();
+  double          expct[6], sum[6], sumsq[6], mean, se;
+  char            errbuf[eslERRBUFSIZE];
+  int             cnt[6];
+  int             i, j, k, x, n, z, c, Ln, start, del1, del2, ins1, ins2;
+
+  if (p7_hmm_Sample(r, M, abcAA, &hmm) != eslOK) esl_fatal(msg);
+  for (k = 1; k <= M; k++)
+    {
+      x = esl_vec_FArgMax(hmm->mat[k], abcAA->K);
+      esl_vec_FSet(hmm->mat[k], abcAA->K, 0.15 / (abcAA->K - 1));
+      hmm->mat[k][x] = 0.85;
+      if (k < M) { hmm->t[k][p7H_MM] = 0.9; hmm->t[k][p7H_MI] = 0.05; hmm->t[k][p7H_MD] = 0.05; }
+    }
+  hmm->fsprob = 0.05;
+  p7_emit_SimpleConsensus(hmm, sq);
+
+  /* consensus between random flanks, then two deletions and two insertions inside it */
+  Ln = 3*M + 100;
+  esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, Ln, tmp);
+  start = 1 + esl_rnd_Roll(r, Ln - 3*M + 1);
+  for (i = 1, j = start; i <= M; i++, j += 3) p7_codontable_GetCodon(ct, r, sq->dsq[i], tmp+j);
+  del1 = start + M/2;
+  ins1 = start + M   + esl_rnd_Roll(r, M/4);
+  del2 = start + 3*M/2;
+  ins2 = start + 2*M + esl_rnd_Roll(r, M/4);
+  for (i = 1, j = 1; i <= Ln; i++)
+    {
+      if (i == del1 || i == del2) continue;
+      if (i == ins1 || i == ins2) dsq[j++] = esl_rnd_Roll(r, 4);
+      dsq[j++] = tmp[i];
+    }
+  Ln = j - 1;
+
+  if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL) != eslOK) esl_fatal(msg);
+  if (p7_GForward_Frameshift (dsq, Ln, gm_fs5, fx, iv, NULL) != eslOK) esl_fatal(msg);
+
+  for (n = 0; n < 6; n++) { sum[n] = sumsq[n] = 0.; }
+  for (n = 0; n < N; n++)
+    {
+      if (p7_GStochasticTrace_Frameshift(r, dsq, Ln, gm_fs5, fx, tr) != eslOK) esl_fatal(msg);
+      if (p7_trace_fs_Validate(tr, abcDNA, dsq, errbuf)                != eslOK) esl_fatal("%s: invalid trace: %s", msg, errbuf);
+      for (c = 0; c < 6; c++) cnt[c] = 0;
+      for (z = 0; z < tr->N; z++)
+        {
+          if      (tr->st[z] == p7T_M) { if (tr->c[z] < 1 || tr->c[z] > 5) esl_fatal("%s: M with codon length %d", msg, tr->c[z]); cnt[tr->c[z]]++; }
+          else if (tr->st[z] == p7T_I) cnt[0]++;
+        }
+      for (c = 0; c < 6; c++) { sum[c] += cnt[c]; sumsq[c] += (double) cnt[c] * cnt[c]; }
+      p7_trace_Reuse(tr);
+    }
+
+  if (p7_GBackward_Frameshift(dsq, Ln, gm_fs5, bx, iv, NULL) != eslOK) esl_fatal(msg);
+  if (p7_GDecoding_Frameshift(gm_fs5, fx, bx)               != eslOK) esl_fatal(msg);
+  for (c = 0; c < 6; c++) expct[c] = 0.;
+  for (i = 1; i <= Ln; i++)
+    for (k = 1; k <= M; k++)
+      {
+        for (c = 1; c <= 5; c++) expct[c] += fx->dp[i][k*p7G_NSCELLS_FS + p7G_M + c];
+        expct[0] += fx->dp[i][k*p7G_NSCELLS_FS + p7G_I];
+      }
+
+  for (c = 0; c < 6; c++)
+    {
+      mean = sum[c] / N;
+      se   = sqrt(ESL_MAX(0., sumsq[c] / N - mean * mean) / N);
+      if (fabs(mean - expct[c]) > 5. * se + 0.01)
+        esl_fatal("%s: %s: mean count %.4f per trace, posterior sum %.4f (s.e. %.4f)", msg, c ? "M codon length" : "I", mean, expct[c], se);
+    }
+
+  free(dsq); free(tmp);
+  p7_trace_fs_Destroy(tr);
+  esl_sq_Destroy(sq);
+  p7_ivx_Destroy(iv);
+  p7_gmx_Destroy(fx);
+  p7_gmx_Destroy(bx);
+  p7_profile_fs_Destroy(gm_fs5);
+  p7_codontable_Destroy(ct);
+  p7_hmm_Destroy(hmm);
+}
 #endif /*p7GENERIC_FWDBACK_CHK_FRAMESHIFT_TESTDRIVE*/
 
 
@@ -514,6 +623,7 @@ main(int argc, char **argv)
 
   utest_fwdback_chk_frameshift(r, abcAA, abcDNA, gcode, bgAA, bgDNA, hmm, nseq);
   utest_stotrace_chk_frameshift(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, 3*M+150, 10);
+  utest_stotrace_posterior_frameshift(r, abcAA, abcDNA, gcode, bgAA, bgDNA, M, 2000);
 
   p7_hmm_Destroy(hmm);
   p7_bg_Destroy(bgAA);

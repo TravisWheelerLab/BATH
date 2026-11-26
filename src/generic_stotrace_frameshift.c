@@ -18,16 +18,76 @@
  * 1. Stochastic traceback implementation.
  *****************************************************************/
 
+/* nt_at()
+ * The nucleotide at position <j> of <dsq> for codon lookup: the
+ * placeholder <p7P_MAXCODONS5> before position 1 or for anything but
+ * A,C,G,T.
+ */
+static inline int
+nt_at(const ESL_DSQ *dsq, int j)
+{
+  return (j >= 1 && dsq[j] < p7P_MAXNUC) ? dsq[j] : p7P_MAXCODONS5;
+}
+
+/* select_m_joint_fs()
+ * For M at row <i>, model position <k>: choose its codon length c and the
+ * state before it together, from the 20 terms the Forward sums for this
+ * cell: X(i-c, k-1) + t(X->M_k) + e_c(k), for X in B, M, I, D and c = 1..5
+ * (c <= i), where e_c is the emission score of the codon of length c that
+ * ends at <i>, as p7_GForwardRow_Frameshift() sums them. Sets <*ret_c>
+ * and <*ret_prv>. <sc> is workspace for 20 scores.
+ */
+static void
+select_m_joint_fs(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, const float *xmx, const ESL_DSQ *dsq,
+                  float *sc, int i, int k, int *ret_c, int *ret_prv)
+{
+  float const *tsc = gm_fs->tsc;
+  int          st[4] = { p7T_B, p7T_M, p7T_I, p7T_D };
+  int          cidx[6];
+  int          t, u, v, w, x;
+  int          c, p, z;
+  float        e;
+
+  x = nt_at(dsq, i);   w = nt_at(dsq, i-1); v = nt_at(dsq, i-2);
+  u = nt_at(dsq, i-3); t = nt_at(dsq, i-4);
+  cidx[1] = p7P_MINIDX(p7P_CODON1_FS5(x),             p7P_DEGEN5_QC2);
+  cidx[2] = p7P_MINIDX(p7P_CODON2_FS5(w, x),          p7P_DEGEN5_QC1);
+  cidx[3] = p7P_MINIDX(p7P_CODON3_FS5(v, w, x),       p7P_DEGEN5_C);
+  cidx[4] = p7P_MINIDX(p7P_CODON4_FS5(u, v, w, x),    p7P_DEGEN5_QC1);
+  cidx[5] = p7P_MINIDX(p7P_CODON5_FS5(t, u, v, w, x), p7P_DEGEN5_QC2);
+
+  for (c = 1; c <= 5; c++)
+    {
+      p = i - c;
+      for (z = 0; z < 4; z++) sc[(c-1)*4 + z] = -eslINFINITY;
+      if (p < 0) continue;
+      e = gm_fs->rsc[cidx[c]][k];
+      sc[(c-1)*4 + 0] = XMX_FS(p,p7G_B)      + TSC(p7P_BM,k-1) + e;
+      sc[(c-1)*4 + 1] = MMX_FS(p,k-1,p7G_C0) + TSC(p7P_MM,k-1) + e;
+      sc[(c-1)*4 + 2] = IMX_FS(p,k-1)        + TSC(p7P_IM,k-1) + e;
+      sc[(c-1)*4 + 3] = DMX_FS(p,k-1)        + TSC(p7P_DM,k-1) + e;
+    }
+  esl_vec_FLogNorm(sc, 20);
+  z = esl_rnd_FChoose(r, sc, 20);
+  *ret_c   = z / 4 + 1;
+  *ret_prv = st[z % 4];
+}
+
+
 /* gsto_fs_step()
  * One step of a stochastic trace back through the frameshift Forward
- * rows <dp> and special states <xmx>: from state <*ret_sprv> at row
- * <*ret_i> and model position <*ret_k>, choose the state before it (and
- * for M, its codon length), append it to <tr>, and update <*ret_sprv>,
- * <*ret_i> and <*ret_k>. <sc> is workspace for 2M+1 scores. Reads rows
- * <*ret_i> and <*ret_i>-3.
+ * rows <dp> and special states <xmx> of the sequence <dsq>: from state
+ * <*ret_sprv> at row <*ret_i> and model position <*ret_k>, choose the
+ * state before it, append it to <tr>, and update <*ret_sprv>, <*ret_i>
+ * and <*ret_k>. An M state is appended with codon length 0; the step
+ * from it chooses its codon length and the state before it together
+ * (select_m_joint_fs()) and sets the codon length in <tr>. <sc> is
+ * workspace for 2M+1 (and at least 20) scores. Reads the core cells of
+ * rows <*ret_i>-5..<*ret_i>.
  */
 static int
-gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, const float *xmx, float *sc, P7_TRACE *tr, int *ret_sprv, int *ret_i, int *ret_k)
+gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, const float *xmx, const ESL_DSQ *dsq, float *sc, P7_TRACE *tr,
+             int *ret_sprv, int *ret_i, int *ret_k)
 {
   float const *tsc  = gm_fs->tsc;
   int          M    = gm_fs->M;
@@ -35,22 +95,36 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
   int          k    = *ret_k;
   int          sprv = *ret_sprv;
   int          scur = p7T_BOGUS;
-  int          c;
+  int          c, z;
   int          status;
 
   switch (sprv) {
-    /* check all three frames of C as well as E(i) */
+    /* C(i) comes from C(i-3) or E(i). On the first C step, from row L,
+     * the alignment ends at row L, L-1 or L-2 (as the Forward score sums
+     * C(L) + C(L-1) tCC + C(L-2) tCC); the nucleotides after it are
+     * appended as C. A C loop appends its three nucleotides as C. */
     case p7T_C:
-      if   (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
-      if   (i < 4) { scur = p7T_E; break; }
-      
-      sc[0] = XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-      sc[1] = XMX_FS(i-2, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-      sc[2] = XMX_FS(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP];
-      sc[3] = XMX_FS(i,   p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
-      
-      esl_vec_FLogNorm(sc, 4);
-      scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_C : p7T_E;
+      if (tr->N == 2)
+        {
+          sc[0] = XMX_FS(i, p7G_C);
+          sc[1] = (i >= 1) ? XMX_FS(i-1, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP] : -eslINFINITY;
+          sc[2] = (i >= 2) ? XMX_FS(i-2, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP] : -eslINFINITY;
+          esl_vec_FLogNorm(sc, 3);
+          for (z = esl_rnd_FChoose(r, sc, 3); z > 0; z--)
+            { if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) return status; i--; }
+        }
+      if (XMX_FS(i,p7G_C) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible C reached at i=%d", i);
+
+      sc[0] = (i >= 3) ? XMX_FS(i-3, p7G_C) + gm_fs->xsc[p7P_C][p7P_LOOP] : -eslINFINITY;
+      sc[1] = XMX_FS(i, p7G_E) + gm_fs->xsc[p7P_E][p7P_MOVE];
+      esl_vec_FLogNorm(sc, 2);
+      if (esl_rnd_FChoose(r, sc, 2) == 0)
+        {
+          for (z = 0; z < 2; z++)
+            { if ((status = p7_trace_fs_Append(tr, p7T_C, k, i, 0)) != eslOK) return status; i--; }
+          scur = p7T_C;     /* the third nucleotide is appended below */
+        }
+      else scur = p7T_E;
       break;
 
     /* E connects from any M or D state. k set here */
@@ -76,23 +150,12 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
     }
     break;
 
-    /* M connects from {MDI} i,k-1, or B (all at same row i; i has already
-     * been decremented by this M's codon length c from the previous iteration,
-     * so i now points to the predecessor row, which is correct for the lookups
-     * below.  A validity check on MMX_FS(i,k) here would test the wrong cell.) */
+    /* M at row i: its codon length c and the state before it, at row
+     * i-c and k-1, are chosen together */
     case p7T_M:
-     sc[0] = XMX_FS(i,p7G_B)          + TSC(p7P_BM, k-1);
-     sc[1] = MMX_FS(i,k-1,p7G_C0)  + TSC(p7P_MM, k-1);
-     sc[2] = IMX_FS(i,k-1)         + TSC(p7P_IM, k-1);
-     sc[3] = DMX_FS(i,k-1)         + TSC(p7P_DM, k-1);
-     esl_vec_FLogNorm(sc, 4);
-     switch (esl_rnd_FChoose(r, sc, 4)) {
-        case 0: scur = p7T_B;  break;
-        case 1: scur = p7T_M;  break;
-        case 2: scur = p7T_I;  break;
-        case 3: scur = p7T_D;  break;
-        default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
-       }
+     select_m_joint_fs(r, gm_fs, dp, xmx, dsq, sc, i, k, &c, &scur);
+     tr->c[tr->N-1] = c;
+     i -= c;
      k--; 
      break;
 
@@ -133,42 +196,31 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
       scur = (esl_rnd_FChoose(r, sc, 2) == 0) ? p7T_N : p7T_J;
       break;
 
-    /* J connects from E(i) or J(i-1) */
+    /* J(i) comes from J(i-3) or E(i); a J loop appends its three nucleotides as J */
     case p7T_J:  
       if (XMX_FS(i,p7G_J) == -eslINFINITY) ESL_EXCEPTION(eslFAIL, "impossible J reached at i=%d", i);
-      
-      if   (i < 4) { scur = p7T_E; break; }
-      sc[0] = XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
-      sc[1] = XMX_FS(i-2,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP];
-      sc[2] = XMX_FS(i-1,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP]; 
-      sc[3] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
-      esl_vec_FLogNorm(sc, 4); 
-      scur = (esl_rnd_FChoose(r, sc, 4) < 3) ? p7T_J : p7T_E;  
-      
+
+      sc[0] = (i >= 3) ? XMX_FS(i-3,p7G_J) + gm_fs->xsc[p7P_J][p7P_LOOP] : -eslINFINITY;
+      sc[1] = XMX_FS(i,  p7G_E) + gm_fs->xsc[p7P_E][p7P_LOOP];
+      esl_vec_FLogNorm(sc, 2);
+      if (esl_rnd_FChoose(r, sc, 2) == 0)
+        {
+          for (z = 0; z < 2; z++)
+            { if ((status = p7_trace_fs_Append(tr, p7T_J, k, i, 0)) != eslOK) return status; i--; }
+          scur = p7T_J;     /* the third nucleotide is appended below */
+        }
+      else scur = p7T_E;
       break;
     default: ESL_EXCEPTION(eslFAIL, "bogus state in traceback");
     } /* end switch over statetype[tpos-1] */
 
-    if(scur == p7T_M)
-    {
-     sc[0] = MMX_FS(i,k,p7G_C1);
-     sc[1] = MMX_FS(i,k,p7G_C2);
-     sc[2] = MMX_FS(i,k,p7G_C3);
-     sc[3] = MMX_FS(i,k,p7G_C4);
-     sc[4] = MMX_FS(i,k,p7G_C5);
-     esl_vec_FLogNorm(sc, 5);
-     c = esl_rnd_FChoose(r, sc, 5) + 1;
-     if(i - c < 0) scur = p7T_B;
-    }
-    else c = 0; 
     /* Append this state and the current i,k to be explained to the growing trace */
-    if ((status = p7_trace_fs_Append(tr, scur, k, i, c)) != eslOK) return status;
+    if ((status = p7_trace_fs_Append(tr, scur, k, i, 0)) != eslOK) return status;
 
     /* For NCJ, we had to defer i decrement. */
     if ( (scur == p7T_N || scur == p7T_C || scur == p7T_J) && scur == sprv) i--;
 
   sprv = scur;
-  i-=c;
 
   *ret_sprv = sprv;
   *ret_i    = i;
@@ -208,7 +260,7 @@ p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
   int     sprv;
 
   /* we'll index M states as 1..M, and D states as 2..M = M+2..2M: M0, D1 are impossibles. */
-  ESL_ALLOC(sc, sizeof(float) * (2*M+1)); 
+  ESL_ALLOC(sc, sizeof(float) * ESL_MAX(2*M+1, 20)); 
 
   k = 0;
   i = L;    
@@ -217,7 +269,7 @@ p7_GStochasticTrace_Frameshift(ESL_RANDOMNESS *r, const ESL_DSQ *dsq, int L, con
   sprv = p7T_C;
 
   while (sprv != p7T_S) 
-    if ((status = gsto_fs_step(r, gm_fs, gx->dp, gx->xmx, sc, tr, &sprv, &i, &k)) != eslOK) goto ERROR;
+    if ((status = gsto_fs_step(r, gm_fs, gx->dp, gx->xmx, dsq, sc, tr, &sprv, &i, &k)) != eslOK) goto ERROR;
 
   if ((status = p7_trace_fs_Reverse(tr)) != eslOK) goto ERROR;
   tr->M = gm_fs->M;
@@ -280,7 +332,7 @@ p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *ds
   if (cx->dir != p7_CHK_FORWARD || cx->nscells != p7G_NSCELLS_FS || cx->L != L || cx->M != gm_fs5->M)
     ESL_EXCEPTION(eslEINVAL, "checkpointed frameshift Forward matrix doesn't match");
 
-  ESL_ALLOC(sc,   sizeof(float) * (2*gm_fs5->M+1));
+  ESL_ALLOC(sc,   sizeof(float) * ESL_MAX(2*gm_fs5->M+1, 20));
   ESL_ALLOC(sprv, sizeof(int)   * ESL_MAX(1, ntr));
   ESL_ALLOC(i,    sizeof(int)   * ESL_MAX(1, ntr));
   ESL_ALLOC(k,    sizeof(int)   * ESL_MAX(1, ntr));
@@ -293,14 +345,14 @@ p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *ds
       sprv[t] = p7T_C;
     }
 
-  /* a step from row i reads rows i and i-3, which are loaded with the
+  /* a step from row i reads rows i-5..i, which are loaded with the
    * block holding row i and the 5 rows saved before it */
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
       if (b != cx->b && (status = p7_GForwardChkLoad_Frameshift(dsq, gm_fs5, cx, iv, b)) != eslOK) goto ERROR;
       for (t = 0; t < ntr; t++)
         while (sprv[t] != p7T_S && i[t] >= b)
-          if ((status = gsto_fs_step(r[t], gm_fs5, cx->dp, cx->xmx, sc, tr[t], &sprv[t], &i[t], &k[t])) != eslOK) goto ERROR;
+          if ((status = gsto_fs_step(r[t], gm_fs5, cx->dp, cx->xmx, dsq, sc, tr[t], &sprv[t], &i[t], &k[t])) != eslOK) goto ERROR;
     }
 
   for (t = 0; t < ntr; t++)

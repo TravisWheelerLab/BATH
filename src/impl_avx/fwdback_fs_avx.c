@@ -27,7 +27,6 @@
  * 1. Forward/Backward
  *****************************************************************/
 
-static int backward_frameshift_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, P7_OMX *pp, float *opt_sc);
 
 /* Function:  p7_ForwardParser_Frameshift_3Codons_avx()
  * Synopsis:  AVX2 frameshift-aware Forward, 3 codon lengths, linear memory.
@@ -1892,106 +1891,6 @@ p7_ForwardChkLoad_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs
 }
 
 
-/* Function:  p7_Backward_Frameshift_avx()
- * Synopsis:  AVX2 frameshift-aware Backward, 5 codon lengths, full O(ML) matrix.
- */
-int
-p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
-{
-  return backward_frameshift_engine_avx(TRUE, dsq, L, om_fs, fwd, bck, ov, NULL, opt_sc);
-}
-
-
-/* Function:  p7_BackwardDecoding_Frameshift_avx()
- * Synopsis:  Frameshift-aware Backward in a ring of rows, with posterior decoding.
- *
- * Purpose:   The Backward calculation of p7_Backward_Frameshift_avx(), kept
- *            in a ring of <PARSER_ROWS_BWD> rows of <bck> (plus special
- *            states for all rows), writing the posterior decoding over
- *            the Forward matrix <fwd> as the rows are finished from <L>
- *            down. On return <fwd> holds the posterior decoding matrix
- *            that p7_Decoding_Frameshift_avx() would produce, and <bck> holds
- *            the Backward special states and scale factors for all rows.
- *            The caller allocates <bck> with
- *            <p7_omx_GrowTo_dpf(bck, M, PARSER_ROWS_BWD, L)>.
- *
- * Returns:   <eslOK> on success.
- *            <eslERANGE> if the Backward score or the posterior scaling
- *            is out of range, as for p7_Backward_Frameshift_avx() and
- *            p7_Decoding_Frameshift_avx().
- */
-int
-p7_BackwardDecoding_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
-{
-#if eslDEBUGLEVEL > 0
-  if (bck->validR < PARSER_ROWS_BWD) ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_BWD MDI rows");
-  if (L >= bck->allocXR)             ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
-  if (L >= fwd->validR)              ESL_EXCEPTION(eslEINVAL, "fwd matrix isn't a full matrix (too few MDI rows)");
-#endif
-  return backward_frameshift_engine_avx(FALSE, dsq, L, om_fs, fwd, bck, ov, fwd, opt_sc);
-}
-
-
-/* backward_row_avx()
- * Row <r> of <bck> for backward_frameshift_engine_avx(): row <r> of a full
- * matrix, or ring row <r> % PARSER_ROWS_BWD. The engine reads rows i+1..i+5
- * while computing row i and never changes a row once it is stored, so
- * the ring holds the same values as the full matrix.
- */
-static inline __m256 *
-backward_row_avx(const P7_OMX *bck, int do_full, int r)
-{
-  return bck->dpf_avx[do_full ? r : r % PARSER_ROWS_BWD];
-}
-
-
-/* backward_decode_row_frameshift_avx()
- * For backward_frameshift_engine_avx() with a posterior matrix <pp>, which
- * is the Forward matrix: as soon as Backward row <i> (<dpc>, and its
- * special states in <bck>) is final, write F*B over row <i> of <pp> for
- * the M cells of every codon length and for I, 0 for D, and
- * F(i-3)*B(i)*t_loop for N, J and C (B(i) alone for N when i <= 2). The
- * engine multiplies them by the row scale factors after the sweep,
- * completing the same products, in the same order, as
- * p7_Decoding_Frameshift_avx(). Posterior row <i> reads Forward row <i>
- * and the Forward special states of row <i-3>, which are not overwritten
- * yet when the rows are done from L down.
- */
-static inline void
-backward_decode_row_frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *bck, const __m256 *dpc, P7_OMX *pp, int i, int Q)
-{
-  __m256 *ppv = pp->dpf_avx[i];
-  __m256  bM, bI;
-  int     q, c;
-
-  for (q = 0; q < Q; q++)
-    {
-      bM = dpc[q * p7X_NSCELLS + p7X_M];
-      bI = dpc[q * p7X_NSCELLS + p7X_I];
-
-      ppv[q * p7X_NSCELLS_FS + p7X_FS_D] = _mm256_setzero_ps();
-      ppv[q * p7X_NSCELLS_FS + p7X_FS_I] = _mm256_mul_ps(ppv[q * p7X_NSCELLS_FS + p7X_FS_I], bI);
-      for (c = 0; c < 6; c++)
-        ppv[q * p7X_NSCELLS_FS + p7X_FS_M + c] = _mm256_mul_ps(ppv[q * p7X_NSCELLS_FS + p7X_FS_M + c], bM);
-    }
-
-  pp->xmx[i*p7X_NXCELLS + p7X_E] = 0.0f;
-  pp->xmx[i*p7X_NXCELLS + p7X_B] = 0.0f;
-  if (i > 2)
-    {
-      pp->xmx[i*p7X_NXCELLS + p7X_N] = pp->xmx[(i-3)*p7X_NXCELLS + p7X_N] * bck->xmx[i*p7X_NXCELLS + p7X_N] * om_fs->xf[p7O_N][p7O_LOOP];
-      pp->xmx[i*p7X_NXCELLS + p7X_J] = pp->xmx[(i-3)*p7X_NXCELLS + p7X_J] * bck->xmx[i*p7X_NXCELLS + p7X_J] * om_fs->xf[p7O_J][p7O_LOOP];
-      pp->xmx[i*p7X_NXCELLS + p7X_C] = pp->xmx[(i-3)*p7X_NXCELLS + p7X_C] * bck->xmx[i*p7X_NXCELLS + p7X_C] * om_fs->xf[p7O_C][p7O_LOOP];
-    }
-  else
-    {
-      pp->xmx[i*p7X_NXCELLS + p7X_N] = bck->xmx[i*p7X_NXCELLS + p7X_N];
-      pp->xmx[i*p7X_NXCELLS + p7X_J] = 0.0f;
-      pp->xmx[i*p7X_NXCELLS + p7X_C] = 0.0f;
-    }
-}
-
-
 /* Scale factor a Backward row takes, for backward_frameshift_row_L_avx()
  * and backward_frameshift_row_avx():
  *   BWD_SCALE_FORWARD: the Forward matrix's factor for the row, or the
@@ -2291,14 +2190,11 @@ backward_frameshift_row_0_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *o
 }
 
 
-/* backward_frameshift_engine_avx()
- * The Backward calculation of p7_Backward_Frameshift_avx() (<do_full> TRUE,
- * <pp> NULL) and p7_BackwardDecoding_Frameshift_avx() (<do_full> FALSE, rows
- * kept in a ring; <pp> is the Forward matrix, which receives the
- * posterior decoding).
+/* Function:  p7_Backward_Frameshift_avx()
+ * Synopsis:  AVX2 frameshift-aware Backward, 5 codon lengths, full O(ML) matrix.
  */
-static int
-backward_frameshift_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, P7_OMX *pp, float *opt_sc)
+int
+p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   __m256   zerov;
   float    xN;
@@ -2308,8 +2204,6 @@ backward_frameshift_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_
   int      Q = p7O_NQF_AVX(om_fs->M);
   int      i, q;
   int      status;
-  float   *log_sfwd = NULL;
-  float   *log_sbck = NULL;
   BWD_FS_RING rg;
   __m256  *dp[6];
   int      d;
@@ -2328,21 +2222,19 @@ backward_frameshift_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_
   bwd_fs_ring_init(&rg, om_fs, L);
 
   /* Initialization: row L */
-  dp[0]=backward_row_avx(bck, do_full, L);
+  dp[0]=bck->dpf_avx[L];
   backward_frameshift_row_L_avx(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, BWD_SCALE_FORWARD);
-  if (pp != NULL) backward_decode_row_frameshift_avx(om_fs, bck, dp[0], pp, L, Q);
 
   /* Main recurrence: i = L-1 down to 1 */
   for (i=L-1;i>=1;i--)
     {
-      for (d=0;d<6;d++) dp[d]=(i+d<=L)?backward_row_avx(bck, do_full, i+d):zero_row;
+      for (d=0;d<6;d++) dp[d]=(i+d<=L)?bck->dpf_avx[i+d]:zero_row;
       backward_frameshift_row_avx(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, BWD_SCALE_FORWARD);
-      if (pp != NULL) backward_decode_row_frameshift_avx(om_fs, bck, dp[0], pp, i, Q);
     }
 
   /* Termination: i=0 */
   dp[0]=NULL;
-  for (d=1;d<6;d++) dp[d]=(d<=L)?backward_row_avx(bck, do_full, d):zero_row;
+  for (d=1;d<6;d++) dp[d]=(d<=L)?bck->dpf_avx[d]:zero_row;
   xN=backward_frameshift_row_0_avx(dsq, L, om_fs, bck->xmx, &rg, dp, ivxf);
 
   {
@@ -2354,70 +2246,14 @@ backward_frameshift_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_
     if (opt_sc) *opt_sc=bck->totscale+logf(xNtot);
   }
 
-  /* Posterior decoding: scale each row as p7_Decoding_Frameshift_avx() does */
-  if (pp != NULL)
-    {
-      float  log_inv_Z, factor_mdi, factor_njc, factor_nsmall;
-      __m256 scv;
-
-      ESL_ALLOC(log_sfwd, sizeof(float) * (L + 2));
-      ESL_ALLOC(log_sbck, sizeof(float) * (L + 2));
-
-      log_sfwd[0] = logf(fwd->xmx[p7X_SCALE]);
-      for (i = 1; i <= L; i++)
-        log_sfwd[i] = log_sfwd[i-1] + logf(fwd->xmx[i*p7X_NXCELLS + p7X_SCALE]);
-
-      log_sbck[L+1] = 0.0f;
-      for (i = L; i >= 0; i--)
-        log_sbck[i] = log_sbck[i+1] + logf(bck->xmx[i*p7X_NXCELLS + p7X_SCALE]);
-
-      log_inv_Z = -p7_FLogsum(
-                     logf(bck->xmx[p7X_N]) + log_sbck[0],
-                     p7_FLogsum(
-                       logf(bck->xmx[1*p7X_NXCELLS + p7X_N]) + log_sbck[1],
-                       logf(bck->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
-
-      for (q = 0; q < Q * p7X_NSCELLS_FS; q++) pp->dpf_avx[0][q] = zerov;
-      pp->xmx[p7X_E] = pp->xmx[p7X_N] = pp->xmx[p7X_J] = pp->xmx[p7X_B] = pp->xmx[p7X_C] = 0.0f;
-
-      for (i = 1; i <= L; i++)
-        {
-          factor_mdi = expf(log_sfwd[i] + log_sbck[i] + log_inv_Z);
-          if (isinf(factor_mdi)) { status = eslERANGE; goto ERROR; }
-
-          scv = _mm256_set1_ps(factor_mdi);
-          for (q = 0; q < Q * p7X_NSCELLS_FS; q++)
-            pp->dpf_avx[i][q] = _mm256_mul_ps(pp->dpf_avx[i][q], scv);
-
-          if (i > 2)
-            {
-              factor_njc = expf(log_sfwd[i-3] + log_sbck[i] + log_inv_Z);
-              pp->xmx[i*p7X_NXCELLS + p7X_N] *= factor_njc;
-              pp->xmx[i*p7X_NXCELLS + p7X_J] *= factor_njc;
-              pp->xmx[i*p7X_NXCELLS + p7X_C] *= factor_njc;
-            }
-          else
-            {
-              factor_nsmall = expf(log_sbck[i] + log_inv_Z);
-              pp->xmx[i*p7X_NXCELLS + p7X_N] *= factor_nsmall;
-            }
-          if (isinf(pp->xmx[i*p7X_NXCELLS + p7X_N] + pp->xmx[i*p7X_NXCELLS + p7X_J] + pp->xmx[i*p7X_NXCELLS + p7X_C])) { status = eslERANGE; goto ERROR; }
-        }
-
-      free(log_sfwd);
-      free(log_sbck);
-    }
-
   free(zero_mem);
   return eslOK;
 
  ERROR:
   if (zero_mem) free(zero_mem);
-  if (log_sfwd) free(log_sfwd);
-  if (log_sbck) free(log_sbck);
   return status;
 }
-/* end backward_frameshift_engine_avx() */
+/* end p7_Backward_Frameshift_avx() */
 
 
 /*****************************************************************

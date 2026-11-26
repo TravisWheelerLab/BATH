@@ -1347,7 +1347,6 @@ typedef struct p7_pipeline_s {
 
 } P7_PIPELINE;
 
-#define BACKWARD_DECODING_ROWS 2  /* core rows used by p7_GBackwardDecoding() */
 
 /*****************************************************************
  * 17. P7_BUILDER: pipeline for new HMM construction
@@ -1461,7 +1460,6 @@ extern void p7_GForwardRow (const ESL_DSQ *dsq, const P7_PROFILE *gm, float **dp
 extern int p7_GForward     (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 extern void p7_GBackwardRow(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, float **dp, float *xmx, int i);
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
-extern int p7_GBackwardDecoding(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *fwd, P7_GMX *bck, float *opt_sc);
 extern int p7_GHybrid      (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *opt_fwdscore, float *opt_hybscore);
 
 /* generic_fwdback_frameshift.c */
@@ -1474,7 +1472,6 @@ extern int p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const
 extern int p7_GBackward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
 extern int p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GBackwardDecoding_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck, P7_IVX *iv, float *opt_sc);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);

@@ -44,7 +44,7 @@
 #include "impl_sse.h"
 
 static int forward_engine (int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-static int backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc);
+static int backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 
 /*****************************************************************
@@ -197,7 +197,7 @@ p7_Backward(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd,
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
 
-  return backward_engine(TRUE, dsq, L, om, fwd, bck, NULL, opt_sc);
+  return backward_engine(TRUE, dsq, L, om, fwd, bck, opt_sc);
 }
 
 
@@ -243,58 +243,8 @@ p7_BackwardParser(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
 
-  return backward_engine(FALSE, dsq, L, om, fwd, bck, NULL, opt_sc);
+  return backward_engine(FALSE, dsq, L, om, fwd, bck, opt_sc);
 }
-
-
-/* Function:  p7_BackwardDecoding()
- * Synopsis:  The Backward parser with posterior decoding.
- *
- * Purpose:   Same as <p7_BackwardParser()>, and in addition writes the
- *            posterior decoding over the Forward matrix <fwd>, as the
- *            Backward rows are finished from <L> down. On return <fwd>
- *            holds the posterior decoding matrix <p7_Decoding()> would
- *            produce, and <bck> holds the Backward special states for
- *            all rows.
- *
- *            <fwd> must be a full Forward matrix filled by
- *            <p7_Forward()>. The caller provides a "parsing" <bck>, as
- *            for <p7_BackwardParser()>, by calling
- *            <bck = p7_omx_Create(M, 0, L)> or
- *            <p7_omx_GrowTo(bck, M, 0, L)>.
- *
- * Args:      dsq     - digital target sequence, 1..L
- *            L       - length of dsq in residues
- *            om      - optimized profile
- *            fwd     - filled Forward DP matrix; RESULT: posterior decoding matrix
- *            bck     - RETURN: Backward special states
- *            opt_sc  - optRETURN: Backward score (in nats)
- *
- * Returns:   <eslOK> on success.
- *            <eslERANGE> if the posterior scaling overflows, as for
- *            <p7_Decoding()>.
- *
- * Throws:    <eslEINVAL> if <bck> or <fwd> allocation is too small, or if
- *            the profile isn't in local alignment mode.
- *            <eslERANGE> if the score exceeds the limited range of
- *            a probability-space odds ratio.
- *            In either case, <*opt_sc> is undefined.
- */
-int
-p7_BackwardDecoding(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
-{
-#if eslDEBUGLEVEL > 0
-  if (om->M >  bck->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (bck->validR < 1)            ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
-  if (L     >= bck->allocXR)      ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
-  if (L     != fwd->L)            ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
-  if (L     >= fwd->validR)       ESL_EXCEPTION(eslEINVAL, "fwd matrix isn't a full matrix (too few MDI rows)");
-  if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
-#endif
-
-  return backward_engine(FALSE, dsq, L, om, fwd, bck, fwd, opt_sc);
-}
-
 
 
 /*****************************************************************
@@ -539,37 +489,6 @@ forward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
 }
 
 
-
-/* backward_decode_row()
- * For backward_engine() with a posterior matrix <pp>, which is the
- * Forward matrix <fwd>: as soon as Backward row <i> (<dpc>, and the
- * special states in <bck>) is final, write F*B for M and I over row <i>
- * of <pp>, 0 for D, and F(i-1)*B(i)*t_loop for N, J and C. The engine
- * multiplies each row by its scale product after the sweep, completing
- * the same products, in the same order, as p7_Decoding(). Posterior
- * row <i> reads Forward row <i> and the Forward special states of row
- * <i-1>, which are not overwritten yet when the rows are done from L
- * down.
- */
-static inline void
-backward_decode_row(const P7_OPROFILE *om, const P7_OMX *fwd, const P7_OMX *bck, __m128 *dpc, P7_OMX *pp, int i, int Q)
-{
-  __m128 *ppv = pp->dpf[i];
-  __m128 *fv  = fwd->dpf[i];
-  int q;
-
-  for (q = 0; q < Q; q++)
-    {
-      MMO(ppv,q) = _mm_mul_ps(MMO(fv,q), MMO(dpc,q));
-      DMO(ppv,q) = _mm_setzero_ps();
-      IMO(ppv,q) = _mm_mul_ps(IMO(fv,q), IMO(dpc,q));
-    }
-  pp->xmx[i*p7X_NXCELLS+p7X_E] = 0.0;
-  pp->xmx[i*p7X_NXCELLS+p7X_N] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_N] * bck->xmx[i*p7X_NXCELLS+p7X_N] * om->xf[p7O_N][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_J] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_J] * bck->xmx[i*p7X_NXCELLS+p7X_J] * om->xf[p7O_J][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_C] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_C] * bck->xmx[i*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_B] = 0.0;
-}
 
 /* Scale factor a Backward row takes, for backward_row_L() and
  * backward_row():
@@ -878,14 +797,16 @@ backward_row_0(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, const __m1
 
 
 static int 
-backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc)
+backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
   float xN;
   int i;
-  int q;
-  int Q       = p7O_NQF(om->M);
   __m128 *dpc;
   __m128 *dpp;
+#if eslDEBUGLEVEL > 0
+  int q;
+  int Q       = p7O_NQF(om->M);
+#endif
 
   /* initialize the L row. */
   bck->M = om->M;
@@ -893,7 +814,6 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
   bck->has_own_scales = FALSE;	/* backwards scale factors are *usually* given by <fwd> */
   dpc    = bck->dpf[L * do_full];
   backward_row_L(om, fwd->xmx, bck->xmx, &bck->totscale, dpc, L, BWD_SCALE_FORWARD);
-  if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, L, Q);
 
 #if eslDEBUGLEVEL > 0
   if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, L, 9, 4, bck->xmx[L*p7X_NXCELLS+p7X_E], bck->xmx[L*p7X_NXCELLS+p7X_N], bck->xmx[L*p7X_NXCELLS+p7X_J], bck->xmx[L*p7X_NXCELLS+p7X_B], bck->xmx[L*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=L, width=9, precision=4*/
@@ -908,7 +828,6 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
       dpc = bck->dpf[i     * do_full];
       dpp = bck->dpf[(i+1) * do_full];
       backward_row(dsq, om, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, dpc, dpp, i, BWD_SCALE_FORWARD);
-      if (pp != NULL) backward_decode_row(om, fwd, bck, dpc, pp, i, Q);
 
 #if eslDEBUGLEVEL > 0
       if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, bck->xmx[i*p7X_NXCELLS+p7X_E], bck->xmx[i*p7X_NXCELLS+p7X_N], bck->xmx[i*p7X_NXCELLS+p7X_J], bck->xmx[i*p7X_NXCELLS+p7X_B], bck->xmx[i*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=i, width=9, precision=4*/
@@ -932,42 +851,6 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
 
   if (opt_sc != NULL) *opt_sc = bck->totscale + log(xN);
 
-  /* Posterior decoding: scale each row by its scale product, as p7_Decoding() does */
-  if (pp != NULL)
-    {
-      float  scaleproduct = 1.0 / bck->xmx[p7X_N];
-      __m128  totrv;
-      __m128 *ppv;
-
-      pp->M = om->M;
-      pp->L = L;
-
-      ppv = pp->dpf[0];
-      for (q = 0; q < Q; q++)
-        MMO(ppv,q) = DMO(ppv,q) = IMO(ppv,q) = _mm_setzero_ps();
-      pp->xmx[p7X_E] = 0.0;
-      pp->xmx[p7X_N] = 0.0;
-      pp->xmx[p7X_J] = 0.0;
-      pp->xmx[p7X_C] = 0.0;
-      pp->xmx[p7X_B] = 0.0;
-
-      for (i = 1; i <= L; i++)
-        {
-          ppv   = pp->dpf[i];
-          totrv = _mm_set1_ps(scaleproduct * fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
-          for (q = 0; q < Q; q++)
-            {
-              MMO(ppv,q) = _mm_mul_ps(MMO(ppv,q), totrv);
-              IMO(ppv,q) = _mm_mul_ps(IMO(ppv,q), totrv);
-            }
-          pp->xmx[i*p7X_NXCELLS+p7X_N] *= scaleproduct;
-          pp->xmx[i*p7X_NXCELLS+p7X_J] *= scaleproduct;
-          pp->xmx[i*p7X_NXCELLS+p7X_C] *= scaleproduct;
-
-          if (bck->has_own_scales) scaleproduct *= fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] /  bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-        }
-      if (isinf(scaleproduct)) return eslERANGE;
-    }
   return eslOK;
 }
 
@@ -1408,62 +1291,6 @@ utest_fwdback(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int
   p7_oprofile_Destroy(om);
 }
 
-/* utest_backward_decoding()
- * Compare p7_BackwardDecoding() with p7_Backward() followed by
- * p7_Decoding(). Both do the same products in the same order, so the
- * Backward scores must be equal and the posterior matrices identical.
- */
-static void
-utest_backward_decoding(ESL_RANDOMNESS *r, ESL_ALPHABET *abc, P7_BG *bg, int M, int L, int N)
-{
-  char        *msg  = "backward decoding unit test failed";
-  P7_HMM      *hmm  = NULL;
-  P7_PROFILE  *gm   = NULL;
-  P7_OPROFILE *om   = NULL;
-  ESL_DSQ     *dsq  = malloc(sizeof(ESL_DSQ) * (L+2));
-  P7_OMX      *oxf  = p7_omx_Create(M, L, L);
-  P7_OMX      *oxb  = p7_omx_Create(M, L, L);
-  P7_OMX      *pp   = p7_omx_Create(M, L, L);
-  P7_OMX      *fwd  = p7_omx_Create(M, L, L);
-  P7_OMX      *bck  = p7_omx_Create(M, 0, L);
-  P7_GMX      *gxp1 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
-  P7_GMX      *gxp2 = p7_gmx_Create(M, L, L, p7G_NSCELLS);
-  float        bsc1, bsc2;
-  int          i, x;
-
-  p7_oprofile_Sample(r, abc, bg, M, L, &hmm, &gm, &om);
-  while (N--)
-    {
-      esl_rsq_xfIID(r, bg->f, abc->K, L, dsq);
-
-      if (p7_Forward         (dsq, L, om, oxf,      NULL)  != eslOK) esl_fatal(msg);
-      if (p7_Backward        (dsq, L, om, oxf, oxb, &bsc1) != eslOK) esl_fatal(msg);
-      if (p7_Decoding        (om, oxf, oxb, pp)            != eslOK) esl_fatal(msg);
-      if (p7_Forward         (dsq, L, om, fwd,      NULL)  != eslOK) esl_fatal(msg);
-      if (p7_BackwardDecoding(dsq, L, om, fwd, bck, &bsc2) != eslOK) esl_fatal(msg);
-      if (p7_omx_FDeconvert(pp,  gxp1)                     != eslOK) esl_fatal(msg);
-      if (p7_omx_FDeconvert(fwd, gxp2)                     != eslOK) esl_fatal(msg);
-
-      if (bsc1 != bsc2)                                              esl_fatal("%s: Backward scores differ (%f %f)", msg, bsc1, bsc2);
-      if (p7_gmx_Compare(gxp2, gxp1, 0.0)                  != eslOK) esl_fatal("%s: posterior matrices differ", msg);
-      for (i = 0; i <= L; i++)
-        for (x = 0; x < p7X_NXCELLS; x++)
-          if (bck->xmx[i*p7X_NXCELLS+x] != oxb->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Backward special states differ", msg);
-    }
-
-  free(dsq);
-  p7_hmm_Destroy(hmm);
-  p7_omx_Destroy(oxf);
-  p7_omx_Destroy(oxb);
-  p7_omx_Destroy(pp);
-  p7_omx_Destroy(fwd);
-  p7_omx_Destroy(bck);
-  p7_gmx_Destroy(gxp1);
-  p7_gmx_Destroy(gxp2);
-  p7_profile_Destroy(gm);
-  p7_oprofile_Destroy(om);
-}
-
 /* utest_backward_chk()
  * Checkpointed Backward with its own scale factors, and checkpointed
  * Forward, on random sequences
@@ -1680,9 +1507,6 @@ main(int argc, char **argv)
   utest_fwdback(r, abc, bg, M, L, N);   /* normal sized models */
   utest_fwdback(r, abc, bg, 1, L, 10);  /* size 1 models       */
   utest_fwdback(r, abc, bg, M, 1, 10);  /* size 1 sequences    */
-  utest_backward_decoding(r, abc, bg, M, L, N);
-  utest_backward_decoding(r, abc, bg, 1, L, 10);
-  utest_backward_decoding(r, abc, bg, M, 1, 10);
   utest_backward_chk(r, abc, bg, M, L, N,  TRUE);
   utest_backward_chk(r, abc, bg, 1, L, 10, FALSE);
   utest_backward_chk(r, abc, bg, M, 1, 10, FALSE);
@@ -1697,9 +1521,6 @@ main(int argc, char **argv)
   utest_fwdback(r, abc, bg, M, L, N);   
   utest_fwdback(r, abc, bg, 1, L, 10);  
   utest_fwdback(r, abc, bg, M, 1, 10);  
-  utest_backward_decoding(r, abc, bg, M, L, N);
-  utest_backward_decoding(r, abc, bg, 1, L, 10);
-  utest_backward_decoding(r, abc, bg, M, 1, 10);
   utest_backward_chk(r, abc, bg, M, L, N,  TRUE);
   utest_backward_chk(r, abc, bg, 1, L, 10, FALSE);
   utest_backward_chk(r, abc, bg, M, 1, 10, FALSE);

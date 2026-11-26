@@ -24,7 +24,7 @@
 #include "impl_avx.h"
 
 static int forward_engine_avx (int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
-static int backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc);
+static int backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 
 
 /*****************************************************************
@@ -65,7 +65,7 @@ p7_Backward_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *
   if (L     != fwd->L)               ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
   if (! p7_oprofile_IsLocal(om))     ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
-  return backward_engine_avx(TRUE, dsq, L, om, fwd, bck, NULL, opt_sc);
+  return backward_engine_avx(TRUE, dsq, L, om, fwd, bck, opt_sc);
 }
 
 int
@@ -78,23 +78,8 @@ p7_BackwardParser_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7
   if (L     != fwd->L)               ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
   if (! p7_oprofile_IsLocal(om))     ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
-  return backward_engine_avx(FALSE, dsq, L, om, fwd, bck, NULL, opt_sc);
+  return backward_engine_avx(FALSE, dsq, L, om, fwd, bck, opt_sc);
 }
-
-int
-p7_BackwardDecoding_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
-{
-#if eslDEBUGLEVEL > 0
-  if (om->M >  bck->allocQ4_avx*8)  ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (bck->validR < 1)               ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
-  if (L     >= bck->allocXR)         ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
-  if (L     != fwd->L)               ESL_EXCEPTION(eslEINVAL, "fwd matrix size doesn't agree with length L");
-  if (L     >= fwd->validR)          ESL_EXCEPTION(eslEINVAL, "fwd matrix isn't a full matrix (too few MDI rows)");
-  if (! p7_oprofile_IsLocal(om))     ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
-#endif
-  return backward_engine_avx(FALSE, dsq, L, om, fwd, bck, fwd, opt_sc);
-}
-
 
 /*****************************************************************
  * 2. Static engine implementations.
@@ -275,38 +260,6 @@ forward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
 
   if (opt_sc != NULL) *opt_sc = ox->totscale + log(xC * om->xf[p7O_C][p7O_MOVE]);
   return eslOK;
-}
-
-
-/* backward_decode_row_avx()
- * For backward_engine_avx() with a posterior matrix <pp>, which is
- * the Forward matrix <fwd>: as soon as Backward row <i> (<dpc>, and the
- * special states in <bck>) is final, write F*B for M and I over row <i>
- * of <pp>, 0 for D, and F(i-1)*B(i)*t_loop for N, J and C. The engine
- * multiplies each row by its scale product after the sweep, completing
- * the same products, in the same order, as p7_Decoding_avx().
- * Posterior row <i> reads Forward row <i> and the Forward special
- * states of row <i-1>, which are not overwritten yet when the rows are
- * done from L down.
- */
-static inline void
-backward_decode_row_avx(const P7_OPROFILE *om, const P7_OMX *fwd, const P7_OMX *bck, __m256 *dpc, P7_OMX *pp, int i, int Q)
-{
-  __m256 *ppv = pp->dpf_avx[i];
-  __m256 *fv  = fwd->dpf_avx[i];
-  int     q;
-
-  for (q = 0; q < Q; q++)
-    {
-      MMO(ppv,q) = _mm256_mul_ps(MMO(fv,q), MMO(dpc,q));
-      DMO(ppv,q) = _mm256_setzero_ps();
-      IMO(ppv,q) = _mm256_mul_ps(IMO(fv,q), IMO(dpc,q));
-    }
-  pp->xmx[i*p7X_NXCELLS+p7X_E] = 0.0;
-  pp->xmx[i*p7X_NXCELLS+p7X_N] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_N] * bck->xmx[i*p7X_NXCELLS+p7X_N] * om->xf[p7O_N][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_J] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_J] * bck->xmx[i*p7X_NXCELLS+p7X_J] * om->xf[p7O_J][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_C] = fwd->xmx[(i-1)*p7X_NXCELLS+p7X_C] * bck->xmx[i*p7X_NXCELLS+p7X_C] * om->xf[p7O_C][p7O_LOOP];
-  pp->xmx[i*p7X_NXCELLS+p7X_B] = 0.0;
 }
 
 
@@ -557,13 +510,10 @@ backward_row_0_avx(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, const 
 
 
 static int
-backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, P7_OMX *pp, float *opt_sc)
+backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
-  __m256   zerov = _mm256_setzero_ps();
   float    xN;
   int      i;
-  int      q;
-  int      Q   = p7O_NQF_AVX(om->M);
   __m256  *dpc;
   __m256  *dpp;
 
@@ -573,14 +523,12 @@ backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
 
   dpc = bck->dpf_avx[L * do_full];
   backward_row_L_avx(om, fwd->xmx, bck->xmx, &bck->totscale, dpc, L, BWD_SCALE_FORWARD);
-  if (pp != NULL) backward_decode_row_avx(om, fwd, bck, dpc, pp, L, Q);
 
   /* Main backward recursion */
   for (i = L-1; i >= 1; i--) {
     dpc = bck->dpf_avx[i     * do_full];
     dpp = bck->dpf_avx[(i+1) * do_full];
     backward_row_avx(dsq, om, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, dpc, dpp, i, BWD_SCALE_FORWARD);
-    if (pp != NULL) backward_decode_row_avx(om, fwd, bck, dpc, pp, i, Q);
   }
 
   /* Termination at i=0 */
@@ -593,42 +541,6 @@ backward_engine_avx(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
 
   if (opt_sc != NULL) *opt_sc = bck->totscale + log(xN);
 
-  /* Posterior decoding: scale each row by its scale product, as p7_Decoding_avx() does */
-  if (pp != NULL)
-    {
-      float   scaleproduct = 1.0 / bck->xmx[p7X_N];
-      __m256  totrv;
-      __m256 *ppv;
-
-      pp->M = om->M;
-      pp->L = L;
-
-      ppv = pp->dpf_avx[0];
-      for (q = 0; q < Q; q++)
-        MMO(ppv,q) = DMO(ppv,q) = IMO(ppv,q) = zerov;
-      pp->xmx[p7X_E] = 0.0;
-      pp->xmx[p7X_N] = 0.0;
-      pp->xmx[p7X_J] = 0.0;
-      pp->xmx[p7X_C] = 0.0;
-      pp->xmx[p7X_B] = 0.0;
-
-      for (i = 1; i <= L; i++)
-        {
-          ppv   = pp->dpf_avx[i];
-          totrv = _mm256_set1_ps(scaleproduct * fwd->xmx[i*p7X_NXCELLS+p7X_SCALE]);
-          for (q = 0; q < Q; q++)
-            {
-              MMO(ppv,q) = _mm256_mul_ps(MMO(ppv,q), totrv);
-              IMO(ppv,q) = _mm256_mul_ps(IMO(ppv,q), totrv);
-            }
-          pp->xmx[i*p7X_NXCELLS+p7X_N] *= scaleproduct;
-          pp->xmx[i*p7X_NXCELLS+p7X_J] *= scaleproduct;
-          pp->xmx[i*p7X_NXCELLS+p7X_C] *= scaleproduct;
-
-          if (bck->has_own_scales) scaleproduct *= fwd->xmx[i*p7X_NXCELLS+p7X_SCALE] /  bck->xmx[i*p7X_NXCELLS+p7X_SCALE];
-        }
-      if (isinf(scaleproduct)) return eslERANGE;
-    }
   return eslOK;
 }
 

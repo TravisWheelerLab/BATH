@@ -1453,6 +1453,8 @@ extern int p7_GDecoding      (const P7_PROFILE *gm, const P7_GMX *fwd,       P7_
 extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
 /* generic_decoding_frameshift.c */
+extern void p7_GDecodingRow_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *fdp, const float *fx3, const float *bdp, const float *bxp,
+                                       float overall_sc, float *pp, float *ppx, int i);
 extern int p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck);
 extern int p7_GDomainDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 
@@ -1489,6 +1491,7 @@ extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_
 extern int p7_GOATrace        (const P7_PROFILE *gm,                   const P7_GMX *gx, P7_TRACE *tr);
 
 /* generic_optacc_frameshift.c */
+extern void p7_GOptimalAccuracyRow_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *pp, const float *ppx, float **dp, float *xmx, int i);
 extern int p7_GOptimalAccuracy_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_GMX *pp, P7_GMX *gx, float *ret_e);
 extern int p7_GOATrace_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *ppx, const P7_GMX *gx, P7_TRACE *tr);
 

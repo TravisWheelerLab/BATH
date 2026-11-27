@@ -44,182 +44,11 @@
  * 1. OA sweep and trace, frameshift model (5 codon lengths)
  *****************************************************************/
 
-#define IVX5(i,k)     (ivx[((k)*p7P_5CODONS) + (i)])
-#define MSC_FS1(k)    (rsc1[(k)])
-#define MSC_FS2(k)    (rsc2[(k)])
-#define MSC_FS3(k)    (rsc3[(k)])
-#define MSC_FS4(k)    (rsc4[(k)])
-#define MSC_FS5(k)    (rsc5[(k)])
 #define MMX_OA(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M + p7G_C1])
 #define IMX_OA(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_M + p7G_C2])
 #define DMX_OA(i,k)   (dp[(i)][(k) * p7G_NSCELLS_FS + p7G_D])
 #define PPM_FS(k,c)   (pp[(k) * p7G_NSCELLS_FS + p7G_M + (c)])
 #define PPI_FS(k)     (pp[(k) * p7G_NSCELLS_FS + p7G_I])
-
-/* decode_fs_row()
- * Posterior probabilities of row <i> (1..L) of the frameshift model
- * into <pp> (one row, [k*p7G_NSCELLS_FS + s]) and <ppx> (N, J, C of
- * the row), from Forward row <i> in <fdp>, the Forward special states
- * of row i-3 in <fx3> (used for i > 2), the Backward row <i> in <bdp>
- * and its special states in <bxp>, with overall score <overall_sc>.
- * Same calculation as p7_GDecoding_Frameshift().
- */
-static void
-decode_fs_row(const P7_FS_PROFILE *gm_fs5, const float *fdp, const float *fx3, const float *bdp, const float *bxp,
-              float overall_sc, float *pp, float *ppx, int i)
-{
-  int M = gm_fs5->M;
-  int k, c;
-
-  for (c = p7G_C0; c <= p7G_C5; c++) PPM_FS(0,c) = 0.0;
-  PPI_FS(0) = pp[0*p7G_NSCELLS_FS + p7G_D] = 0.0;
-
-  for (k = 1; k < M; k++)
-    {
-      for (c = p7G_C0; c <= p7G_C5; c++)
-        PPM_FS(k,c) = expf(fdp[k*p7G_NSCELLS_FS + p7G_M + c] + bdp[k*p7G_NSCELLS + p7G_M] - overall_sc);
-      PPI_FS(k) = expf(fdp[k*p7G_NSCELLS_FS + p7G_I] + bdp[k*p7G_NSCELLS + p7G_I] - overall_sc);
-      pp[k*p7G_NSCELLS_FS + p7G_D] = 0.0;
-    }
-  for (c = p7G_C0; c <= p7G_C5; c++)
-    PPM_FS(M,c) = expf(fdp[M*p7G_NSCELLS_FS + p7G_M + c] + bdp[M*p7G_NSCELLS + p7G_M] - overall_sc);
-  PPI_FS(M) = 0.0;
-  pp[M*p7G_NSCELLS_FS + p7G_D] = 0.0;
-
-  ppx[p7G_E] = 0.0;
-  ppx[p7G_B] = 0.0;
-  if (i > 2)
-    {
-      ppx[p7G_N] = expf(fx3[p7G_N] + bxp[p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
-      ppx[p7G_C] = expf(fx3[p7G_C] + bxp[p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
-      ppx[p7G_J] = expf(fx3[p7G_J] + bxp[p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
-    }
-  else
-    {
-      ppx[p7G_N] = expf(bxp[p7G_N] - overall_sc);
-      ppx[p7G_C] = 0.0;
-      ppx[p7G_J] = 0.0;
-    }
-}
-
-/* oa_fs_max()
- * For oa_fs_row(): the best OA path into an M at (i,k) through codon
- * length <c>, from row i-c (cells at k-1 and B), as
- * p7_GOptimalAccuracy_Frameshift() computes its max1..max5.
- */
-static inline float
-oa_fs_max(const float *tsc, float **dp, const float *xmx, const float *pp, int i, int k, int c)
-{
-  return ESL_MAX( TSCDELTA(p7P_MM, k-1) * (MMX_OA(i-c,k-1)   + PPM_FS(k, p7G_C0 + c)),
-         ESL_MAX( TSCDELTA(p7P_IM, k-1) * (IMX_OA(i-c,k-1)   + PPM_FS(k, p7G_C0 + c)),
-         ESL_MAX( TSCDELTA(p7P_DM, k-1) * (DMX_OA(i-c,k-1)   + PPM_FS(k, p7G_C0 + c)),
-                  TSCDELTA(p7P_BM, k-1) * (XMX(i-c,p7G_B)    + PPM_FS(k, p7G_C0 + c)))));
-}
-
-/* oa_fs_row()
- * OA row <i> (1..L) of the frameshift model into dp[i] (OA cells) and
- * xmx row i, from OA rows i-1..i-5 and the posterior row <pp> / <ppx>
- * of row i. Same calculation as p7_GOptimalAccuracy_Frameshift().
- */
-static void
-oa_fs_row(const P7_FS_PROFILE *gm_fs5, const float *pp, const float *ppx, float **dp, float *xmx, int i)
-{
-  float const *tsc  = gm_fs5->tsc;
-  int          M    = gm_fs5->M;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 1.0 : 0.0;
-  float        nn   = ((gm_fs5->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        jj   = ((gm_fs5->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        cc   = ((gm_fs5->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        nb   = ((gm_fs5->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        jb   = ((gm_fs5->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        ej   = ((gm_fs5->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        ec   = ((gm_fs5->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  float        max1, max2, max3, max4, max5;
-  int          k;
-
-  MMX_OA(i,0) = IMX_OA(i,0) = DMX_OA(i,0) = XMX(i,p7G_E) = -eslINFINITY;
-
-  if (i == 1)
-    {
-      for (k = 1; k < M; k++) {
-        MMX_OA(1,k)  = TSCDELTA(p7P_BM,k-1) * PPM_FS(k,p7G_C1);
-        IMX_OA(1,k)  = -eslINFINITY;
-        DMX_OA(1,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX_OA(1,k-1),
-                                TSCDELTA(p7P_DD, k-1) * DMX_OA(1,k-1));
-        XMX(1,p7G_E) = ESL_MAX(XMX(1,p7G_E), esc * MMX_OA(1,k));
-      }
-      MMX_OA(1,M) = TSCDELTA(p7P_BM, M-1) * PPM_FS(M,p7G_C1);
-      IMX_OA(1,M)  = -eslINFINITY;
-      DMX_OA(1,M)  = ESL_MAX( TSCDELTA(p7P_MD, M-1) * MMX_OA(1,M-1),
-                              TSCDELTA(p7P_DD, M-1) * DMX_OA(1,M-1));
-      XMX(1,p7G_E) = ESL_MAX(XMX(1,p7G_E), ESL_MAX(MMX_OA(1,M), DMX_OA(1, M)));
-
-      XMX(1,p7G_J) = ej * XMX(1,p7G_E);
-      XMX(1,p7G_C) = ec * XMX(1,p7G_E);
-      XMX(1,p7G_N) = nn * ppx[p7G_N];
-      XMX(1,p7G_B) = ESL_MAX(nb * XMX(1,p7G_N), jb * XMX(1,p7G_J));
-      return;
-    }
-
-  if (i == 2)
-    {
-      for (k = 1; k <= M; k++) {
-        max1 = oa_fs_max(tsc, dp, xmx, pp, 2, k, 1);
-        max2 = TSCDELTA(p7P_BM, k-1) * (XMX(0,p7G_B) + PPM_FS(k,p7G_C2));
-        MMX_OA(2,k)  = ESL_MAX( max1, max2);
-        IMX_OA(2,k)  = -eslINFINITY;
-        DMX_OA(2,k)  = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX_OA(2,k-1),
-                                TSCDELTA(p7P_DD, k-1) * DMX_OA(2,k-1));
-        if (k < M) XMX(2,p7G_E) = ESL_MAX(XMX(2,p7G_E), esc * MMX_OA(2,k));
-      }
-      XMX(2,p7G_E) = ESL_MAX(XMX(2,p7G_E), ESL_MAX(MMX_OA(2,M), DMX_OA(2, M)));
-
-      XMX(2,p7G_J) = ej * XMX(2,p7G_E);
-      XMX(2,p7G_C) = ec * XMX(2,p7G_E);
-      XMX(2,p7G_N) = nn * ppx[p7G_N];
-      XMX(2,p7G_B) = ESL_MAX(nb * XMX(2,p7G_N), jb * XMX(2,p7G_J));
-      return;
-    }
-
-  for (k = 1; k <= M; k++)
-    {
-      max1 = oa_fs_max(tsc, dp, xmx, pp, i, k, 1);
-      max2 = oa_fs_max(tsc, dp, xmx, pp, i, k, 2);
-      max3 = oa_fs_max(tsc, dp, xmx, pp, i, k, 3);
-      if (i >= 5)
-        {
-          max4 = oa_fs_max(tsc, dp, xmx, pp, i, k, 4);
-          max5 = oa_fs_max(tsc, dp, xmx, pp, i, k, 5);
-          MMX_OA(i,k) = ESL_MAX(ESL_MAX(max1, max2),
-                                ESL_MAX(ESL_MAX(max3, max4), max5));
-        }
-      else
-        {
-          max4 = (i == 4) ? TSCDELTA(p7P_BM, k-1) * (XMX(0,p7G_B) + PPM_FS(k,p7G_C4)) : -eslINFINITY;
-          MMX_OA(i,k) = ESL_MAX( ESL_MAX( max1, max2),
-                                 ESL_MAX( max3, max4));
-        }
-
-      if (k < M)
-        IMX_OA(i,k) = ESL_MAX( TSCDELTA(p7P_MI, k) * (MMX_OA(i-3,k) + PPI_FS(k)),
-                               TSCDELTA(p7P_II, k) * (IMX_OA(i-3,k) + PPI_FS(k)));
-      else
-        IMX_OA(i,k) = -eslINFINITY;
-
-      DMX_OA(i,k) = ESL_MAX( TSCDELTA(p7P_MD, k-1) * MMX_OA(i,k-1),
-                             TSCDELTA(p7P_DD, k-1) * DMX_OA(i,k-1));
-
-      if (k < M) XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX_OA(i,k));
-    }
-  XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX_OA(i,M), DMX_OA(i, M)));
-
-  XMX(i,p7G_J) = ESL_MAX( jj * (XMX(i-3,p7G_J) + ppx[p7G_J]),
-                          ej *  XMX(i,  p7G_E));
-  XMX(i,p7G_C) = ESL_MAX( cc * (XMX(i-3,p7G_C) + ppx[p7G_C]),
-                          ec *  XMX(i,  p7G_E));
-  XMX(i,p7G_N) = nn * (XMX(i-3,p7G_N) + ppx[p7G_N]);
-  XMX(i,p7G_B) = ESL_MAX( nb * XMX(i,  p7G_N), jb * XMX(i,  p7G_J));
-}
 
 /* oat_store_row_fs()
  * Store into <ox> what the frameshift OA trace reads from OA row <i>:
@@ -363,7 +192,7 @@ p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFI
   float   ppx[p7G_NXCELLS];
   float   cntx[p7G_NXCELLS];
   float   overall_sc;
-  int     i, k, b;
+  int     i, b;
   int     status;
 
   if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
@@ -392,11 +221,7 @@ p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFI
   fdp[0] = mem;
   odp[0] = mem + 4*W;
   p7_GForwardRow_Frameshift_5Codons(dsq, gm_fs5, fdp, fxmx, iv->ivx, 0);
-  oxmx[0*p7G_NXCELLS + p7G_N] = 0.;
-  oxmx[0*p7G_NXCELLS + p7G_B] = 0.;
-  oxmx[0*p7G_NXCELLS + p7G_E] = oxmx[0*p7G_NXCELLS + p7G_C] = oxmx[0*p7G_NXCELLS + p7G_J] = -eslINFINITY;
-  for (k = 0; k <= M; k++)
-    odp[0][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] = odp[0][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] = odp[0][k*p7G_NSCELLS_FS + p7G_D] = -eslINFINITY;
+  p7_GOptimalAccuracyRow_Frameshift(gm_fs5, NULL, NULL, odp, oxmx, 0);
   oat_store_row_fs(gm_fs5, odp, oxmx, NULL, NULL, ox, 0);
 
   for (i = 1; i <= L; i++)
@@ -408,8 +233,8 @@ p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFI
       if (b != cx->b && (status = p7_GBackwardChkLoad_Frameshift_5Codons(dsq, gm_fs5, cx, bv, b)) != eslOK) goto ERROR;
 
       p7_GForwardRow_Frameshift_5Codons(dsq, gm_fs5, fdp, fxmx, iv->ivx, i);
-      decode_fs_row(gm_fs5, fdp[i], (i > 2) ? fxmx + (i-3)*p7G_NXCELLS : NULL, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx, i);
-      oa_fs_row(gm_fs5, pp, ppx, odp, oxmx, i);
+      p7_GDecodingRow_Frameshift(gm_fs5, fdp[i], (i > 2) ? fxmx + (i-3)*p7G_NXCELLS : NULL, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx, i);
+      p7_GOptimalAccuracyRow_Frameshift(gm_fs5, pp, ppx, odp, oxmx, i);
       oat_store_row_fs(gm_fs5, odp, oxmx, pp, ppx, ox, i);
 
       /* posterior sums for null2, added up as p7_GNull2_fs_ByExpectation() does */

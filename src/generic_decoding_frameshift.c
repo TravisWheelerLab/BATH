@@ -7,12 +7,76 @@
 #include "p7_config.h"
 
 #include <math.h>
+#include <string.h>
 #include "easel.h"
 #include "hmmer.h"
 
 /*****************************************************************
  * 1. Posterior decoding algorithms.
  *****************************************************************/
+
+#define PPM_FS(k,c)   (pp[(k) * p7G_NSCELLS_FS + p7G_M + (c)])
+#define PPI_FS(k)     (pp[(k) * p7G_NSCELLS_FS + p7G_I])
+#define PPD_FS(k)     (pp[(k) * p7G_NSCELLS_FS + p7G_D])
+
+/* Function:  p7_GDecodingRow_Frameshift()
+ * Synopsis:  Posterior decoding of one row, frameshift model.
+ *
+ * Purpose:   Posterior probabilities of row <i> (1..L) of the 5-codon
+ *            profile <gm_fs5> into <pp> (one row, [k*p7G_NSCELLS_FS+s])
+ *            and <ppx> (the special states of the row), from Forward
+ *            row <i> in <fdp> (<p7G_NSCELLS_FS> cells per position), the
+ *            Forward special states of row i-3 in <fx3> (read only for
+ *            i > 2; may be NULL otherwise), Backward row <i> in <bdp>
+ *            (<p7G_NSCELLS> cells per position) and its special states
+ *            in <bxp>, with overall score <overall_sc>. Used by
+ *            <p7_GDecoding_Frameshift()> for each row and by the OA
+ *            sweep <p7_GOptimalAccuracySweep_Frameshift()>.
+ *
+ *            <pp> may be the Forward row <fdp>: each Forward value is
+ *            read before the posterior overwrites it. <ppx> may not
+ *            hold <fx3>.
+ */
+void
+p7_GDecodingRow_Frameshift(const P7_FS_PROFILE *gm_fs5, const float *fdp, const float *fx3, const float *bdp, const float *bxp,
+                           float overall_sc, float *pp, float *ppx, int i)
+{
+  int M = gm_fs5->M;
+  int k, c;
+
+  for (c = p7G_C0; c <= p7G_C5; c++) PPM_FS(0,c) = 0.0;
+  PPI_FS(0) = PPD_FS(0) = 0.0;
+
+  for (k = 1; k < M; k++)
+    {
+      for (c = p7G_C0; c <= p7G_C5; c++)
+        PPM_FS(k,c) = expf(fdp[k*p7G_NSCELLS_FS + p7G_M + c] + bdp[k*p7G_NSCELLS + p7G_M] - overall_sc);
+      PPI_FS(k) = expf(fdp[k*p7G_NSCELLS_FS + p7G_I] + bdp[k*p7G_NSCELLS + p7G_I] - overall_sc);
+      PPD_FS(k) = 0.0;
+    }
+  for (c = p7G_C0; c <= p7G_C5; c++)
+    PPM_FS(M,c) = expf(fdp[M*p7G_NSCELLS_FS + p7G_M + c] + bdp[M*p7G_NSCELLS + p7G_M] - overall_sc);
+  PPI_FS(M) = PPD_FS(M) = 0.0;
+
+  /* no emission from E or B states */
+  ppx[p7G_E] = 0.0;
+  ppx[p7G_B] = 0.0;
+
+  /* N, J and C emit a codon on each loop */
+  if (i > 2)
+    {
+      ppx[p7G_N] = expf(fx3[p7G_N] + bxp[p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
+      ppx[p7G_C] = expf(fx3[p7G_C] + bxp[p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
+      ppx[p7G_J] = expf(fx3[p7G_J] + bxp[p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
+    }
+  else
+    {
+      ppx[p7G_N] = expf(bxp[p7G_N] - overall_sc);
+      ppx[p7G_C] = 0.0;
+      ppx[p7G_J] = 0.0;
+    }
+}
+
 
 /* Function:  p7_GDecoding_Frameshift() - BATH
  * Synopsis:  Posterior decoding of residue assignments.
@@ -22,7 +86,8 @@
  *            aware codon profile  <gm_fs5> and filled Forward and 
  *            Backward matrices <fwd>, <bck> for the profile aligned 
  *            to that target sequence. The codon posterior decoding 
- *            is overwritten to the <fwd> matrix.
+ *            is overwritten to the <fwd> matrix. Each row is computed
+ *            by <p7_GDecodingRow_Frameshift()>.
  *
  *            Each value at row <i> is the posterior probability that
  *            the state's emission ends at nucleotide <i>: match <k>
@@ -37,17 +102,13 @@
  *            bck   - filled Backward matrix
  *
  * Returns:   <eslOK> on success.
- *
- *    
  */
 int
 p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
 {
   float      **dp   = fwd->dp;
   float       *xmx  = fwd->xmx;
-  float        N0, N1, N2, N3;
-  float        J0, J1, J2, J3;
-  float        C0, C1, C2, C3;
+  float        fx[4 * p7G_NXCELLS];   /* Forward special states of rows i-3..i, ring by i%4 */
   int          L    = fwd->L;
   int          M    = gm_fs5->M;
   int          i,k;
@@ -55,13 +116,8 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
                      p7_FLogsum( bck->xmx[1*p7G_NXCELLS+p7G_N],
                                  bck->xmx[2*p7G_NXCELLS+p7G_N]));
 
-  N0 = fwd->xmx[p7G_NXCELLS*0 + p7G_N];
-  J0 = fwd->xmx[p7G_NXCELLS*0 + p7G_J];
-  C0 = fwd->xmx[p7G_NXCELLS*0 + p7G_C];
-
-  N1 = N2 = N3 = 0.0;
-  J1 = J2 = J3 = 0.0;
-  C1 = C2 = C3 = 0.0;
+  /* the Forward special states are overwritten by posteriors row by row; keep the last four */
+  memcpy(fx, xmx, sizeof(float) * p7G_NXCELLS);
 
   XMX_FS(0, p7G_E) = 0.0; 
   XMX_FS(0, p7G_N) = 0.0; 
@@ -76,60 +132,9 @@ p7_GDecoding_Frameshift(const P7_FS_PROFILE *gm_fs5, P7_GMX *fwd, P7_GMX *bck)
 
   for (i = 1; i <= L; i++)
     {
-	 N3 = N2; N2 = N1; N1 = N0;
-     J3 = J2; J2 = J1; J1 = J0;
-	 C3 = C2; C2 = C1; C1 = C0;
-
-     /* 0th position in model */    
-	  MMX_FS(i,0,p7G_C1) = MMX_FS(i,0,p7G_C2) = MMX_FS(i,0,p7G_C3) = MMX_FS(i,0,p7G_C4) = MMX_FS(i,0,p7G_C5) = 0.0;
-      MMX_FS(i,0, p7G_C0) = IMX_FS(i,0) = DMX_FS(i,0) = 0.0;
-
-      for (k = 1; k < M; k++)
-      {
-        MMX_FS(i,k,p7G_C0) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
-        MMX_FS(i,k,p7G_C1) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); 
-        MMX_FS(i,k,p7G_C2) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
-        MMX_FS(i,k,p7G_C3) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
-        MMX_FS(i,k,p7G_C4) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C4] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);
-        MMX_FS(i,k,p7G_C5) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_M + p7G_C5] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc);        
-
-        IMX_FS(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS_FS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc);
-
-        DMX_FS(i,k) = 0.0;
-      }
-
-      MMX_FS(i,M, p7G_C0) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C0] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-      MMX_FS(i,M, p7G_C1) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C1] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-      MMX_FS(i,M, p7G_C2) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C2] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-      MMX_FS(i,M, p7G_C3) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C3] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-      MMX_FS(i,M, p7G_C4) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C4] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-      MMX_FS(i,M, p7G_C5) = expf(fwd->dp[i][M*p7G_NSCELLS_FS + p7G_M + p7G_C5] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc);
-                       
-      IMX_FS(i,M) = 0.0; 
-      DMX_FS(i,M) = 0.0;
-
-      /* no emission from E or B states */
-      XMX_FS(i,p7G_E)  = 0.0;
-      XMX_FS(i,p7G_B)  = 0.0; 
-
-      /* probability from N, J and C states */
-	  N0 = fwd->xmx[p7G_NXCELLS*i + p7G_N];
-	  J0 = fwd->xmx[p7G_NXCELLS*i + p7G_J];
-	  C0 = fwd->xmx[p7G_NXCELLS*i + p7G_C];
-      if(i > 2)
-      {
-         XMX_FS(i,p7G_N) = expf(N3 + bck->xmx[p7G_NXCELLS*i + p7G_N] + gm_fs5->xsc[p7P_N][p7P_LOOP] - overall_sc);
-
-         XMX_FS(i,p7G_C) = expf(C3 + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm_fs5->xsc[p7P_C][p7P_LOOP] - overall_sc);
-         
-         XMX_FS(i,p7G_J) = expf(J3 + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm_fs5->xsc[p7P_J][p7P_LOOP] - overall_sc);
-      }
-      else
-      {
-         XMX_FS(i,p7G_N) = expf(bck->xmx[p7G_NXCELLS*i + p7G_N] - overall_sc);
-         XMX_FS(i,p7G_C) = 0.0;
-         XMX_FS(i,p7G_J) = 0.0;
-      }
+      memcpy(fx + (i%4)*p7G_NXCELLS, xmx + i*p7G_NXCELLS, sizeof(float) * p7G_NXCELLS);
+      p7_GDecodingRow_Frameshift(gm_fs5, dp[i], (i > 2) ? fx + ((i-3)%4)*p7G_NXCELLS : NULL,
+                                 bck->dp[i], bck->xmx + i*p7G_NXCELLS, overall_sc, dp[i], xmx + i*p7G_NXCELLS, i);
     }
 
   return eslOK;

@@ -47,7 +47,9 @@ OBJS =  decoding.o\
 	fwdback_chk_avx.o\
 	fwdback_fs.o\
 	fwdback_fs_sse.o\
+	fwdback_chk_fs_sse.o\
 	fwdback_fs_avx.o\
+	fwdback_chk_fs_avx.o\
 	msvfilter.o\
 	msvfilter_sse.o\
 	msvfilter_avx.o\
@@ -64,7 +66,9 @@ OBJS =  decoding.o\
 	optacc_sweep_avx.o\
 	optacc_fs.o\
 	optacc_fs_sse.o\
+	optacc_sweep_fs_sse.o\
 	optacc_fs_avx.o\
+	optacc_sweep_fs_avx.o\
 	ssvfilter.o\
 	ssvfilter_sse.o\
 	ssvfilter_avx.o\

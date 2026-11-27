@@ -38,6 +38,7 @@ OBJS =  decoding.o\
 	fwdback.o\
 	fwdback_chk.o\
 	fwdback_fs.o\
+	fwdback_chk_fs.o\
 	ssvfilter.o\
 	msvfilter.o\
 	null2.o\
@@ -45,6 +46,7 @@ OBJS =  decoding.o\
 	optacc.o\
 	optacc_sweep.o\
 	optacc_fs.o\
+	optacc_sweep_fs.o\
 	stotrace.o\
 	stotrace_fs.o\
 	vitfilter.o\

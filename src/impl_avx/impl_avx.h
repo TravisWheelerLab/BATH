@@ -457,6 +457,18 @@ typedef struct p7_omx_s {
 #define DMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_D])
 #define IMO_FS(dp,q)   ((dp)[(q) * p7X_NSCELLS_FS + p7X_FS_I])
 
+/* The OA matrix uses the frameshift (p7X_NSCELLS_FS) cell layout, so the
+ * fill can write it over the posterior matrix. Each filled cell holds
+ * the OA scores of M, I and D in the C1, C2 and D slots, the codon length
+ * the trace takes for an M there in C3, and the posteriors pp_C0 and
+ * pp_I, which the trace reports, in C0 and I. C4 and C5 keep pp_C4 and
+ * pp_C5, which nothing reads after the fill.
+ */
+#define MMO_OA(dp,q)    MMO_FS(dp,q,p7X_FS_C1)
+#define IMO_OA(dp,q)    MMO_FS(dp,q,p7X_FS_C2)
+#define DMO_OA(dp,q)    DMO_FS(dp,q)
+#define CODONO_OA(dp,q) MMO_FS(dp,q,p7X_FS_C3)
+
 
 /* DP cell accessors: self-patching dispatchers in p7_omx.c. */
 extern float (*p7_omx_FGetMDI)(const P7_OMX *ox, int s, int i, int k);
@@ -895,7 +907,13 @@ extern int p7_BackwardParser_Frameshift_5Codons_sse(const ESL_DSQ *dsq, int L, c
 extern int p7_Forward_Frameshift_sse               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern void p7_ForwardRow_Frameshift_sse         (const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, __m128 **ivx, __m128 *dpc, const __m128 *dpp1, const __m128 *dpp3, int i);
 extern void p7_ForwardRow3_Frameshift_sse        (const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, __m128 **ivx, __m128 *dpc, const __m128 *dpp1, const __m128 *dpp3, int i);
+extern void p7_BackwardRowL_Frameshift_sse(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, __m128 *dpc, int L, int scale_mode);
+extern void p7_BackwardRow_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, P7_FS_BWDRING *rg, __m128 *const *dp, __m128 *ivxf, int i, int scale_mode);
+extern float p7_BackwardRow0_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, __m128 *const *dp, __m128 *ivxf);
 extern int p7_Backward_Frameshift_sse              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+#endif
+/* fwdback_chk_fs_sse.c — SSE implementations */
+#ifdef eslENABLE_SSE
 extern int p7_ForwardChk_Frameshift_sse            (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
 extern int p7_ForwardChkLoad_Frameshift_sse        (const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
 extern int p7_BackwardChk_Frameshift_sse           (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
@@ -911,7 +929,13 @@ extern int p7_BackwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, c
 extern int p7_Forward_Frameshift_avx               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern void p7_ForwardRow_Frameshift_avx         (const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, __m256 **ivx, __m256 *dpc, const __m256 *dpp1, const __m256 *dpp3, int i);
 extern void p7_ForwardRow3_Frameshift_avx        (const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, __m256 **ivx, __m256 *dpc, const __m256 *dpp1, const __m256 *dpp3, int i);
+extern void p7_BackwardRowL_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, __m256 *dpc, int L, int scale_mode);
+extern void p7_BackwardRow_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, P7_FS_BWDRING *rg, __m256 *const *dp, __m256 *ivxf, int i, int scale_mode);
+extern float p7_BackwardRow0_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, __m256 *const *dp, __m256 *ivxf);
 extern int p7_Backward_Frameshift_avx              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+#endif
+/* fwdback_chk_fs_avx.c — AVX2 implementations */
+#ifdef eslENABLE_AVX
 extern int p7_ForwardChk_Frameshift_avx            (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
 extern int p7_ForwardChkLoad_Frameshift_avx        (const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
 extern int p7_BackwardChk_Frameshift_avx           (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
@@ -997,6 +1021,10 @@ extern int (*p7_OATraceSweep_Frameshift)        (const P7_FS_OPROFILE *om_fs, co
 #ifdef eslENABLE_SSE
 extern int p7_OptimalAccuracy_Frameshift_sse(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OATrace_Frameshift_sse        (const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
+extern void p7_OptimalAccuracyRow_Frameshift_sse(const P7_FS_OPROFILE *om_fs, const __m128 *ppc, const float *ppx, float *xmx, __m128 *dpc, const __m128 *dp1, const __m128 *dp2, const __m128 *dp3, const __m128 *dp4, const __m128 *dp5, int i);
+#endif
+/* optacc_sweep_fs_sse.c — SSE implementations */
+#ifdef eslENABLE_SSE
 extern int p7_OptimalAccuracySweep_Frameshift_sse(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
 extern int p7_OATraceSweep_Frameshift_sse        (const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr);
 #endif
@@ -1004,6 +1032,10 @@ extern int p7_OATraceSweep_Frameshift_sse        (const P7_FS_OPROFILE *om_fs, c
 #ifdef eslENABLE_AVX
 extern int p7_OptimalAccuracy_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OATrace_Frameshift_avx        (const P7_FS_OPROFILE *om_fs, const float *ppx, const P7_OMX *ox, P7_TRACE *tr);
+extern void p7_OptimalAccuracyRow_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const __m256 *ppc, const float *ppx, float *xmx, __m256 *dpc, const __m256 *dp1, const __m256 *dp2, const __m256 *dp3, const __m256 *dp4, const __m256 *dp5, int i);
+#endif
+/* optacc_sweep_fs_avx.c — AVX2 implementations */
+#ifdef eslENABLE_AVX
 extern int p7_OptimalAccuracySweep_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
 extern int p7_OATraceSweep_Frameshift_avx        (const P7_FS_OPROFILE *om_fs, const P7_OATMX *ox, P7_TRACE *tr);
 #endif

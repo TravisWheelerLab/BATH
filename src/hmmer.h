@@ -1239,6 +1239,18 @@ typedef struct {
 } P7_FS_FWDRING;
 #define PARSER_ROWS_BWD 6
 
+/* P7_FS_BWDRING: the N, B, J and C special states of the last
+ * PARSER_ROWS_BWD rows of a SIMD frameshift Backward, indexed by
+ * row % PARSER_ROWS_BWD; row i reads those of row i+3. At the scale of
+ * the most recent row: when a row is rescaled, every entry is rescaled
+ * with it. */
+typedef struct {
+  float xN[PARSER_ROWS_BWD];
+  float xB[PARSER_ROWS_BWD];
+  float xJ[PARSER_ROWS_BWD];
+  float xC[PARSER_ROWS_BWD];
+} P7_FS_BWDRING;
+
 /*****************************************************************
  * 14. Choice of vector implementation.
  *****************************************************************/

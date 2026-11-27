@@ -270,17 +270,10 @@ forward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om
   ox->totscale       = 0.0;
   p7_ForwardRow_sse(dsq, om, ox->xmx, &ox->totscale, dpc, NULL, 0);
 
-#if eslDEBUGLEVEL > 0
-  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, ox->xmx[p7X_E], ox->xmx[p7X_N], ox->xmx[p7X_J], ox->xmx[p7X_B], ox->xmx[p7X_C]);
-#endif
-
   for (i = 1; i <= L; i++) {
     dpp = dpc;
     dpc = ox->dpf[do_full * i];
     p7_ForwardRow_sse(dsq, om, ox->xmx, &ox->totscale, dpc, dpp, i);
-#if eslDEBUGLEVEL > 0
-    if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, ox->xmx[i*p7X_NXCELLS+p7X_E], ox->xmx[i*p7X_NXCELLS+p7X_N], ox->xmx[i*p7X_NXCELLS+p7X_J], ox->xmx[i*p7X_NXCELLS+p7X_B], ox->xmx[i*p7X_NXCELLS+p7X_C]);
-#endif
   }
   xC = ox->xmx[L*p7X_NXCELLS+p7X_C];
 
@@ -563,9 +556,6 @@ backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *o
     {
       xN = p7_BackwardRow_sse(dsq, L, om, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales,
                        bck->dpf[i * do_full], (i < L) ? bck->dpf[(i+1) * do_full] : NULL, i, p7_BWD_SCALE_FORWARD);
-#if eslDEBUGLEVEL > 0
-      if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, bck->xmx[i*p7X_NXCELLS+p7X_E], bck->xmx[i*p7X_NXCELLS+p7X_N], bck->xmx[i*p7X_NXCELLS+p7X_J], bck->xmx[i*p7X_NXCELLS+p7X_B], bck->xmx[i*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=i, width=9, precision=4*/
-#endif
     }
 
   if      (isnan(xN))         ESL_EXCEPTION(eslERANGE, "backward score is NaN");

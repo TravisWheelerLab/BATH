@@ -322,46 +322,11 @@ p7_ForwardRow(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *tots
   for (q = 0; q < Q; q++) {
           /* Calculate new MMO(i,q); don't store it yet, hold it in sv. */
           sv  =               vmulq_f32(xBv, *tp);  tp++;
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, step=1 ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-    printf("\n");
-#endif
     sv  = vaddq_f32(sv, vmulq_f32(mpv, *tp)); tp++;
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, step=2 ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-    printf("\n");
-#endif
     sv  = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, step=3 ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-    printf("\n");
-#endif
     sv  = vaddq_f32(sv, vmulq_f32(dpv, *tp)); tp++;
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, step=4 ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-    printf("\n");
-#endif
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, rp=", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)*rp);
-    printf("\n");
-#endif
     sv  = vmulq_f32(sv, *rp);                 rp++;
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, step=5 ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)sv);
-    printf("\n");
-#endif
     xEv = vaddq_f32(xEv, sv);
-#ifdef ARMDEBUG
-    printf("i= %d, q=%d, ", i, q);
-    esl_neon_dump_float(stdout, (esl_neon_128f_t)xEv);
-    printf("\n");
-#endif
     /* Load {MDI}(i-1,q) into mpv, dpv, ipv;
           * {MDI}MX(q) is then the current, not the prev row
           */
@@ -382,11 +347,6 @@ p7_ForwardRow(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *tots
           sv         =               vmulq_f32(mpv, *tp);  tp++;
           IMO(dpc,q) = vaddq_f32(sv, vmulq_f32(ipv, *tp)); tp++;
         }
-#ifdef ARMDEBUG
-  printf("i= %d, step = 1, ", i);
-  esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
-  printf("\n");
-#endif
   /* Now the DD paths. We would rather not serialize them but
    * in an accurate Forward calculation, we have few options.
    */
@@ -438,11 +398,6 @@ p7_ForwardRow(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *tots
             if (esl_neon_hmax_u8((esl_neon_128i_t) cv) == 0) break; /* DD's didn't change any DMO(q)? Then done, break out. */
           }
         }
-#ifdef ARMDEBUG
-  printf("i= %d, step = 2, ", i);
-  esl_neon_dump_float(stdout, (esl_neon_128f_t) xEv);
-  printf("\n");
-#endif
   /* Add D's to xEv */
   for (q = 0; q < Q; q++) xEv = vaddq_f32(DMO(dpc,q), xEv);
 
@@ -486,9 +441,6 @@ p7_ForwardRow(const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *tots
   xmx[i*p7X_NXCELLS+p7X_J] = xJ;
   xmx[i*p7X_NXCELLS+p7X_B] = xB;
   xmx[i*p7X_NXCELLS+p7X_C] = xC;
-#ifdef ARMDEBUG
-  printf("i= %d, xE = %f\n", i, xE);
-#endif
 }
 
 
@@ -506,17 +458,10 @@ forward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7
   ox->totscale       = 0.0;
   p7_ForwardRow(dsq, om, ox->xmx, &ox->totscale, dpc, NULL, 0);
 
-#if eslDEBUGLEVEL > 0
-  if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, 0, 9, 5, ox->xmx[p7X_E], ox->xmx[p7X_N], ox->xmx[p7X_J], ox->xmx[p7X_B], ox->xmx[p7X_C]);
-#endif
-
   for (i = 1; i <= L; i++) {
     dpp = dpc;
     dpc = ox->dpf[do_full * i];
     p7_ForwardRow(dsq, om, ox->xmx, &ox->totscale, dpc, dpp, i);
-#if eslDEBUGLEVEL > 0
-    if (ox->debugging) p7_omx_DumpFBRow(ox, TRUE, i, 9, 5, ox->xmx[i*p7X_NXCELLS+p7X_E], ox->xmx[i*p7X_NXCELLS+p7X_N], ox->xmx[i*p7X_NXCELLS+p7X_J], ox->xmx[i*p7X_NXCELLS+p7X_B], ox->xmx[i*p7X_NXCELLS+p7X_C]);
-#endif
   }
   xC = ox->xmx[L*p7X_NXCELLS+p7X_C];
 
@@ -831,9 +776,6 @@ backward_engine(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, c
     {
       xN = p7_BackwardRow(dsq, L, om, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales,
                        bck->dpf[i * do_full], (i < L) ? bck->dpf[(i+1) * do_full] : NULL, i, p7_BWD_SCALE_FORWARD);
-#if eslDEBUGLEVEL > 0
-      if (bck->debugging) p7_omx_DumpFBRow(bck, TRUE, i, 9, 4, bck->xmx[i*p7X_NXCELLS+p7X_E], bck->xmx[i*p7X_NXCELLS+p7X_N], bck->xmx[i*p7X_NXCELLS+p7X_J], bck->xmx[i*p7X_NXCELLS+p7X_B], bck->xmx[i*p7X_NXCELLS+p7X_C]);	/* logify=TRUE, <rowi>=i, width=9, precision=4*/
-#endif
     }
 
   if       (isnan(xN))        ESL_EXCEPTION(eslERANGE, "backward score is NaN");

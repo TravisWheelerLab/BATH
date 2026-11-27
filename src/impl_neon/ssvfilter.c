@@ -1,4 +1,3 @@
-//#define ARMDEBUG 1
 /* The SSV filter implementation; NEON version.
  *
  * Contents:
@@ -878,9 +877,6 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
     {
       /* We have an overflow. */
       *ret_sc = eslINFINITY;
-#ifdef ARMDEBUG
-      printf(" SSV1=%f\n", *ret_sc);
-#endif
       if (om->base_b - om->tjb_b - om->tbm_b < 128)
         {
           /* The original MSV filter may not overflow, so we are not sure our result is correct */
@@ -898,9 +894,6 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
     {
       /* We know that the result will overflow in the original MSV filter */
       *ret_sc = eslINFINITY;
-#ifdef ARMDEBUG
-      printf(" SSV2=%f\n", *ret_sc);
-#endif
       return eslERANGE;
     }
 
@@ -912,9 +905,6 @@ p7_SSVFilter(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, float *ret_sc)
   *ret_sc = ((float) (xJ - om->tjb_b) - (float) om->base_b);
   *ret_sc /= om->scale_b;
   *ret_sc -= 3.0; /* that's ~ L \log \frac{L}{L+3}, for our NN,CC,JJ */
-#ifdef ARMDEBUG
-  printf(" SSV3=%f\n", *ret_sc);
-#endif
   return eslOK;
 }
 /*****************************************************************

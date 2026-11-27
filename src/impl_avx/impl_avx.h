@@ -550,6 +550,17 @@ typedef struct p7_chkomx_s {
   int       allocXR;
 } P7_CHKOMX;
 
+/* Scale factor a SIMD Backward row takes (p7_BackwardRow() and the
+ * frameshift Backward rows):
+ *   p7_BWD_SCALE_FORWARD: the Forward matrix's factor for the row, or
+ *     the row's own factor once its xB has exceeded 1e16 (full Backward);
+ *   p7_BWD_SCALE_OWN:     the row's own factor, xB when xB > 1e4, else 1
+ *     (checkpointed Backward);
+ *   p7_BWD_SCALE_STORED:  the factor already stored for the row, when a
+ *     row is computed again (checkpointed Backward Load).
+ */
+enum p7_bwdscale_e { p7_BWD_SCALE_FORWARD = 0, p7_BWD_SCALE_OWN = 1, p7_BWD_SCALE_STORED = 2 };
+
 
 /*****************************************************************
  * 5. External API declarations
@@ -842,6 +853,7 @@ extern int p7_ForwardParser_sse   (const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern int p7_Backward_sse        (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser_sse  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern void p7_ForwardRow_sse      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m128 *dpc, const __m128 *dpp, int i);
+extern float p7_BackwardRow_sse    (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, __m128 *dpc, const __m128 *dpp, int i, int scale_mode);
 extern int p7_BackwardChk_sse     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_sse (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 extern int p7_ForwardChk_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
@@ -855,6 +867,7 @@ extern int p7_ForwardParser_avx   (const ESL_DSQ *dsq, int L, const P7_OPROFILE 
 extern int p7_Backward_avx        (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern int p7_BackwardParser_avx  (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
 extern void p7_ForwardRow_avx      (const ESL_DSQ *dsq, const P7_OPROFILE *om, float *xmx, float *totscale, __m256 *dpc, const __m256 *dpp, int i);
+extern float p7_BackwardRow_avx    (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, __m256 *dpc, const __m256 *dpp, int i, int scale_mode);
 extern int p7_BackwardChk_avx     (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);
 extern int p7_BackwardChkLoad_avx (const ESL_DSQ *dsq,        const P7_OPROFILE *om, P7_CHKOMX *cx, int b);
 extern int p7_ForwardChk_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, float *opt_sc);

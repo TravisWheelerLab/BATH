@@ -1891,17 +1891,6 @@ p7_ForwardChkLoad_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs
 }
 
 
-/* Scale factor a Backward row takes, for backward_frameshift_row_L_avx()
- * and backward_frameshift_row_avx():
- *   BWD_SCALE_FORWARD: the Forward matrix's factor for the row, or the
- *     row's own factor once the Backward has turned own scaling on
- *     (p7_Backward_Frameshift_avx());
- *   BWD_SCALE_OWN:     the row's own factor, xB when xB > 1e4, else 1;
- *   BWD_SCALE_STORED:  the factor already stored for the row, when a
- *     row is computed again.
- */
-enum bwd_scale_e { BWD_SCALE_FORWARD = 0, BWD_SCALE_OWN = 1, BWD_SCALE_STORED = 2 };
-
 /* BWD_FS_RING
  * The N, B, J and C special states of the last PARSER_ROWS_BWD Backward
  * rows, indexed by row % PARSER_ROWS_BWD. Row i reads those of row i+3.
@@ -1935,7 +1924,7 @@ bwd_fs_ring_init(BWD_FS_RING *rg, const P7_FS_OPROFILE *om_fs, int L)
 /* backward_frameshift_row_L_avx()
  * Frameshift Backward row <L> into <dpc>; special states and scale factor
  * into row <L> of <xmx> and into the ring <rg>. <fwd_xmx> holds the Forward
- * special states and scale factors (needed only for BWD_SCALE_FORWARD).
+ * special states and scale factors (needed only for p7_BWD_SCALE_FORWARD).
  * If <totscale> is non-NULL the log of a scale factor > 1 is added to it.
  */
 static void
@@ -1969,8 +1958,8 @@ backward_frameshift_row_L_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx,
   dcv=esl_avx_leftshiftz_float(DMO(dpc,0)); tp7=om_fs->tfv_avx+7*Q-3;
   for (q=Q-1;q>=0;q--) { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(dcv,*tp7)); tp7-=7; dcv=DMO(dpc,q); }
 
-  if      (scale_mode == BWD_SCALE_FORWARD) scale=fwd_xmx[L*p7X_NXCELLS+p7X_SCALE];
-  else if (scale_mode == BWD_SCALE_OWN)     scale=(xB>1.0e4f)?xB:1.0f;
+  if      (scale_mode == p7_BWD_SCALE_FORWARD) scale=fwd_xmx[L*p7X_NXCELLS+p7X_SCALE];
+  else if (scale_mode == p7_BWD_SCALE_OWN)     scale=(xB>1.0e4f)?xB:1.0f;
   else                                      scale=xmx[L*p7X_NXCELLS+p7X_SCALE];
   xmx[L*p7X_NXCELLS+p7X_SCALE]=scale;
   if (scale>1.0f)
@@ -1995,9 +1984,9 @@ backward_frameshift_row_L_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx,
  * special states come from the ring <rg>. Writes row <i>'s special
  * states and scale factor into <xmx> and <rg>, with <ivxf> as workspace.
  * <fwd_xmx> holds the Forward special states and scale factors (needed
- * only for BWD_SCALE_FORWARD). If <totscale> is non-NULL the log of a
+ * only for p7_BWD_SCALE_FORWARD). If <totscale> is non-NULL the log of a
  * scale factor > 1 is added to it. <has_own_scales> is the flag that
- * BWD_SCALE_FORWARD turns on once xB exceeds 1e16.
+ * p7_BWD_SCALE_FORWARD turns on once xB exceeds 1e16.
  */
 static void
 backward_frameshift_row_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
@@ -2100,13 +2089,13 @@ backward_frameshift_row_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_
 
   dcv=esl_avx_leftshiftz_float(DMO(dpc,0)); tp7=om_fs->tfv_avx+7*Q-3;
   for (q=Q-1;q>=0;q--) { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(dcv,*tp7)); tp7-=7; dcv=DMO(dpc,q); }
-  if (scale_mode == BWD_SCALE_FORWARD)
+  if (scale_mode == p7_BWD_SCALE_FORWARD)
     {
       if (*has_own_scales) scale=(xB>1.0e4f)?xB:1.0f;
       else                 scale=fwd_xmx[i*p7X_NXCELLS+p7X_SCALE];
       if (xB>1.0e16f) *has_own_scales=TRUE;
     }
-  else if (scale_mode == BWD_SCALE_OWN) scale=(xB>1.0e4f)?xB:1.0f;
+  else if (scale_mode == p7_BWD_SCALE_OWN) scale=(xB>1.0e4f)?xB:1.0f;
   else                                  scale=xmx[i*p7X_NXCELLS+p7X_SCALE];
   xmx[i*p7X_NXCELLS+p7X_SCALE]=scale;
   if (scale>1.0f)
@@ -2223,13 +2212,13 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
 
   /* Initialization: row L */
   dp[0]=bck->dpf_avx[L];
-  backward_frameshift_row_L_avx(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, BWD_SCALE_FORWARD);
+  backward_frameshift_row_L_avx(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, p7_BWD_SCALE_FORWARD);
 
   /* Main recurrence: i = L-1 down to 1 */
   for (i=L-1;i>=1;i--)
     {
       for (d=0;d<6;d++) dp[d]=(i+d<=L)?bck->dpf_avx[i+d]:zero_row;
-      backward_frameshift_row_avx(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, BWD_SCALE_FORWARD);
+      backward_frameshift_row_avx(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, p7_BWD_SCALE_FORWARD);
     }
 
   /* Termination: i=0 */
@@ -2415,7 +2404,7 @@ p7_BackwardChk_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *o
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
       if ((status = p7_chkomx_StartBlock_avx(cx, b)) != eslOK) goto ERROR;
-      xNtot = backward_frameshift_chk_block_avx(dsq, om_fs, cx, &rg, zero_row, ov->ivx_avx[0], b, &totscale, BWD_SCALE_OWN);
+      xNtot = backward_frameshift_chk_block_avx(dsq, om_fs, cx, &rg, zero_row, ov->ivx_avx[0], b, &totscale, p7_BWD_SCALE_OWN);
     }
   free(zero_mem);
 
@@ -2470,7 +2459,7 @@ p7_BackwardChkLoad_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_f
   if (top == cx->L) bwd_fs_ring_init(&rg, om_fs, cx->L);
   else              bwd_fs_ring_load(&rg, om_fs, cx->xmx, cx->L, top);
 
-  backward_frameshift_chk_block_avx(dsq, om_fs, cx, &rg, zero_row, ov->ivx_avx[0], b, NULL, BWD_SCALE_STORED);
+  backward_frameshift_chk_block_avx(dsq, om_fs, cx, &rg, zero_row, ov->ivx_avx[0], b, NULL, p7_BWD_SCALE_STORED);
   free(zero_mem);
   return eslOK;
 

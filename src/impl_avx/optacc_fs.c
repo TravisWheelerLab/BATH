@@ -222,8 +222,8 @@ main(int argc, char **argv)
 
   /* Fill pipeline once to produce pp matrix in ox_fwd */
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_Forward_Frameshift (dsq, L, om_fs5, ox_fwd, ov5, &fsc);
-  p7_Backward_Frameshift(dsq, L, om_fs5, ox_fwd, ox_bck, ov5, &bsc);
+  p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, ox_fwd, ov5, &fsc);
+  p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, ox_fwd, ox_bck, ov5, &bsc);
   p7_Decoding_Frameshift(om_fs5, ox_fwd, ox_bck);  /* ox_fwd now holds pp */
 
   esl_stopwatch_Start(w);
@@ -355,8 +355,8 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
   void            (*omx_destroy)(P7_OMX *)                                                             = p7_omx_Destroy;
   P7_OIVX        *(*oivx_create)(int, int)                                                             = p7_oivx_Create;
   void            (*oivx_destroy)(P7_OIVX *)                                                           = p7_oivx_Destroy;
-  int             (*forward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *) = p7_Forward_Frameshift;
-  int             (*backward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift;
+  int             (*forward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *) = p7_Forward_Frameshift_5Codons;
+  int             (*backward)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift_5Codons;
   int             (*decoding)(const P7_FS_OPROFILE *, P7_OMX *, const P7_OMX *)                        = p7_Decoding_Frameshift;
   int             (*oa_fill)(const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, float *)                = p7_OptimalAccuracy_Frameshift;
   int             (*oa_trace)(const P7_FS_OPROFILE *, const float *, const P7_OMX *, P7_TRACE *)        = p7_OATrace_Frameshift;
@@ -372,8 +372,8 @@ utest_optacc_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA,
       omx_destroy      = p7_omx_Destroy_sse;
       oivx_create      = p7_oivx_Create_sse;
       oivx_destroy     = p7_oivx_Destroy_sse;
-      forward          = p7_Forward_Frameshift_sse;
-      backward         = p7_Backward_Frameshift_sse;
+      forward          = p7_Forward_Frameshift_5Codons_sse;
+      backward         = p7_Backward_Frameshift_5Codons_sse;
       decoding         = p7_Decoding_Frameshift_sse;
       oa_fill          = p7_OptimalAccuracy_Frameshift_sse;
       oa_trace         = p7_OATrace_Frameshift_sse;
@@ -498,7 +498,7 @@ pp_cell_fs(const P7_OMX *ox, int i, int k, int s, int use_sse)
 
 /* utest_sweep_fs()
  * The frameshift OA sweep over a checkpointed Backward against the
- * full-matrix path on the same Backward: p7_Forward_Frameshift(), the
+ * full-matrix path on the same Backward: p7_Forward_Frameshift_5Codons(), the
  * checkpointed Backward filled in one block and copied into a Backward
  * matrix, p7_Decoding_Frameshift(), p7_OptimalAccuracy_Frameshift(),
  * p7_OATrace_Frameshift() and p7_Null2_fs_ByExpectation(). The sweep,
@@ -582,17 +582,17 @@ utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL
       if (use_sse)
         {
           p7_fs_oprofile_ReconfigLength_sse(om, Ln/3);
-          if (p7_Forward_Frameshift_sse(dsq, Ln, om, fwd, ov, &fsc)       != eslOK) continue;
+          if (p7_Forward_Frameshift_5Codons_sse(dsq, Ln, om, fwd, ov, &fsc)       != eslOK) continue;
           if (p7_chkomx_GrowTo_sse(cx1, M, Ln, Ln+1)                       != eslOK) esl_fatal(msg);
-          if (p7_BackwardChk_Frameshift_sse(dsq, Ln, om, cx1, ov, NULL)    != eslOK) continue;
+          if (p7_BackwardChk_Frameshift_5Codons_sse(dsq, Ln, om, cx1, ov, NULL)    != eslOK) continue;
           for (i = 0; i <= Ln; i++) memcpy(bck->dpf[i], cx1->dpf[i], rowb);
         }
       else
         {
           p7_fs_oprofile_ReconfigLength(om, Ln/3);
-          if (p7_Forward_Frameshift(dsq, Ln, om, fwd, ov, &fsc)           != eslOK) continue;
+          if (p7_Forward_Frameshift_5Codons(dsq, Ln, om, fwd, ov, &fsc)           != eslOK) continue;
           if (p7_chkomx_GrowTo(cx1, M, Ln, Ln+1)                           != eslOK) esl_fatal(msg);
-          if (p7_BackwardChk_Frameshift(dsq, Ln, om, cx1, ov, NULL)        != eslOK) continue;
+          if (p7_BackwardChk_Frameshift_5Codons(dsq, Ln, om, cx1, ov, NULL)        != eslOK) continue;
           for (i = 0; i <= Ln; i++) memcpy(bck->dpf_avx[i], cx1->dpf_avx[i], rowb);
         }
       memcpy(bck->xmx, cx1->xmx, sizeof(float) * (Ln+1) * p7X_NXCELLS);
@@ -605,7 +605,7 @@ utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL
           p7_OptimalAccuracy_Frameshift_sse(om, fwd, oa, &oasc1);
           if (p7_OATrace_Frameshift_sse(om, ppx, oa, tr1)                  != eslOK) esl_fatal(msg);
           if (p7_chkomx_GrowTo_sse(cx2, M, Ln, blockR)                     != eslOK) esl_fatal(msg);
-          if (p7_BackwardChk_Frameshift_sse(dsq, Ln, om, cx2, ov, NULL)    != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift_5Codons_sse(dsq, Ln, om, cx2, ov, NULL)    != eslOK) esl_fatal(msg);
           if (p7_OptimalAccuracySweep_Frameshift_sse(dsq, Ln, om, cx2, ov, ox, n2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
           if (p7_OATraceSweep_Frameshift_sse(om, ox, tr2)                  != eslOK) esl_fatal(msg);
         }
@@ -616,7 +616,7 @@ utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL
           p7_OptimalAccuracy_Frameshift(om, fwd, oa, &oasc1);
           if (p7_OATrace_Frameshift(om, ppx, oa, tr1)                      != eslOK) esl_fatal(msg);
           if (p7_chkomx_GrowTo(cx2, M, Ln, blockR)                         != eslOK) esl_fatal(msg);
-          if (p7_BackwardChk_Frameshift(dsq, Ln, om, cx2, ov, NULL)        != eslOK) esl_fatal(msg);
+          if (p7_BackwardChk_Frameshift_5Codons(dsq, Ln, om, cx2, ov, NULL)        != eslOK) esl_fatal(msg);
           if (p7_OptimalAccuracySweep_Frameshift(dsq, Ln, om, cx2, ov, ox, n2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
           if (p7_OATraceSweep_Frameshift(om, ox, tr2)                      != eslOK) esl_fatal(msg);
         }

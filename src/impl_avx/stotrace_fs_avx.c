@@ -93,13 +93,13 @@ sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_CHKOMX *c
  *
  * Purpose:   Sample <ntr> stochastic tracebacks of the 5-codon profile
  *            <om_fs> against <dsq> of length <L> from the checkpointed
- *            Forward matrix <cx> that <p7_ForwardChk_Frameshift_avx()>
+ *            Forward matrix <cx> that <p7_ForwardChk_Frameshift_5Codons_avx()>
  *            filled: trace <t> into <tr[t]>, with its own random number
  *            generator <rng[t]>.
  *
  *            All traces are sampled together. The blocks of <cx> are
  *            loaded from the last to the first, each computed again from
- *            its checkpoint by <p7_ForwardChkLoad_Frameshift_avx()> with
+ *            its checkpoint by <p7_ForwardChkLoad_Frameshift_5Codons_avx()> with
  *            <ov> as workspace, and every trace is taken back through the
  *            rows of the loaded block before the next block is loaded, so
  *            the Forward matrix is computed again only once for all the
@@ -110,7 +110,7 @@ sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_CHKOMX *c
  *            dsq   - digital sequence, 1..L
  *            L     - length of dsq
  *            om_fs - 5-codon frameshift profile
- *            cx    - checkpointed Forward matrix from p7_ForwardChk_Frameshift_avx()
+ *            cx    - checkpointed Forward matrix from p7_ForwardChk_Frameshift_5Codons_avx()
  *            ov    - workspace for the profile's M
  *            tr    - <ntr> empty traces; RETURN: the sampled traces
  *
@@ -151,7 +151,7 @@ p7_StochasticTraceChk_Frameshift_avx(ESL_RANDOMNESS **rng, int ntr, const ESL_DS
    * block holding row i and the 5 rows saved before it */
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
-      if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift_avx(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
+      if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift_5Codons_avx(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
       for (t = 0; t < ntr; t++)
         while (s0[t] != p7T_S && i[t] >= b)
           if ((status = sto_fs_step(rng[t], om_fs, cx, dsq, tr[t], &s0[t], &i[t], &k[t])) != eslOK) goto ERROR;

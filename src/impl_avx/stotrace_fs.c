@@ -119,7 +119,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* SIMD forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      { int s = p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &ofsc);
+      { int s = p7_Forward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, ov5, &ofsc);
         if (s == eslERANGE) continue;
         if (s != eslOK)     esl_fatal(msg); }
 
@@ -129,7 +129,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* traces from the checkpointed Forward matrix must be valid */
       if (p7_chkomx_GrowTo(cx, M, curr_L, 5 + esl_rnd_Roll(r, 8))      != eslOK) esl_fatal(msg);
-      if (p7_ForwardChk_Frameshift(dsq, curr_L, om_fs5, cx, ov5, NULL) != eslOK) esl_fatal(msg);
+      if (p7_ForwardChk_Frameshift_5Codons(dsq, curr_L, om_fs5, cx, ov5, NULL) != eslOK) esl_fatal(msg);
       for (t = 0; t < ntr; t++) esl_randomness_Init(rng[t], 1 + esl_rnd_Roll(r, 1000000));
       if (p7_StochasticTraceChk_Frameshift(rng, ntr, dsq, curr_L, om_fs5, cx, ov5, tr) != eslOK)
         esl_fatal("%s: SIMD stochastic trace failed", msg);
@@ -192,7 +192,7 @@ utest_stotrace_posterior_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET
   char             errbuf[eslERRBUFSIZE];
   int              cnt[6];
   int              i, j, k, x, n, z, c, Ln, start, del1, del2, ins1, ins2;
-  int            (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *)  = use_sse ? p7_ForwardChk_Frameshift_sse : p7_ForwardChk_Frameshift;
+  int            (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *)  = use_sse ? p7_ForwardChk_Frameshift_5Codons_sse : p7_ForwardChk_Frameshift_5Codons;
   int            (*chk_growto)(P7_CHKOMX *, int, int, int)                                                     = use_sse ? p7_chkomx_GrowTo_sse : p7_chkomx_GrowTo;
   int            (*sto_chk)   (ESL_RANDOMNESS **, int, const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, P7_TRACE **) = use_sse ? p7_StochasticTraceChk_Frameshift_sse : p7_StochasticTraceChk_Frameshift;
 
@@ -331,7 +331,7 @@ utest_stotrace_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
   int              ntested = 0;
   int              n, Ln, blockR, start, i, j, t, z, k, x;
   int            (*reconfig)  (P7_FS_OPROFILE *, int)                                                         = use_sse ? p7_fs_oprofile_ReconfigLength_sse : p7_fs_oprofile_ReconfigLength;
-  int            (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *)  = use_sse ? p7_ForwardChk_Frameshift_sse : p7_ForwardChk_Frameshift;
+  int            (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *)  = use_sse ? p7_ForwardChk_Frameshift_5Codons_sse : p7_ForwardChk_Frameshift_5Codons;
   int            (*chk_growto)(P7_CHKOMX *, int, int, int)                                                     = use_sse ? p7_chkomx_GrowTo_sse : p7_chkomx_GrowTo;
   int            (*sto_chk)   (ESL_RANDOMNESS **, int, const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, P7_TRACE **) = use_sse ? p7_StochasticTraceChk_Frameshift_sse : p7_StochasticTraceChk_Frameshift;
 

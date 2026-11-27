@@ -94,13 +94,13 @@ sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_CHKOMX *c
  *
  * Purpose:   Sample <ntr> stochastic tracebacks of the 5-codon profile
  *            <om_fs> against <dsq> of length <L> from the checkpointed
- *            Forward matrix <cx> that <p7_ForwardChk_Frameshift()>
+ *            Forward matrix <cx> that <p7_ForwardChk_Frameshift_5Codons()>
  *            filled: trace <t> into <tr[t]>, with its own random number
  *            generator <rng[t]>.
  *
  *            All traces are sampled together. The blocks of <cx> are
  *            loaded from the last to the first, each computed again from
- *            its checkpoint by <p7_ForwardChkLoad_Frameshift()> with
+ *            its checkpoint by <p7_ForwardChkLoad_Frameshift_5Codons()> with
  *            <ov> as workspace, and every trace is taken back through the
  *            rows of the loaded block before the next block is loaded, so
  *            the Forward matrix is computed again only once for all the
@@ -111,7 +111,7 @@ sto_fs_step(ESL_RANDOMNESS *rng, const P7_FS_OPROFILE *om_fs, const P7_CHKOMX *c
  *            dsq   - digital sequence, 1..L
  *            L     - length of dsq
  *            om_fs - 5-codon frameshift profile
- *            cx    - checkpointed Forward matrix from p7_ForwardChk_Frameshift()
+ *            cx    - checkpointed Forward matrix from p7_ForwardChk_Frameshift_5Codons()
  *            ov    - workspace for the profile's M
  *            tr    - <ntr> empty traces; RETURN: the sampled traces
  *
@@ -152,7 +152,7 @@ p7_StochasticTraceChk_Frameshift(ESL_RANDOMNESS **rng, int ntr, const ESL_DSQ *d
    * block holding row i and the 5 rows saved before it */
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
-      if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
+      if (b != cx->b && (status = p7_ForwardChkLoad_Frameshift_5Codons(dsq, om_fs, cx, ov, b)) != eslOK) goto ERROR;
       for (t = 0; t < ntr; t++)
         while (s0[t] != p7T_S && i[t] >= b)
           if ((status = sto_fs_step(rng[t], om_fs, cx, dsq, tr[t], &s0[t], &i[t], &k[t])) != eslOK) goto ERROR;
@@ -514,7 +514,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* NEON forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      { int s = p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &ofsc);
+      { int s = p7_Forward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, ov5, &ofsc);
         if (s == eslERANGE) continue;
         if (s != eslOK)     esl_fatal(msg); }
 
@@ -524,7 +524,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
 
       /* traces from the checkpointed Forward matrix must be valid */
       if (p7_chkomx_GrowTo(cx, M, curr_L, 5 + esl_rnd_Roll(r, 8))      != eslOK) esl_fatal(msg);
-      if (p7_ForwardChk_Frameshift(dsq, curr_L, om_fs5, cx, ov5, NULL) != eslOK) esl_fatal(msg);
+      if (p7_ForwardChk_Frameshift_5Codons(dsq, curr_L, om_fs5, cx, ov5, NULL) != eslOK) esl_fatal(msg);
       for (t = 0; t < ntr; t++) esl_randomness_Init(rng[t], 1 + esl_rnd_Roll(r, 1000000));
       if (p7_StochasticTraceChk_Frameshift(rng, ntr, dsq, curr_L, om_fs5, cx, ov5, tr) != eslOK)
         esl_fatal("%s: NEON stochastic trace failed", msg);
@@ -623,7 +623,7 @@ utest_stotrace_posterior_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET
   cx     = p7_chkomx_Create(M, L, 5 + esl_rnd_Roll(r, 8), 5, p7X_NSCELLS, p7_CHK_FORWARD);
   ov     = p7_oivx_Create(M, p7P_5CODONS);
   if (p7_chkomx_GrowTo(cx, M, Ln, cx->blockR)                  != eslOK) esl_fatal(msg);
-  if (p7_ForwardChk_Frameshift(dsq, Ln, om_fs5, cx, ov, NULL)    != eslOK) esl_fatal(msg);
+  if (p7_ForwardChk_Frameshift_5Codons(dsq, Ln, om_fs5, cx, ov, NULL)    != eslOK) esl_fatal(msg);
   if (p7_StochasticTraceChk_Frameshift(rng, N, dsq, Ln, om_fs5, cx, ov, tr) != eslOK) esl_fatal(msg);
 
   for (n = 0; n < 6; n++) { sum[n] = sumsq[n] = 0.; }
@@ -739,8 +739,8 @@ utest_stotrace_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcD
       p7_fs_oprofile_ReconfigLength(om_fs5, Ln/3);
       if (p7_chkomx_GrowTo(cx1, M, Ln, Ln+1)                    != eslOK) esl_fatal(msg);
       if (p7_chkomx_GrowTo(cx2, M, Ln, blockR)                  != eslOK) esl_fatal(msg);
-      if (p7_ForwardChk_Frameshift(dsq, Ln, om_fs5, cx1, ov5, NULL) != eslOK) continue;
-      if (p7_ForwardChk_Frameshift(dsq, Ln, om_fs5, cx2, ov5, NULL) != eslOK) esl_fatal(msg);
+      if (p7_ForwardChk_Frameshift_5Codons(dsq, Ln, om_fs5, cx1, ov5, NULL) != eslOK) continue;
+      if (p7_ForwardChk_Frameshift_5Codons(dsq, Ln, om_fs5, cx2, ov5, NULL) != eslOK) esl_fatal(msg);
 
       for (t = 0; t < ntr; t++) { seed[t] = 1 + esl_rnd_Roll(r, 1000000); esl_randomness_Init(rng[t], seed[t]); }
       if (p7_StochasticTraceChk_Frameshift(rng, ntr, dsq, Ln, om_fs5, cx1, ov5, tr1) != eslOK) esl_fatal(msg);

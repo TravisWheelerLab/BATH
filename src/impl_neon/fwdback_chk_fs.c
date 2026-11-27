@@ -2,12 +2,12 @@
  * lengths; NEON implementation.
  *
  * Contents:
- *    1. p7_ForwardChk_Frameshift(),  p7_ForwardChkLoad_Frameshift():  checkpointed Forward
- *       p7_BackwardChk_Frameshift(), p7_BackwardChkLoad_Frameshift(): checkpointed Backward
+ *    1. p7_ForwardChk_Frameshift_5Codons(),  p7_ForwardChkLoad_Frameshift_5Codons():  checkpointed Forward
+ *       p7_BackwardChk_Frameshift_5Codons(), p7_BackwardChkLoad_Frameshift_5Codons(): checkpointed Backward
  *
- * Rows are computed by p7_ForwardRow3_Frameshift(),
- * p7_BackwardRowL_Frameshift(), p7_BackwardRow_Frameshift() and
- * p7_BackwardRow0_Frameshift() (fwdback_fs.c).
+ * Rows are computed by p7_ForwardChkRow_Frameshift_5Codons(),
+ * p7_BackwardRowL_Frameshift_5Codons(), p7_BackwardRow_Frameshift_5Codons() and
+ * p7_BackwardRow0_Frameshift_5Codons() (fwdback_fs.c).
  */
 #include "p7_config.h"
 
@@ -65,7 +65,7 @@ fwd_fs_ring_load(P7_FS_FWDRING *rg, const float *xmx, int b)
 /* forward_ivx_load()
  * Codon partial sums before row <b> (> 0) is computed again: rows
  * b-4 .. b-1 (from 1) into <ivx>, each from the row before it (core
- * cells in the 3-cell rows <dp>, xB in <xmx>) as p7_ForwardRow3_Frameshift() computes
+ * cells in the 3-cell rows <dp>, xB in <xmx>) as p7_ForwardChkRow_Frameshift_5Codons() computes
  * it, then multiplied by the inverse scale factors of its own row and
  * the rows after it up to b-1, in the same order as when the rows were
  * first computed, so the values are identical. The other slots are set
@@ -114,20 +114,20 @@ forward_ivx_load(const P7_FS_OPROFILE *om_fs, float32x4_t * const *dp, const flo
 }
 
 
-/* Function:  p7_ForwardChk_Frameshift()
+/* Function:  p7_ForwardChk_Frameshift_5Codons()
  * Synopsis:  Frameshift Forward in a checkpointed matrix.
  *
- * Purpose:   The Forward algorithm of <p7_Forward_Frameshift()> for the
+ * Purpose:   The Forward algorithm of <p7_Forward_Frameshift_5Codons()> for the
  *            5-codon profile <om_fs> against <dsq> of length <L>, computed
  *            in the checkpointed matrix <cx>, with <ov> as workspace. Each
- *            row is computed by <p7_ForwardRow3_Frameshift()> and
+ *            row is computed by <p7_ForwardChkRow_Frameshift_5Codons()> and
  *            holds the M (C0 sum), D and I cells, so these cells,
  *            special states, scale factors and score are identical to
- *            <p7_Forward_Frameshift()>.
+ *            <p7_Forward_Frameshift_5Codons()>.
  *
  *            Rows are computed from 0 up to <L>, one block at a time;
  *            checkpoints of the 5 rows before each block are saved, so
- *            <p7_ForwardChkLoad_Frameshift()> can compute any block
+ *            <p7_ForwardChkLoad_Frameshift_5Codons()> can compute any block
  *            again, with identical values. On return the block holding
  *            row <L> is loaded and the special states and scale factors
  *            of all rows are in <cx->xmx>.
@@ -154,7 +154,7 @@ forward_ivx_load(const P7_FS_OPROFILE *om_fs, float32x4_t * const *dp, const flo
  *            <eslERANGE> if the score is NaN or overflows.
  */
 int
-p7_ForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+p7_ForwardChk_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
 {
   P7_FS_FWDRING rg;
   float         totscale = 0.0f;
@@ -174,7 +174,7 @@ p7_ForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
     {
       if ((status = p7_chkomx_StartBlock(cx, b)) != eslOK) return status;
       for (i = b; i <= ESL_MIN(L, b + cx->blockR - 1); i++)
-        p7_ForwardRow3_Frameshift(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
+        p7_ForwardChkRow_Frameshift_5Codons(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
                                      (i >= 1) ? cx->dpf[i-1] : NULL, (i >= 3) ? cx->dpf[i-3] : NULL, i);
     }
 
@@ -191,10 +191,10 @@ p7_ForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
 }
 
 
-/* Function:  p7_ForwardChkLoad_Frameshift()
+/* Function:  p7_ForwardChkLoad_Frameshift_5Codons()
  * Synopsis:  Compute one block of a checkpointed frameshift Forward again.
  *
- * Purpose:   After <p7_ForwardChk_Frameshift()> has filled <cx> for
+ * Purpose:   After <p7_ForwardChk_Frameshift_5Codons()> has filled <cx> for
  *            <om_fs> and <dsq>, compute block <b> (a multiple of
  *            <cx->blockR>) again from the checkpoint before it, with <ov>
  *            as workspace: the codon partial sums of the 4 rows before
@@ -209,7 +209,7 @@ p7_ForwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
  * Throws:    <eslEINVAL> if block <b> can't be loaded.
  */
 int
-p7_ForwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+p7_ForwardChkLoad_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
 {
   P7_FS_FWDRING rg;
   float         totscale = 0.0f;   /* unused: the scale factors are already in <cx->xmx> */
@@ -223,7 +223,7 @@ p7_ForwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7
       forward_ivx_load(om_fs, cx->dpf, cx->xmx, ov->ivx, b);
     }
   for (i = b; i <= ESL_MIN(cx->L, b + cx->blockR - 1); i++)
-    p7_ForwardRow3_Frameshift(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
+    p7_ForwardChkRow_Frameshift_5Codons(dsq, om_fs, cx->xmx, &totscale, &rg, ov->ivx, cx->dpf[i],
                                  (i >= 1) ? cx->dpf[i-1] : NULL, (i >= 3) ? cx->dpf[i-3] : NULL, i);
   return eslOK;
 }
@@ -307,11 +307,11 @@ backward_frameshift_chk_block(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P
   for (i = top; i >= ESL_MAX(b, 1); i--)
     {
       if (i == L)
-        p7_BackwardRowL_Frameshift(om_fs, NULL, cx->xmx, totscale, rg, cx->dpf[L], L, scale_mode);
+        p7_BackwardRowL_Frameshift_5Codons(om_fs, NULL, cx->xmx, totscale, rg, cx->dpf[L], L, scale_mode);
       else
         {
           for (d = 0; d < 6; d++) dp[d] = (i+d <= L) ? cx->dpf[i+d] : zero_row;
-          p7_BackwardRow_Frameshift(dsq, L, om_fs, NULL, cx->xmx, totscale, NULL, rg, dp, ivxf, i, scale_mode);
+          p7_BackwardRow_Frameshift_5Codons(dsq, L, om_fs, NULL, cx->xmx, totscale, NULL, rg, dp, ivxf, i, scale_mode);
         }
     }
 
@@ -319,7 +319,7 @@ backward_frameshift_chk_block(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P
     {
       dp[0] = NULL;
       for (d = 1; d < 6; d++) dp[d] = (d <= L) ? cx->dpf[d] : zero_row;
-      xN  = p7_BackwardRow0_Frameshift(dsq, L, om_fs, cx->xmx, rg, dp, ivxf);
+      xN  = p7_BackwardRow0_Frameshift_5Codons(dsq, L, om_fs, cx->xmx, rg, dp, ivxf);
       xN += rg->xN[1%PARSER_ROWS_BWD] + rg->xN[2%PARSER_ROWS_BWD];
       for (q = 0; q < Q * p7X_NSCELLS; q++) cx->dpf[0][q] = vmovq_n_f32(0.0f);
     }
@@ -327,10 +327,10 @@ backward_frameshift_chk_block(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P
 }
 
 
-/* Function:  p7_BackwardChk_Frameshift()
+/* Function:  p7_BackwardChk_Frameshift_5Codons()
  * Synopsis:  Frameshift Backward in a checkpointed matrix, with its own scale factors.
  *
- * Purpose:   The Backward algorithm of <p7_Backward_Frameshift()> for
+ * Purpose:   The Backward algorithm of <p7_Backward_Frameshift_5Codons()> for
  *            the 5-codon profile <om_fs> and sequence <dsq> of length
  *            <L>, computed in the checkpointed matrix <cx>, with <ov>
  *            as workspace.
@@ -340,12 +340,12 @@ backward_frameshift_chk_block(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P
  *            1e4 (else not scaled), not by the Forward matrix's factor for
  *            the row, so no Forward matrix is needed. The factors are
  *            stored in <cx->xmx> with the special states. Values and
- *            score equal those of <p7_Backward_Frameshift()> up to
+ *            score equal those of <p7_Backward_Frameshift_5Codons()> up to
  *            rounding.
  *
  *            Rows are computed from <L> down to 0, one block at a time;
  *            checkpoints of the 5 rows after each block are saved, so
- *            <p7_BackwardChkLoad_Frameshift()> can compute any block
+ *            <p7_BackwardChkLoad_Frameshift_5Codons()> can compute any block
  *            again, with identical values. On return block 0 is loaded
  *            and the special states and scale factors of all rows are in
  *            <cx->xmx>. Row 0 holds only special states; its core cells
@@ -373,7 +373,7 @@ backward_frameshift_chk_block(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P
  *            <eslEMEM> on allocation failure.
  */
 int
-p7_BackwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+p7_BackwardChk_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
 {
   P7_FS_BWDRING rg;
   float32x4_t     *zero_mem = NULL;
@@ -417,16 +417,16 @@ p7_BackwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 }
 
 
-/* Function:  p7_BackwardChkLoad_Frameshift()
+/* Function:  p7_BackwardChkLoad_Frameshift_5Codons()
  * Synopsis:  Compute one block of a checkpointed frameshift Backward matrix again.
  *
  * Purpose:   Load block <b> (a multiple of <cx->blockR>) of the Backward
- *            matrix that <p7_BackwardChk_Frameshift()> filled in <cx>
+ *            matrix that <p7_BackwardChk_Frameshift_5Codons()> filled in <cx>
  *            for profile <om_fs> and sequence <dsq>, computing its rows
  *            again from the checkpoint after it with the scale factors
  *            stored in <cx->xmx>, with <ov> as workspace. Afterwards rows
  *            <b> .. <b>+<blockR>-1 (up to <cx->L>) hold the same values as
- *            when <p7_BackwardChk_Frameshift()> computed them. Blocks
+ *            when <p7_BackwardChk_Frameshift_5Codons()> computed them. Blocks
  *            can be loaded in any order.
  *
  * Returns:   <eslOK> on success.
@@ -435,7 +435,7 @@ p7_BackwardChk_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
  *            <eslEMEM> on allocation failure.
  */
 int
-p7_BackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+p7_BackwardChkLoad_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
 {
   P7_FS_BWDRING rg;
   float32x4_t     *zero_mem = NULL;

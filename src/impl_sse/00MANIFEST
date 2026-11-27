@@ -29,8 +29,8 @@ fwdback.c     :  p7_Forward()                           - Forward algorithm - pr
                  p7_Backward()                          - Backward algorithm - protein to protein
                  p7_ForwardParser()                     - streamlined Forward used for first pass domain definition - protein to protein
                  p7_BackwardParser()                    - streamlined Backward used for first pass domain definition - protein to protein
-fwdback_fs.c  :  p7_Forward_Frameshift()                - frameshift-aware Forward algorithm - 5 codon lengths - DNA to protein
-                 p7_Backward_Frameshift()               - frameshift-aware Backward algorithm - 5 codon lengths - DNA to protein
+fwdback_fs.c  :  p7_Forward_Frameshift_5Codons()        - frameshift-aware Forward algorithm - 5 codon lengths - DNA to protein
+                 p7_Backward_Frameshift_5Codons()       - frameshift-aware Backward algorithm - 5 codon lengths - DNA to protein
                  p7_ForwardParser_Frameshift_3Codons()  - streamlined frameshift-aware Forward - 3 codon lengths - DNA to protein
                  p7_BackwardParser_Frameshift_3Codons() - streamlined frameshift-aware Backward - 3 codon lengths - DNA to protein
                  p7_ForwardParser_Frameshift_5Codons()  - streamlined frameshift-aware Forward - 5 codon lengths - DNA to protein

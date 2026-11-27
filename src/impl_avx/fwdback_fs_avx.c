@@ -744,12 +744,12 @@ p7_BackwardParser_Frameshift_3Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_
 /* Function:  p7_ForwardParser_Frameshift_5Codons_avx()
  * Synopsis:  AVX2 frameshift-aware Forward, 5 codon lengths, linear memory.
  *
- * Purpose:   The Forward score of <p7_Forward_Frameshift_avx()>, in a ring
+ * Purpose:   The Forward score of <p7_Forward_Frameshift_5Codons_avx()>, in a ring
  *            of <PARSER_ROWS_FWD> 3-cell rows of <fwd> (plus special
  *            states and scale factors for all rows), with <ov> as
  *            workspace. Each row is computed by
- *            <p7_ForwardRow3_Frameshift_avx()>, so the score is identical to
- *            that of <p7_Forward_Frameshift_avx()>.
+ *            <p7_ForwardChkRow_Frameshift_5Codons_avx()>, so the score is identical to
+ *            that of <p7_Forward_Frameshift_5Codons_avx()>.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if the score underflows to 0 (L > 1); <*opt_sc>
@@ -780,7 +780,7 @@ p7_ForwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_O
   fwd->totscale       = 0.0;
 
   for (i = 0; i <= L; i++)
-    p7_ForwardRow3_Frameshift_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[i % PARSER_ROWS_FWD],
+    p7_ForwardChkRow_Frameshift_5Codons_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[i % PARSER_ROWS_FWD],
                              (i >= 1) ? fwd->dpf_avx[(i-1) % PARSER_ROWS_FWD] : NULL,
                              (i >= 3) ? fwd->dpf_avx[(i-3) % PARSER_ROWS_FWD] : NULL, i);
 
@@ -798,271 +798,10 @@ p7_ForwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_O
 /* end p7_ForwardParser_Frameshift_5Codons_avx() */
 
 
-/* Function:  p7_BackwardParser_Frameshift_5Codons_avx()
- * Synopsis:  AVX2 frameshift-aware Backward, 5 codon lengths, linear memory.
- */
-int
-p7_BackwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
-{
-  register __m256 sv;
-  register __m256 dcv;
-  register __m256 ivx_carry;
-  __m256   tmmv, timv, tdmv;
-  register __m256 xBv;
-  register __m256 xEv;
-  __m256   zerov;
-  float    xN, xE, xB, xC, xJ;
-  float    xN_buf[PARSER_ROWS_BWD];
-  float    xB_buf[PARSER_ROWS_BWD];
-  float    xJ_buf[PARSER_ROWS_BWD];
-  float    xC_buf[PARSER_ROWS_BWD];
-  int      b, b3;
-  int      curr, prev1, prev2, prev3, prev4, prev5;
-  __m256  *dpc, *dpp1, *dpp2, *dpp3, *dpp4, *dpp5;
-  __m256  *tp7, *tp_dd, *tp_mm;
-  __m256  *ivxf;
-  int      Q = p7O_NQF_AVX(om_fs->M);
-  int      i, q, j, r;
-  int      c1, c2, c3, c4, c5;
-  int      t, u, v, w, x;
-  float    scale;
-
-  ivxf = ov->ivx_avx[0];
-
-  if (om_fs->codon_lengths != 5)
-    ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
-#if eslDEBUGLEVEL > 0
-  if (om_fs->M > bck->allocQ4_avx*8)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (bck->validR < PARSER_ROWS_BWD)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_BWD MDI rows");
-  if (L >= bck->allocXR)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
-  if (! p7_fs_oprofile_IsLocal(om_fs))
-    ESL_EXCEPTION(eslEINVAL, "Backward implementation assumes local alignment mode");
-#endif
-
-  bck->M              = om_fs->M;
-  bck->L              = L;
-  bck->has_own_scales = FALSE;
-  bck->totscale       = 0.0;
-  zerov = _mm256_setzero_ps();
-
-  for (r = 0; r < PARSER_ROWS_BWD; r++)
-    for (q = 0; q < Q; q++)
-      MMO(bck->dpf_avx[r],q) = IMO(bck->dpf_avx[r],q) = DMO(bck->dpf_avx[r],q) = zerov;
-
-  for (r = 0; r < PARSER_ROWS_BWD; r++)
-    xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
-
-  xC_buf[(L+1) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
-  xC_buf[(L+2) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
-
-  /* Initialization: row L */
-  i = L;  b = i % PARSER_ROWS_BWD;  curr = b;
-
-  xC = om_fs->xf[p7O_C][p7O_MOVE];
-  xN = xB = xJ = 0.0f;
-  xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
-  xEv = _mm256_set1_ps(xE);
-
-  dpc = bck->dpf_avx[curr];
-  for (q = 0; q < Q; q++)
-    { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
-
-  dcv   = esl_avx_leftshiftz_float(DMO(dpc,0));
-  tp_dd = om_fs->tfv_avx + 8*Q - 1;
-  for (q = Q-1; q >= 0; q--)
-    { sv=_mm256_mul_ps(dcv,*tp_dd); tp_dd--; DMO(dpc,q)=_mm256_add_ps(DMO(dpc,q),sv); dcv=DMO(dpc,q); }
-  dcv = sv;
-  for (j = 1; j < 8; j++)
-    { dcv=esl_avx_leftshiftz_float(dcv); tp_dd=om_fs->tfv_avx+8*Q-1;
-      for (q=Q-1;q>=0;q--) { sv=_mm256_mul_ps(dcv,*tp_dd); tp_dd--; DMO(dpc,q)=_mm256_add_ps(DMO(dpc,q),sv); dcv=_mm256_mul_ps(dcv,*(tp_dd+1)); } }
-
-  dcv=esl_avx_leftshiftz_float(DMO(dpc,0)); tp7=om_fs->tfv_avx+7*Q-3;
-  for (q=Q-1;q>=0;q--)
-    { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(dcv,*tp7)); tp7-=7; dcv=DMO(dpc,q); }
-
-  scale = fwd->xmx[L*p7X_NXCELLS+p7X_SCALE];
-  bck->xmx[L*p7X_NXCELLS+p7X_SCALE] = scale;
-  if (scale > 1.0f)
-    { float sf = 1.0f/scale;
-      xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xE*=sf;
-      xEv=_mm256_set1_ps(sf);
-      for (r=0;r<PARSER_ROWS_BWD;r++) for (q=0;q<Q;q++)
-        { MMO(bck->dpf_avx[r],q)=_mm256_mul_ps(MMO(bck->dpf_avx[r],q),xEv);
-          DMO(bck->dpf_avx[r],q)=_mm256_mul_ps(DMO(bck->dpf_avx[r],q),xEv);
-          IMO(bck->dpf_avx[r],q)=_mm256_mul_ps(IMO(bck->dpf_avx[r],q),xEv); }
-      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
-      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-      bck->totscale += log(scale); }
-
-  xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;
-  bck->xmx[L*p7X_NXCELLS+p7X_E]=xE; bck->xmx[L*p7X_NXCELLS+p7X_N]=xN;
-  bck->xmx[L*p7X_NXCELLS+p7X_J]=xJ; bck->xmx[L*p7X_NXCELLS+p7X_B]=xB;
-  bck->xmx[L*p7X_NXCELLS+p7X_C]=xC;
-
-  /* Main recurrence: i = L-1 down to 1 */
-  t = u = v = w = x = p7P_MAXCODONS5;
-
-  for (i = L-1; i >= 1; i--)
-    {
-      t=u; u=v; v=w; w=x;
-      if (dsq[i+1] < p7P_MAXNUC) x = dsq[i+1]; else x = p7P_MAXCODONS5;
-
-      c1 = p7P_CODON1_FS5(x);             c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-      c2 = p7P_CODON2_FS5(x, w);          c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-      c3 = p7P_CODON3_FS5(x, w, v);       c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-      c4 = p7P_CODON4_FS5(x, w, v, u);    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-      c5 = p7P_CODON5_FS5(x, w, v, u, t); c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-
-      curr  =  i       % PARSER_ROWS_BWD;
-      prev1 = (i+1)    % PARSER_ROWS_BWD;
-      prev2 = (i+2)    % PARSER_ROWS_BWD;
-      prev3 = (i+3)    % PARSER_ROWS_BWD;
-      prev4 = (i+4)    % PARSER_ROWS_BWD;
-      prev5 = (i+5)    % PARSER_ROWS_BWD;
-      b     =  i       % PARSER_ROWS_BWD;
-      b3    = (i+3)    % PARSER_ROWS_BWD;
-
-      dpc  = bck->dpf_avx[curr];
-      dpp1 = bck->dpf_avx[prev1];
-      dpp2 = bck->dpf_avx[prev2];
-      dpp3 = bck->dpf_avx[prev3];
-      dpp4 = bck->dpf_avx[prev4];
-      dpp5 = bck->dpf_avx[prev5];
-
-      for (q = 0; q < Q; q++)
-        ivxf[q] = _mm256_add_ps(
-                    _mm256_add_ps(
-                      _mm256_add_ps(_mm256_mul_ps(MMO(dpp1,q), om_fs->rfv_avx[c1][q]),
-                                    _mm256_mul_ps(MMO(dpp2,q), om_fs->rfv_avx[c2][q])),
-                      _mm256_add_ps(_mm256_mul_ps(MMO(dpp3,q), om_fs->rfv_avx[c3][q]),
-                                    _mm256_mul_ps(MMO(dpp4,q), om_fs->rfv_avx[c4][q]))),
-                    _mm256_mul_ps(MMO(dpp5,q), om_fs->rfv_avx[c5][q]));
-
-      xBv = zerov; tp7 = om_fs->tfv_avx;
-      for (q=0;q<Q;q++) { xBv=_mm256_add_ps(xBv,_mm256_mul_ps(ivxf[q],*tp7)); tp7+=7; }
-      xB = 0.0f;
-      esl_avx_hsum_ps(xBv, &xB);
-
-      xC = xC_buf[b3] * om_fs->xf[p7O_C][p7O_LOOP];
-      xJ = xJ_buf[b3] * om_fs->xf[p7O_J][p7O_LOOP] + xB * om_fs->xf[p7O_J][p7O_MOVE];
-      xN = xN_buf[b3] * om_fs->xf[p7O_N][p7O_LOOP] + xB * om_fs->xf[p7O_N][p7O_MOVE];
-      xE = xJ * om_fs->xf[p7O_E][p7O_LOOP] + xC * om_fs->xf[p7O_E][p7O_MOVE];
-      xEv = _mm256_set1_ps(xE);
-
-      for (q=0;q<Q;q++) { MMO(dpc,q)=xEv; DMO(dpc,q)=xEv; IMO(dpc,q)=zerov; }
-
-      tp7 = om_fs->tfv_avx;
-      for (q=0;q<Q;q++)
-        { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(IMO(dpp3,q),*(tp7+5)));
-          IMO(dpc,q)=_mm256_add_ps(IMO(dpc,q),_mm256_mul_ps(IMO(dpp3,q),*(tp7+6))); tp7+=7; }
-
-      ivx_carry=esl_avx_leftshiftz_float(ivxf[0]);
-      tmmv=esl_avx_leftshiftz_float(*(om_fs->tfv_avx+1));
-      timv=esl_avx_leftshiftz_float(*(om_fs->tfv_avx+2));
-      tdmv=esl_avx_leftshiftz_float(*(om_fs->tfv_avx+3));
-      tp_mm=om_fs->tfv_avx;
-      for (q=Q-1;q>=0;q--)
-        { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(ivx_carry,tmmv));
-          IMO(dpc,q)=_mm256_add_ps(IMO(dpc,q),_mm256_mul_ps(ivx_carry,timv));
-          DMO(dpc,q)=_mm256_add_ps(DMO(dpc,q),_mm256_mul_ps(ivx_carry,tdmv));
-          ivx_carry=ivxf[q];
-          tp_mm=(tp_mm==om_fs->tfv_avx) ? om_fs->tfv_avx+7*(Q-1) : tp_mm-7;
-          tmmv=*(tp_mm+1); timv=*(tp_mm+2); tdmv=*(tp_mm+3); }
-
-      dcv=esl_avx_leftshiftz_float(DMO(dpc,0)); tp_dd=om_fs->tfv_avx+8*Q-1;
-      for (q=Q-1;q>=0;q--)
-        { sv=_mm256_mul_ps(dcv,*tp_dd); tp_dd--; DMO(dpc,q)=_mm256_add_ps(DMO(dpc,q),sv); dcv=DMO(dpc,q); }
-      dcv=sv;
-      for (j=1;j<8;j++)
-        { dcv=esl_avx_leftshiftz_float(dcv); tp_dd=om_fs->tfv_avx+8*Q-1;
-          for (q=Q-1;q>=0;q--) { sv=_mm256_mul_ps(dcv,*tp_dd); tp_dd--; DMO(dpc,q)=_mm256_add_ps(DMO(dpc,q),sv); dcv=_mm256_mul_ps(dcv,*(tp_dd+1)); } }
-
-      dcv=esl_avx_leftshiftz_float(DMO(dpc,0)); tp7=om_fs->tfv_avx+7*Q-3;
-      for (q=Q-1;q>=0;q--)
-        { MMO(dpc,q)=_mm256_add_ps(MMO(dpc,q),_mm256_mul_ps(dcv,*tp7)); tp7-=7; dcv=DMO(dpc,q); }
-
-      if (xB > 1.0e16f) bck->has_own_scales = TRUE;
-      if (bck->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
-      else                     scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-
-      bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
-      if (scale > 1.0f)
-        { float sf = 1.0f/scale;
-          xN*=sf; xJ*=sf; xC*=sf; xB*=sf; xE*=sf;
-          xEv=_mm256_set1_ps(sf);
-          for (r=0;r<PARSER_ROWS_BWD;r++) for (q=0;q<Q;q++)
-            { MMO(bck->dpf_avx[r],q)=_mm256_mul_ps(MMO(bck->dpf_avx[r],q),xEv);
-              DMO(bck->dpf_avx[r],q)=_mm256_mul_ps(DMO(bck->dpf_avx[r],q),xEv);
-              IMO(bck->dpf_avx[r],q)=_mm256_mul_ps(IMO(bck->dpf_avx[r],q),xEv); }
-          for (r=0;r<PARSER_ROWS_BWD;r++)
-            { xN_buf[r]*=sf; xB_buf[r]*=sf; xJ_buf[r]*=sf; xC_buf[r]*=sf; }
-          bck->totscale += log(scale); }
-
-      xN_buf[b]=xN; xB_buf[b]=xB; xJ_buf[b]=xJ; xC_buf[b]=xC;
-      bck->xmx[i*p7X_NXCELLS+p7X_E]=xE; bck->xmx[i*p7X_NXCELLS+p7X_N]=xN;
-      bck->xmx[i*p7X_NXCELLS+p7X_J]=xJ; bck->xmx[i*p7X_NXCELLS+p7X_B]=xB;
-      bck->xmx[i*p7X_NXCELLS+p7X_C]=xC;
-    }
-
-  /* Termination: i=0 */
-  if (dsq[1] < p7P_MAXNUC) x=dsq[1]; else x=p7P_MAXCODONS5;
-  if (L>=2 && dsq[2]<p7P_MAXNUC) w=dsq[2]; else w=p7P_MAXCODONS5;
-  if (L>=3 && dsq[3]<p7P_MAXNUC) v=dsq[3]; else v=p7P_MAXCODONS5;
-  if (L>=4 && dsq[4]<p7P_MAXNUC) u=dsq[4]; else u=p7P_MAXCODONS5;
-  if (L>=5 && dsq[5]<p7P_MAXNUC) t=dsq[5]; else t=p7P_MAXCODONS5;
-
-  c1=p7P_CODON1_FS5(x);            c1=p7P_MINIDX(c1,p7P_DEGEN5_QC2);
-  c2=p7P_CODON2_FS5(x,w);          c2=p7P_MINIDX(c2,p7P_DEGEN5_QC1);
-  c3=p7P_CODON3_FS5(x,w,v);        c3=p7P_MINIDX(c3,p7P_DEGEN5_C);
-  c4=p7P_CODON4_FS5(x,w,v,u);      c4=p7P_MINIDX(c4,p7P_DEGEN5_QC1);
-  c5=p7P_CODON5_FS5(x,w,v,u,t);    c5=p7P_MINIDX(c5,p7P_DEGEN5_QC2);
-
-  prev1=1%PARSER_ROWS_BWD; prev2=2%PARSER_ROWS_BWD; prev3=3%PARSER_ROWS_BWD;
-  prev4=4%PARSER_ROWS_BWD; prev5=5%PARSER_ROWS_BWD;
-  dpp1=bck->dpf_avx[prev1]; dpp2=bck->dpf_avx[prev2]; dpp3=bck->dpf_avx[prev3];
-  dpp4=bck->dpf_avx[prev4]; dpp5=bck->dpf_avx[prev5];
-
-  for (q=0;q<Q;q++)
-    ivxf[q]=_mm256_add_ps(
-              _mm256_add_ps(
-                _mm256_add_ps(_mm256_mul_ps(MMO(dpp1,q),om_fs->rfv_avx[c1][q]),
-                              _mm256_mul_ps(MMO(dpp2,q),om_fs->rfv_avx[c2][q])),
-                _mm256_add_ps(_mm256_mul_ps(MMO(dpp3,q),om_fs->rfv_avx[c3][q]),
-                              _mm256_mul_ps(MMO(dpp4,q),om_fs->rfv_avx[c4][q]))),
-              _mm256_mul_ps(MMO(dpp5,q),om_fs->rfv_avx[c5][q]));
-
-  xBv=zerov; tp7=om_fs->tfv_avx;
-  for (q=0;q<Q;q++) { xBv=_mm256_add_ps(xBv,_mm256_mul_ps(ivxf[q],*tp7)); tp7+=7; }
-  xB = 0.0f;
-  esl_avx_hsum_ps(xBv, &xB);
-
-  xN = xN_buf[3%PARSER_ROWS_BWD] * om_fs->xf[p7O_N][p7O_LOOP]
-     + xB                         * om_fs->xf[p7O_N][p7O_MOVE];
-
-  bck->xmx[p7X_B]=xB; bck->xmx[p7X_N]=xN; bck->xmx[p7X_J]=0.0f;
-  bck->xmx[p7X_C]=0.0f; bck->xmx[p7X_E]=0.0f; bck->xmx[p7X_SCALE]=1.0f;
-
-  {
-    float xNtot = xN + xN_buf[1%PARSER_ROWS_BWD] + xN_buf[2%PARSER_ROWS_BWD];
-
-    if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-    else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
-    else if (L > 0 && xNtot == 0.0f) { if (opt_sc) *opt_sc = -eslINFINITY; return eslERANGE; }
-    if (opt_sc) *opt_sc = bck->totscale + logf(xNtot);
-  }
-
-  return eslOK;
-}
-/* end p7_BackwardParser_Frameshift_5Codons_avx() */
-
-
-/* Function:  p7_Forward_Frameshift_avx()
+/* Function:  p7_Forward_Frameshift_5Codons_avx()
  * Synopsis:  AVX2 frameshift-aware Forward, 5 codon lengths, full O(ML) matrix.
  */
-/* Function:  p7_ForwardRow_Frameshift_avx()
+/* Function:  p7_ForwardRow_Frameshift_5Codons_avx()
  * Synopsis:  One row of the frameshift Forward algorithm.
  *
  * Purpose:   Forward row <i> of the 5-codon profile <om_fs> against the
@@ -1074,10 +813,10 @@ p7_BackwardParser_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_
  *            <xmx>; when the row is rescaled, the log of its scale factor
  *            is added to <*totscale>. Row 0 is the initialization, of
  *            <dpc>, <ivx>, <rg> and row 0 of <xmx>. Same calculation as
- *            each row of <p7_Forward_Frameshift_avx()>, which calls it.
+ *            each row of <p7_Forward_Frameshift_5Codons_avx()>, which calls it.
  */
 void
-p7_ForwardRow_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
+p7_ForwardRow_Frameshift_5Codons_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
                        __m256 **ivx, __m256 *dpc, const __m256 *dpp1, const __m256 *dpp3, int i)
 {
   register __m256 mpv1, dpv1, ipv1;
@@ -1373,18 +1112,18 @@ p7_ForwardRow_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, fl
 }
 
 
-/* Function:  p7_ForwardRow3_Frameshift_avx()
+/* Function:  p7_ForwardChkRow_Frameshift_5Codons_avx()
  * Synopsis:  One row of the frameshift Forward algorithm, 3-cell rows.
  *
- * Purpose:   The row of <p7_ForwardRow_Frameshift_avx()> in rows of
+ * Purpose:   The row of <p7_ForwardRow_Frameshift_5Codons_avx()> in rows of
  *            <p7X_NSCELLS> vectors per stripe, holding only M (the C0
  *            sum), D and I: the same calculation and values, without
  *            the codon-length cells. Called by
- *            <p7_ForwardChk_Frameshift_avx()> and
+ *            <p7_ForwardChk_Frameshift_5Codons_avx()> and
  *            <p7_ForwardParser_Frameshift_5Codons_avx()>.
  */
 void
-p7_ForwardRow3_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
+p7_ForwardChkRow_Frameshift_5Codons_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
                         __m256 **ivx, __m256 *dpc, const __m256 *dpp1, const __m256 *dpp3, int i)
 {
   register __m256 mpv1, dpv1, ipv1;
@@ -1659,7 +1398,7 @@ p7_ForwardRow3_Frameshift_avx(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, f
 
 
 int
-p7_Forward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
+p7_Forward_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
 {
   P7_FS_FWDRING rg;
   int           i;
@@ -1671,9 +1410,9 @@ p7_Forward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
   fwd->has_own_scales = TRUE;
   fwd->totscale       = 0.0;
 
-  p7_ForwardRow_Frameshift_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[0], NULL, NULL, 0);
+  p7_ForwardRow_Frameshift_5Codons_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[0], NULL, NULL, 0);
   for (i = 1; i <= L; i++)
-    p7_ForwardRow_Frameshift_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[i], fwd->dpf_avx[i-1], (i >= 3) ? fwd->dpf_avx[i-3] : NULL, i);
+    p7_ForwardRow_Frameshift_5Codons_avx(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx_avx, fwd->dpf_avx[i], fwd->dpf_avx[i-1], (i >= 3) ? fwd->dpf_avx[i-3] : NULL, i);
 
   {
     float xCL   = rg.xC[   L    %PARSER_ROWS_FWD];
@@ -1689,7 +1428,7 @@ p7_Forward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 
   return eslOK;
 }
-/* end p7_Forward_Frameshift_avx() */
+/* end p7_Forward_Frameshift_5Codons_avx() */
 
 
 /* bwd_fs_ring_init()
@@ -1708,14 +1447,14 @@ bwd_fs_ring_init(P7_FS_BWDRING *rg, const P7_FS_OPROFILE *om_fs, int L)
 }
 
 
-/* p7_BackwardRowL_Frameshift_avx()
+/* p7_BackwardRowL_Frameshift_5Codons_avx()
  * Frameshift Backward row <L> into <dpc>; special states and scale factor
  * into row <L> of <xmx> and into the ring <rg>. <fwd_xmx> holds the Forward
  * special states and scale factors (needed only for p7_BWD_SCALE_FORWARD).
  * If <totscale> is non-NULL the log of a scale factor > 1 is added to it.
  */
 void
-p7_BackwardRowL_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, __m256 *dpc, int L, int scale_mode)
+p7_BackwardRowL_Frameshift_5Codons_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, __m256 *dpc, int L, int scale_mode)
 {
   register __m256 sv;
   register __m256 dcv;
@@ -1763,7 +1502,7 @@ p7_BackwardRowL_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx
 }
 
 
-/* p7_BackwardRow_Frameshift_avx()
+/* p7_BackwardRow_Frameshift_5Codons_avx()
  * Frameshift Backward row <i> (1 <= i < L) of a sequence <dsq> of length
  * <L>. <dp>[0] is row <i>, written here; <dp>[d] is row <i>+d for d =
  * 1..5, or a row of zeros past <L>. The look-back rows are corrected
@@ -1776,7 +1515,7 @@ p7_BackwardRowL_Frameshift_avx(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx
  * p7_BWD_SCALE_FORWARD turns on once xB exceeds 1e16.
  */
 void
-p7_BackwardRow_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
+p7_BackwardRow_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
                         P7_FS_BWDRING *rg, __m256 *const *dp, __m256 *ivxf, int i, int scale_mode)
 {
   register __m256 sv;
@@ -1898,14 +1637,14 @@ p7_BackwardRow_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *o
 }
 
 
-/* p7_BackwardRow0_Frameshift_avx()
+/* p7_BackwardRow0_Frameshift_5Codons_avx()
  * Frameshift Backward row 0 of a sequence <dsq> of length <L>: only the N
  * and B states, from rows 1..5 in <dp>[1..5] (rows past <L> are rows
  * of zeros) and row 3's N from the ring <rg>, with <ivxf> as workspace.
  * Writes row 0's special states into <xmx> and returns its N value.
  */
 float
-p7_BackwardRow0_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, __m256 *const *dp, __m256 *ivxf)
+p7_BackwardRow0_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, __m256 *const *dp, __m256 *ivxf)
 {
   register __m256 xBv;
   __m256   zerov;
@@ -1966,11 +1705,11 @@ p7_BackwardRow0_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *
 }
 
 
-/* Function:  p7_Backward_Frameshift_avx()
+/* Function:  p7_Backward_Frameshift_5Codons_avx()
  * Synopsis:  AVX2 frameshift-aware Backward, 5 codon lengths, full O(ML) matrix.
  */
 int
-p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+p7_Backward_Frameshift_5Codons_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   __m256   zerov;
   float    xN;
@@ -1999,19 +1738,19 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
 
   /* Initialization: row L */
   dp[0]=bck->dpf_avx[L];
-  p7_BackwardRowL_Frameshift_avx(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, p7_BWD_SCALE_FORWARD);
+  p7_BackwardRowL_Frameshift_5Codons_avx(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, p7_BWD_SCALE_FORWARD);
 
   /* Main recurrence: i = L-1 down to 1 */
   for (i=L-1;i>=1;i--)
     {
       for (d=0;d<6;d++) dp[d]=(i+d<=L)?bck->dpf_avx[i+d]:zero_row;
-      p7_BackwardRow_Frameshift_avx(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, p7_BWD_SCALE_FORWARD);
+      p7_BackwardRow_Frameshift_5Codons_avx(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, p7_BWD_SCALE_FORWARD);
     }
 
   /* Termination: i=0 */
   dp[0]=NULL;
   for (d=1;d<6;d++) dp[d]=(d<=L)?bck->dpf_avx[d]:zero_row;
-  xN=p7_BackwardRow0_Frameshift_avx(dsq, L, om_fs, bck->xmx, &rg, dp, ivxf);
+  xN=p7_BackwardRow0_Frameshift_5Codons_avx(dsq, L, om_fs, bck->xmx, &rg, dp, ivxf);
 
   {
     float xNtot=xN+rg.xN[1%PARSER_ROWS_BWD]+rg.xN[2%PARSER_ROWS_BWD];
@@ -2029,7 +1768,7 @@ p7_Backward_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
   if (zero_mem) free(zero_mem);
   return status;
 }
-/* end p7_Backward_Frameshift_avx() */
+/* end p7_Backward_Frameshift_5Codons_avx() */
 
 
 #endif /* eslENABLE_AVX */

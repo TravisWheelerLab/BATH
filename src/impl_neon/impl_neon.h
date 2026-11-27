@@ -648,20 +648,19 @@ extern int p7_SSVFilter_BATH(const ESL_DSQ *dsq, int L, P7_OPROFILE *om, P7_OMX 
 extern int p7_ForwardParser_Frameshift_3Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
 extern int p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 extern int p7_ForwardParser_Frameshift_5Codons (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern int p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
-extern int p7_Forward_Frameshift               (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
-extern void p7_ForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i);
-extern void p7_ForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i);
-extern void p7_BackwardRowL_Frameshift(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, float32x4_t *dpc, int L, int scale_mode);
-extern void p7_BackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf, int i, int scale_mode);
-extern float p7_BackwardRow0_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf);
-extern int p7_Backward_Frameshift              (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
+extern int p7_Forward_Frameshift_5Codons       (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,                    P7_OMX *ox,  P7_OIVX *ov, float *opt_sc);
+extern void p7_ForwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i);
+extern void p7_ForwardChkRow_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg, float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i);
+extern void p7_BackwardRowL_Frameshift_5Codons(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, float32x4_t *dpc, int L, int scale_mode);
+extern void p7_BackwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales, P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf, int i, int scale_mode);
+extern float p7_BackwardRow0_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf);
+extern int p7_Backward_Frameshift_5Codons      (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 
 /* fwdback_chk_fs.c */
-extern int p7_ForwardChk_Frameshift            (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
-extern int p7_ForwardChkLoad_Frameshift        (const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
-extern int p7_BackwardChk_Frameshift           (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
-extern int p7_BackwardChkLoad_Frameshift       (const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
+extern int p7_ForwardChk_Frameshift_5Codons    (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
+extern int p7_ForwardChkLoad_Frameshift_5Codons(const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
+extern int p7_BackwardChk_Frameshift_5Codons   (const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
+extern int p7_BackwardChkLoad_Frameshift_5Codons(const ESL_DSQ *dsq,        const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
 
 /* null2.c */
 extern int p7_Null2_ByExpectation(const P7_OPROFILE *om, const P7_OMX *pp, float *null2);

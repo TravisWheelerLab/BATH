@@ -166,8 +166,8 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
+      p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
     }
   esl_stopwatch_Stop(w);
   base_time = w->user;
@@ -177,8 +177,8 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
+      p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
       p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* overwrites fwd in-place */
     }
   esl_stopwatch_Stop(w);
@@ -258,8 +258,8 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                     != eslOK) esl_fatal(msg);
 
       /* vector: fwd becomes the posterior matrix */
-      if (p7_Forward_Frameshift (dsq, L, om_fs5, fwd, ov5, &fsc)        != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc)   != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd, ov5, &fsc)        != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc)   != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                      != eslOK) esl_fatal(msg);
       if (p7_omx_FDeconvert(fwd, gxpp)                                  != eslOK) esl_fatal(msg);
 

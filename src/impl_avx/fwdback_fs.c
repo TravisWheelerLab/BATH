@@ -122,49 +122,14 @@ p7_ForwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const 
 
 
 /* Forward declaration of dispatcher */
-static int p7_BackwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                                           const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
-
-/* Global function pointer, initially pointing at the dispatcher */
-int (*p7_BackwardParser_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                            const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_BackwardParser_Frameshift_5Codons_Dispatcher;
-
-/* Function:  p7_BackwardParser_Frameshift_5Codons_Dispatcher()
- *
- * Purpose:   Self-patching dispatcher for 5-codon frameshift Backward parser.
- *
- * Returns:   <eslOK> on success.
- * Throws:    <eslEINVAL>, <eslEMEM> as above.
- */
-static int
-p7_BackwardParser_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                                                const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
-{
-#ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_avx512; return p7_BackwardParser_Frameshift_5Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
-#endif
-#ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_avx;    return p7_BackwardParser_Frameshift_5Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
-#endif
-#ifdef eslENABLE_SSE
-  p7_BackwardParser_Frameshift_5Codons = p7_BackwardParser_Frameshift_5Codons_sse;
-  return p7_BackwardParser_Frameshift_5Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
-#else
-  p7_Die("p7_BackwardParser_Frameshift_5Codons: no SIMD implementation available");
-  return eslENORESULT;
-#endif
-}
-
-
-/* Forward declaration of dispatcher */
-static int p7_Forward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+static int p7_Forward_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
                                             P7_OMX *ox, P7_OIVX *ov, float *opt_sc);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_Forward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                             P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_Forward_Frameshift_Dispatcher;
+int (*p7_Forward_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                             P7_OMX *ox, P7_OIVX *ov, float *opt_sc) = p7_Forward_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_Forward_Frameshift_Dispatcher()
+/* Function:  p7_Forward_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for full-matrix 5-codon frameshift Forward.
  *
@@ -172,34 +137,34 @@ int (*p7_Forward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
 static int
-p7_Forward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+p7_Forward_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
                                  P7_OMX *ox, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_Forward_Frameshift = p7_Forward_Frameshift_avx512; return p7_Forward_Frameshift_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
+  if (esl_cpu_has_avx512()) { p7_Forward_Frameshift_5Codons = p7_Forward_Frameshift_5Codons_avx512; return p7_Forward_Frameshift_5Codons_avx512(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_Forward_Frameshift = p7_Forward_Frameshift_avx;    return p7_Forward_Frameshift_avx(dsq, L, om_fs, ox, ov, opt_sc); }
+  if (esl_cpu_has_avx())    { p7_Forward_Frameshift_5Codons = p7_Forward_Frameshift_5Codons_avx;    return p7_Forward_Frameshift_5Codons_avx(dsq, L, om_fs, ox, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_Forward_Frameshift = p7_Forward_Frameshift_sse;
-  return p7_Forward_Frameshift_sse(dsq, L, om_fs, ox, ov, opt_sc);
+  p7_Forward_Frameshift_5Codons = p7_Forward_Frameshift_5Codons_sse;
+  return p7_Forward_Frameshift_5Codons_sse(dsq, L, om_fs, ox, ov, opt_sc);
 #else
-  p7_Die("p7_Forward_Frameshift: no SIMD implementation available");
+  p7_Die("p7_Forward_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
 /* Forward declaration of dispatcher */
-static int p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+static int p7_Backward_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
                                              const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_Backward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
-                              const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_Backward_Frameshift_Dispatcher;
+int (*p7_Backward_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+                              const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc) = p7_Backward_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_Backward_Frameshift_Dispatcher()
+/* Function:  p7_Backward_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for full-matrix 5-codon frameshift Backward.
  *
@@ -207,124 +172,124 @@ int (*p7_Backward_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *o
  * Throws:    <eslEINVAL>, <eslEMEM> as above.
  */
 static int
-p7_Backward_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
+p7_Backward_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs,
                                   const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX512
-  if (esl_cpu_has_avx512()) { p7_Backward_Frameshift = p7_Backward_Frameshift_avx512; return p7_Backward_Frameshift_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
+  if (esl_cpu_has_avx512()) { p7_Backward_Frameshift_5Codons = p7_Backward_Frameshift_5Codons_avx512; return p7_Backward_Frameshift_5Codons_avx512(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx())    { p7_Backward_Frameshift = p7_Backward_Frameshift_avx;    return p7_Backward_Frameshift_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
+  if (esl_cpu_has_avx())    { p7_Backward_Frameshift_5Codons = p7_Backward_Frameshift_5Codons_avx;    return p7_Backward_Frameshift_5Codons_avx(dsq, L, om_fs, fwd, bck, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_Backward_Frameshift = p7_Backward_Frameshift_sse;
-  return p7_Backward_Frameshift_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
+  p7_Backward_Frameshift_5Codons = p7_Backward_Frameshift_5Codons_sse;
+  return p7_Backward_Frameshift_5Codons_sse(dsq, L, om_fs, fwd, bck, ov, opt_sc);
 #else
-  p7_Die("p7_Backward_Frameshift: no SIMD implementation available");
+  p7_Die("p7_Backward_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
 /* Forward declaration of dispatcher */
-static int p7_ForwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
+static int p7_ForwardChk_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_ForwardChk_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc) = p7_ForwardChk_Frameshift_Dispatcher;
+int (*p7_ForwardChk_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc) = p7_ForwardChk_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_ForwardChk_Frameshift_Dispatcher()
+/* Function:  p7_ForwardChk_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for the checkpointed 5-codon frameshift Forward.
  */
 static int
-p7_ForwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+p7_ForwardChk_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx()) { p7_ForwardChk_Frameshift = p7_ForwardChk_Frameshift_avx; return p7_ForwardChk_Frameshift_avx(dsq, L, om_fs, cx, ov, opt_sc); }
+  if (esl_cpu_has_avx()) { p7_ForwardChk_Frameshift_5Codons = p7_ForwardChk_Frameshift_5Codons_avx; return p7_ForwardChk_Frameshift_5Codons_avx(dsq, L, om_fs, cx, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_ForwardChk_Frameshift = p7_ForwardChk_Frameshift_sse;
-  return p7_ForwardChk_Frameshift_sse(dsq, L, om_fs, cx, ov, opt_sc);
+  p7_ForwardChk_Frameshift_5Codons = p7_ForwardChk_Frameshift_5Codons_sse;
+  return p7_ForwardChk_Frameshift_5Codons_sse(dsq, L, om_fs, cx, ov, opt_sc);
 #else
-  p7_Die("p7_ForwardChk_Frameshift: no SIMD implementation available");
+  p7_Die("p7_ForwardChk_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
 /* Forward declaration of dispatcher */
-static int p7_ForwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
+static int p7_ForwardChkLoad_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_ForwardChkLoad_Frameshift)(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b) = p7_ForwardChkLoad_Frameshift_Dispatcher;
+int (*p7_ForwardChkLoad_Frameshift_5Codons)(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b) = p7_ForwardChkLoad_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_ForwardChkLoad_Frameshift_Dispatcher()
+/* Function:  p7_ForwardChkLoad_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for loading one block of the checkpointed frameshift Forward again.
  */
 static int
-p7_ForwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+p7_ForwardChkLoad_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
 {
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx()) { p7_ForwardChkLoad_Frameshift = p7_ForwardChkLoad_Frameshift_avx; return p7_ForwardChkLoad_Frameshift_avx(dsq, om_fs, cx, ov, b); }
+  if (esl_cpu_has_avx()) { p7_ForwardChkLoad_Frameshift_5Codons = p7_ForwardChkLoad_Frameshift_5Codons_avx; return p7_ForwardChkLoad_Frameshift_5Codons_avx(dsq, om_fs, cx, ov, b); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_ForwardChkLoad_Frameshift = p7_ForwardChkLoad_Frameshift_sse;
-  return p7_ForwardChkLoad_Frameshift_sse(dsq, om_fs, cx, ov, b);
+  p7_ForwardChkLoad_Frameshift_5Codons = p7_ForwardChkLoad_Frameshift_5Codons_sse;
+  return p7_ForwardChkLoad_Frameshift_5Codons_sse(dsq, om_fs, cx, ov, b);
 #else
-  p7_Die("p7_ForwardChkLoad_Frameshift: no SIMD implementation available");
+  p7_Die("p7_ForwardChkLoad_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
 /* Forward declaration of dispatcher */
-static int p7_BackwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
+static int p7_BackwardChk_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_BackwardChk_Frameshift)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc) = p7_BackwardChk_Frameshift_Dispatcher;
+int (*p7_BackwardChk_Frameshift_5Codons)(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc) = p7_BackwardChk_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_BackwardChk_Frameshift_Dispatcher()
+/* Function:  p7_BackwardChk_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for the checkpointed 5-codon frameshift Backward with its own scale factors.
  */
 static int
-p7_BackwardChk_Frameshift_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
+p7_BackwardChk_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, float *opt_sc)
 {
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx()) { p7_BackwardChk_Frameshift = p7_BackwardChk_Frameshift_avx; return p7_BackwardChk_Frameshift_avx(dsq, L, om_fs, cx, ov, opt_sc); }
+  if (esl_cpu_has_avx()) { p7_BackwardChk_Frameshift_5Codons = p7_BackwardChk_Frameshift_5Codons_avx; return p7_BackwardChk_Frameshift_5Codons_avx(dsq, L, om_fs, cx, ov, opt_sc); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_BackwardChk_Frameshift = p7_BackwardChk_Frameshift_sse;
-  return p7_BackwardChk_Frameshift_sse(dsq, L, om_fs, cx, ov, opt_sc);
+  p7_BackwardChk_Frameshift_5Codons = p7_BackwardChk_Frameshift_5Codons_sse;
+  return p7_BackwardChk_Frameshift_5Codons_sse(dsq, L, om_fs, cx, ov, opt_sc);
 #else
-  p7_Die("p7_BackwardChk_Frameshift: no SIMD implementation available");
+  p7_Die("p7_BackwardChk_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
 
 
 /* Forward declaration of dispatcher */
-static int p7_BackwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
+static int p7_BackwardChkLoad_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b);
 
 /* Global function pointer, initially pointing at the dispatcher */
-int (*p7_BackwardChkLoad_Frameshift)(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b) = p7_BackwardChkLoad_Frameshift_Dispatcher;
+int (*p7_BackwardChkLoad_Frameshift_5Codons)(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b) = p7_BackwardChkLoad_Frameshift_5Codons_Dispatcher;
 
-/* Function:  p7_BackwardChkLoad_Frameshift_Dispatcher()
+/* Function:  p7_BackwardChkLoad_Frameshift_5Codons_Dispatcher()
  *
  * Purpose:   Self-patching dispatcher for loading one block of the checkpointed frameshift Backward again.
  */
 static int
-p7_BackwardChkLoad_Frameshift_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
+p7_BackwardChkLoad_Frameshift_5Codons_Dispatcher(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, int b)
 {
 #ifdef eslENABLE_AVX
-  if (esl_cpu_has_avx()) { p7_BackwardChkLoad_Frameshift = p7_BackwardChkLoad_Frameshift_avx; return p7_BackwardChkLoad_Frameshift_avx(dsq, om_fs, cx, ov, b); }
+  if (esl_cpu_has_avx()) { p7_BackwardChkLoad_Frameshift_5Codons = p7_BackwardChkLoad_Frameshift_5Codons_avx; return p7_BackwardChkLoad_Frameshift_5Codons_avx(dsq, om_fs, cx, ov, b); }
 #endif
 #ifdef eslENABLE_SSE
-  p7_BackwardChkLoad_Frameshift = p7_BackwardChkLoad_Frameshift_sse;
-  return p7_BackwardChkLoad_Frameshift_sse(dsq, om_fs, cx, ov, b);
+  p7_BackwardChkLoad_Frameshift_5Codons = p7_BackwardChkLoad_Frameshift_5Codons_sse;
+  return p7_BackwardChkLoad_Frameshift_5Codons_sse(dsq, om_fs, cx, ov, b);
 #else
-  p7_Die("p7_BackwardChkLoad_Frameshift: no SIMD implementation available");
+  p7_Die("p7_BackwardChkLoad_Frameshift_5Codons: no SIMD implementation available");
   return eslENORESULT;
 #endif
 }
@@ -432,7 +397,7 @@ main(int argc, char **argv)
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
         p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+        p7_Forward_Frameshift_5Codons(dsq, L, om_fs5, fwd, ov5, &sc);
 	}
   }
   esl_stopwatch_Stop(w);
@@ -449,15 +414,13 @@ main(int argc, char **argv)
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
         p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+        p7_Forward_Frameshift_5Codons(dsq, L, om_fs5, fwd, ov5, &sc);
 
       if (! esl_opt_GetBoolean(go, "-F")) {
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
           p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, bck_p, ov3, NULL);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-          p7_BackwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, bck_p, ov5, NULL);
         if (! esl_opt_GetBoolean(go, "-P"))
-          p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, NULL);
+          p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, NULL);
       }
     }
   esl_stopwatch_Stop(w);
@@ -532,7 +495,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
-  float fsc5, bsc5;
+  float fsc5;
   float full_fsc, full_bsc;
   float generic_fsc3;
   float generic_fsc5;
@@ -594,20 +557,15 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
-      p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      if (p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, ov5, &bsc5) == eslERANGE) continue;
-
-      if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
-
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &full_fsc)            == eslERANGE) continue;
+      if (p7_Forward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, ov5, &full_fsc)            == eslERANGE) continue;
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &full_bsc)      == eslERANGE) continue;
+      if (p7_Backward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, bck, ov5, &full_bsc)      == eslERANGE) continue;
 
-      if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);
+      if (fabs(fsc5-full_bsc) > tolerance) esl_fatal(msg);
     }
 
   free(dsq);
@@ -661,7 +619,7 @@ rowL_compare_specials(const P7_OMX *bck, const P7_GMX *gx, int L, float tol, con
 }
 
 /* utest_backward_rowL_scale_fs()
- * The frameshift Backward variants (full matrix, 5-codon parser, 3-codon
+ * The frameshift Backward variants (full matrix and 3-codon
  * parser) when Forward rescales one of the last rows. Each sequence is
  * the back-translated consensus of a model with sharpened match
  * emissions and M->M transitions, followed by 0 or 1 random nucleotides,
@@ -685,10 +643,8 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   void            (*ox_destroy)(P7_OMX *)                                  = use_sse ? p7_omx_Destroy_sse                : p7_omx_Destroy;
   P7_OIVX        *(*ov_create) (int, int)                                  = use_sse ? p7_oivx_Create_sse                : p7_oivx_Create;
   void            (*ov_destroy)(P7_OIVX *)                                 = use_sse ? p7_oivx_Destroy_sse               : p7_oivx_Destroy;
-  int (*fwd_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = use_sse ? p7_Forward_Frameshift_sse                : p7_Forward_Frameshift;
-  int (*bck_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = use_sse ? p7_Backward_Frameshift_sse               : p7_Backward_Frameshift;
-  int (*fwd_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = use_sse ? p7_ForwardParser_Frameshift_5Codons_sse  : p7_ForwardParser_Frameshift_5Codons;
-  int (*bck_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = use_sse ? p7_BackwardParser_Frameshift_5Codons_sse : p7_BackwardParser_Frameshift_5Codons;
+  int (*fwd_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = use_sse ? p7_Forward_Frameshift_5Codons_sse                : p7_Forward_Frameshift_5Codons;
+  int (*bck_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = use_sse ? p7_Backward_Frameshift_5Codons_sse               : p7_Backward_Frameshift_5Codons;
   int (*fwd_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = use_sse ? p7_ForwardParser_Frameshift_3Codons_sse  : p7_ForwardParser_Frameshift_3Codons;
   int (*bck_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = use_sse ? p7_BackwardParser_Frameshift_3Codons_sse : p7_BackwardParser_Frameshift_3Codons;
   int             Lmax   = 3*M + 1;
@@ -747,11 +703,6 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
           p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
           rowL_compare_specials(bck, gx, L, tol, msg, "full matrix");
 
-          if (fwd_p5(dsq, L, om5, pf,     ov5, NULL) != eslOK) esl_fatal(msg);
-          if (bck_p5(dsq, L, om5, pf, pb, ov5, NULL) != eslOK) esl_fatal(msg);
-          p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
-          rowL_compare_specials(pb, gx, L, tol, msg, "5-codon parser");
-
           if (fwd_p3(dsq, L, om3, pf,     ov3, NULL) != eslOK) esl_fatal(msg);
           if (pf->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f || pf->xmx[(L-1)*p7X_NXCELLS+p7X_SCALE] > 1.0f) np3++;
           if (bck_p3(dsq, L, om3, pf, pb, ov3, NULL) != eslOK) esl_fatal(msg);
@@ -807,14 +758,14 @@ fs_row_mdi_differs(const void *cr, const void *fr, int Q, size_t vbytes)
  *   - every block loaded again, in increasing order as a forward
  *     sweep reads them, is identical to the one-block fill;
  *   - scores and cells (with each matrix's own row scale factors
- *     taken out) agree with p7_Backward_Frameshift() up to rounding;
+ *     taken out) agree with p7_Backward_Frameshift_5Codons() up to rounding;
  *   - the checkpointed Forward, in one block and in blocks of 5..12
  *     rows, has the same score, special states, scale factors and
- *     M (C0), D and I cells as p7_Forward_Frameshift(), and so does
+ *     M (C0), D and I cells as p7_Forward_Frameshift_5Codons(), and so does
  *     every block loaded again, last to first, as a backward pass
  *     reads them;
  *   - the 5-codon Forward parser has the same score, special states
- *     and scale factors as p7_Forward_Frameshift().
+ *     and scale factors as p7_Forward_Frameshift_5Codons().
  * With <require_scaling>, fail if no Backward or no Forward row was
  * rescaled. With <use_sse>,
  * the _sse versions are called directly, so an AVX CPU also tests the
@@ -843,10 +794,10 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
   int           (*chk_growto)(P7_CHKOMX *, int, int, int)       = use_sse ? p7_chkomx_GrowTo_sse  : p7_chkomx_GrowTo;
   float         (*chk_get)   (const P7_CHKOMX *, int, int, int) = use_sse ? p7_chkomx_FGetMDI_sse : p7_chkomx_FGetMDI;
   float         (*omx_get)   (const P7_OMX *, int, int, int)    = use_sse ? p7_omx_FGetMDI_sse    : p7_omx_FGetMDI;
-  int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_BackwardChk_Frameshift_sse     : p7_BackwardChk_Frameshift;
-  int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_BackwardChkLoad_Frameshift_sse : p7_BackwardChkLoad_Frameshift;
-  int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_ForwardChk_Frameshift_sse      : p7_ForwardChk_Frameshift;
-  int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_ForwardChkLoad_Frameshift_sse  : p7_ForwardChkLoad_Frameshift;
+  int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_BackwardChk_Frameshift_5Codons_sse     : p7_BackwardChk_Frameshift_5Codons;
+  int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_BackwardChkLoad_Frameshift_5Codons_sse : p7_BackwardChkLoad_Frameshift_5Codons;
+  int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = use_sse ? p7_ForwardChk_Frameshift_5Codons_sse      : p7_ForwardChk_Frameshift_5Codons;
+  int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = use_sse ? p7_ForwardChkLoad_Frameshift_5Codons_sse  : p7_ForwardChkLoad_Frameshift_5Codons;
   int           (*fwd_p5)    (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)    = use_sse ? p7_ForwardParser_Frameshift_5Codons_sse : p7_ForwardParser_Frameshift_5Codons;
   int             Q        = use_sse ? p7O_NQF(M) : p7O_NQF_AVX(M);
   size_t          vbytes   = use_sse ? sizeof(__m128) : sizeof(__m256);
@@ -915,14 +866,14 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
       if (use_sse)
         {
           p7_fs_oprofile_ReconfigLength_sse(om_fs5, Ln/3);
-          if (p7_Forward_Frameshift_sse (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
-          if (p7_Backward_Frameshift_sse(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
+          if (p7_Forward_Frameshift_5Codons_sse (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
+          if (p7_Backward_Frameshift_5Codons_sse(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
         }
       else
         {
           p7_fs_oprofile_ReconfigLength(om_fs5, Ln/3);
-          if (p7_Forward_Frameshift (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
-          if (p7_Backward_Frameshift(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
+          if (p7_Forward_Frameshift_5Codons (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
+          if (p7_Backward_Frameshift_5Codons(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
         }
 
       blockR = 5 + esl_rnd_Roll(r, 8);
@@ -932,7 +883,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
       if (bck_chk(dsq, Ln, om_fs5, cx2, ov5, &sc2) != eslOK) esl_fatal(msg);
 
       if (sc1 != sc2)                                  esl_fatal("%s: one-block and blocked scores differ (%f %f)", msg, sc1, sc2);
-      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward_Frameshift() %f", msg, sc1, bsc);
+      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward_Frameshift_5Codons() %f", msg, sc1, bsc);
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states differ", msg);
@@ -976,7 +927,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
 
       /* 5-codon Forward parser: identical score, special states and scale factors */
       if (fwd_p5(dsq, Ln, om_fs5, pfx, ov5, &psc) != eslOK) esl_fatal(msg);
-      if (psc != fsc) esl_fatal("%s: Forward parser score %f, p7_Forward_Frameshift() %f", msg, psc, fsc);
+      if (psc != fsc) esl_fatal("%s: Forward parser score %f, p7_Forward_Frameshift_5Codons() %f", msg, psc, fsc);
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (pfx->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Forward parser special state %d of row %d differs", msg, x, i);
@@ -1043,7 +994,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
  *
  * Run the frameshift Forward/Backward variants for both SSE and AVX on the
  * same sequences and profiles, comparing scores with 0.01 nat tolerance.
- * Tests 3-codon parser, 5-codon parser, and full 5-codon Forward/Backward.
+ * Tests the 3-codon parsers, the 5-codon Forward parser, and full 5-codon Forward/Backward.
  * Skipped silently if AVX is not available at runtime.
  */
 static void
@@ -1077,7 +1028,6 @@ utest_sse_vs_avx_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
   float           fsc3_sse, fsc3_avx;
   float           bsc3_sse, bsc3_avx;
   float           fsc5_sse, fsc5_avx;
-  float           bsc5_sse, bsc5_avx;
   float           full_fsc_sse, full_fsc_avx;
   float           full_bsc_sse, full_bsc_avx;
   int             curr_L, i, j;
@@ -1147,30 +1097,24 @@ utest_sse_vs_avx_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       if (p7_BackwardParser_Frameshift_3Codons_avx(dsq, curr_L, om_fs3_avx, oxf_avx, oxb_avx, ov3_avx, &bsc3_avx) == eslERANGE) continue;
       if (fabs(bsc3_sse - bsc3_avx) > 0.01) esl_fatal("%s: 3cod Bck sse=%.4f avx=%.4f", msg, bsc3_sse, bsc3_avx);
 
-      /* 5-codon parser */
+      /* 5-codon Forward parser */
       p7_omx_GrowTo_sse(oxf_sse, M, PARSER_ROWS_FWD, curr_L);
       p7_omx_GrowTo_avx(oxf_avx, M, PARSER_ROWS_FWD, curr_L);
       if (p7_ForwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, ov5_sse, &fsc5_sse) == eslERANGE) continue;
       if (p7_ForwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, ov5_avx, &fsc5_avx) == eslERANGE) continue;
       if (fabs(fsc5_sse - fsc5_avx) > 0.01) esl_fatal("%s: 5cod Fwd sse=%.4f avx=%.4f", msg, fsc5_sse, fsc5_avx);
 
-      p7_omx_GrowTo_sse(oxb_sse, M, PARSER_ROWS_BWD, curr_L);
-      p7_omx_GrowTo_avx(oxb_avx, M, PARSER_ROWS_BWD, curr_L);
-      if (p7_BackwardParser_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, oxf_sse, oxb_sse, ov5_sse, &bsc5_sse) == eslERANGE) continue;
-      if (p7_BackwardParser_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, oxf_avx, oxb_avx, ov5_avx, &bsc5_avx) == eslERANGE) continue;
-      if (fabs(bsc5_sse - bsc5_avx) > 0.01) esl_fatal("%s: 5cod Bck sse=%.4f avx=%.4f", msg, bsc5_sse, bsc5_avx);
-
       /* Full 5-codon Forward/Backward */
       p7_omx_GrowTo_dpf_sse(fwd_sse, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf_avx(fwd_avx, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift_sse(dsq, curr_L, om_fs5_sse, fwd_sse, ov5_sse, &full_fsc_sse) == eslERANGE) continue;
-      if (p7_Forward_Frameshift_avx(dsq, curr_L, om_fs5_avx, fwd_avx, ov5_avx, &full_fsc_avx) == eslERANGE) continue;
+      if (p7_Forward_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, fwd_sse, ov5_sse, &full_fsc_sse) == eslERANGE) continue;
+      if (p7_Forward_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, fwd_avx, ov5_avx, &full_fsc_avx) == eslERANGE) continue;
       if (fabs(full_fsc_sse - full_fsc_avx) > 0.01) esl_fatal("%s: full Fwd sse=%.4f avx=%.4f", msg, full_fsc_sse, full_fsc_avx);
 
       p7_omx_GrowTo_dpf_sse(bck_sse, M, curr_L, curr_L);
       p7_omx_GrowTo_dpf_avx(bck_avx, M, curr_L, curr_L);
-      if (p7_Backward_Frameshift_sse(dsq, curr_L, om_fs5_sse, fwd_sse, bck_sse, ov5_sse, &full_bsc_sse) == eslERANGE) continue;
-      if (p7_Backward_Frameshift_avx(dsq, curr_L, om_fs5_avx, fwd_avx, bck_avx, ov5_avx, &full_bsc_avx) == eslERANGE) continue;
+      if (p7_Backward_Frameshift_5Codons_sse(dsq, curr_L, om_fs5_sse, fwd_sse, bck_sse, ov5_sse, &full_bsc_sse) == eslERANGE) continue;
+      if (p7_Backward_Frameshift_5Codons_avx(dsq, curr_L, om_fs5_avx, fwd_avx, bck_avx, ov5_avx, &full_bsc_avx) == eslERANGE) continue;
       if (fabs(full_bsc_sse - full_bsc_avx) > 0.01) esl_fatal("%s: full Bck sse=%.4f avx=%.4f", msg, full_bsc_sse, full_bsc_avx);
     }
 

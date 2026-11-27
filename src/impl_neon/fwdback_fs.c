@@ -1013,12 +1013,12 @@ p7_BackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
 /* Function:  p7_ForwardParser_Frameshift_5Codons()
  * Synopsis:  NEON frameshift-aware Forward, 5 codon lengths, linear memory.
  *
- * Purpose:   The Forward score of <p7_Forward_Frameshift()>, in a ring
+ * Purpose:   The Forward score of <p7_Forward_Frameshift_5Codons()>, in a ring
  *            of <PARSER_ROWS_FWD> 3-cell rows of <fwd> (plus special
  *            states and scale factors for all rows), with <ov> as
  *            workspace. Each row is computed by
- *            <p7_ForwardRow3_Frameshift()>, so the score is identical to
- *            that of <p7_Forward_Frameshift()>.
+ *            <p7_ForwardChkRow_Frameshift_5Codons()>, so the score is identical to
+ *            that of <p7_Forward_Frameshift_5Codons()>.
  *
  * Returns:   <eslOK> on success.
  *            <eslERANGE> if the score underflows to 0 (L > 1); <*opt_sc>
@@ -1049,7 +1049,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
   fwd->totscale       = 0.0;
 
   for (i = 0; i <= L; i++)
-    p7_ForwardRow3_Frameshift(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[i % PARSER_ROWS_FWD],
+    p7_ForwardChkRow_Frameshift_5Codons(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[i % PARSER_ROWS_FWD],
                              (i >= 1) ? fwd->dpf[(i-1) % PARSER_ROWS_FWD] : NULL,
                              (i >= 3) ? fwd->dpf[(i-3) % PARSER_ROWS_FWD] : NULL, i);
 
@@ -1066,394 +1066,7 @@ p7_ForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROF
 }
 
 
-/* Function:  p7_BackwardParser_Frameshift_5Codons()
- * Synopsis:  NEON-accelerated frameshift-aware Backward algorithm, 5 codon lengths, linear memory.
- *
- * Purpose:   The Backward dynamic programming algorithm for frameshift-aware
- *            translated comparison between a nucleotide sequence and a
- *            frameshift-aware codon HMM, using five codon lengths (1, 2, 3,
- *            4, 5 nucleotides), implemented with SIMD parallelism.
- *
- *            Mirrors p7_ForwardParser_Frameshift_5Codons() in probability
- *            space with sparse rescaling, using scale factors from the filled
- *            Forward matrix <fwd>.
- *
- *            Caller must allocate <bck> with at least PARSER_ROWS_BWD valid MDI
- *            rows (bck->validR >= PARSER_ROWS_BWD) and L+1 X-rows.
- *
- * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            L      - length of dsq
- *            om_fs  - optimized frameshift profile (codon_lengths must be 5)
- *            fwd    - filled Forward DP matrix, for sparse scale factors
- *            bck     - RETURN: Backward DP matrix (PARSER_ROWS_BWD MDI rows, L X rows)
- *            ov     - intermediate value scratch space (uses channel 0)
- *            opt_sc - optRETURN: Backward score in nats
- *
- * Returns:   <eslOK> on success.
- *
- * Throws:    <eslEINVAL> if profile or matrix allocation is incorrect.
- *            <eslERANGE> if score overflows or underflows.
- */
-int
-p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
-{
-  register float32x4_t sv;                  /* temporary accumulator                           */
-  register float32x4_t dcv;                 /* D(i,k+1) left-shift carry                      */
-  register float32x4_t ivx_carry;           /* ivxf[k+1] left-shift carry                     */
-  float32x4_t   tmmv, timv, tdmv;           /* pre-shifted MM/IM/DM transitions                */
-  register float32x4_t xBv;                 /* accumulates B(i) = sum_k ivxf[k]*BM[k-1]       */
-  register float32x4_t xEv;                 /* splatted E(i)                                   */
-  float32x4_t   zerov;                      /* splatted 0.0                                    */
-  float    xN, xE, xB, xC, xJ;         /* special state values at position i              */
-  float    xN_buf[PARSER_ROWS_BWD];    /* circular buffer: N(i) at i%PARSER_ROWS_BWD      */
-  float    xB_buf[PARSER_ROWS_BWD];
-  float    xJ_buf[PARSER_ROWS_BWD];
-  float    xC_buf[PARSER_ROWS_BWD];
-  int      b, b3;                      /* buffer slots for i, i+3                         */
-  int      curr, prev1, prev2, prev3, prev4, prev5; /* MDI row indices                    */
-  float32x4_t  *dpc, *dpp1, *dpp2, *dpp3, *dpp4, *dpp5; /* MDI DP row pointers          */
-  float32x4_t  *tp7;                   /* steps backward through om_fs->tfv               */
-  float32x4_t  *tp_dd;                 /* steps backward through DD block                 */
-  float32x4_t  *tp_mm;                 /* for rotated MM/IM/DM transitions                */
-  float32x4_t  *ivxf;                  /* ivx intermediate values [q], recomputed each i  */
-  int      Q = p7O_NQF(om_fs->M);
-  int      i, q, j, r;
-  int      c1, c2, c3, c4, c5;
-  int      t, u, v, w, x;
-  float    scale;
-
-  ivxf = ov->ivx[0];
-
-  if (om_fs->codon_lengths != 5)
-    ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
-#if eslDEBUGLEVEL > 0
-  if (om_fs->M > bck->allocQ4*4)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
-  if (bck->validR < PARSER_ROWS_BWD)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix needs at least PARSER_ROWS_BWD MDI rows");
-  if (L >= bck->allocXR)
-    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few X rows)");
-  if (! p7_fs_oprofile_IsLocal(om_fs))
-    ESL_EXCEPTION(eslEINVAL, "Backward implementation assumes local alignment mode");
-#endif
-
-  bck->M              = om_fs->M;
-  bck->L              = L;
-  bck->has_own_scales = FALSE;
-  bck->totscale       = 0.0;
-  zerov = vmovq_n_f32(0.0f);
-
-  /* Zero-initialize all PARSER_ROWS_BWD MDI rows */
-  for (r = 0; r < PARSER_ROWS_BWD; r++)
-    for (q = 0; q < Q; q++)
-      MMO(bck->dpf[r],q) = IMO(bck->dpf[r],q) = DMO(bck->dpf[r],q) = zerov;
-
-  /* Zero-initialize all circular special-state buffers */
-  for (r = 0; r < PARSER_ROWS_BWD; r++)
-    xN_buf[r] = xB_buf[r] = xJ_buf[r] = xC_buf[r] = 0.0f;
-
-  /* Pre-fill "beyond-L" C slots so recursion C(i) = C(i+3)*T_CL gives
-   * C(L-1) = C(L-2) = T_CL*T_CM, matching scalar explicit initialization */
-  xC_buf[(L+1) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
-  xC_buf[(L+2) % PARSER_ROWS_BWD] = om_fs->xf[p7O_C][p7O_MOVE];
-
-  /*----------------------------------------------------------------
-   * Initialization: row L
-   * C(L) = T_CM.
-   * J=B=N=0. E = C * T_EM.  MDI: M=D=xE, I=0, DD+MD backward passes.
-   * No ivxf or I(i+3) contributions (future rows are 0).
-   *----------------------------------------------------------------*/
-  i    = L;
-  b    = i % PARSER_ROWS_BWD;
-  curr = b;
-
-  xC = om_fs->xf[p7O_C][p7O_MOVE];
-  xN = xB = xJ = 0.0f;
-  xE = xC * om_fs->xf[p7O_E][p7O_MOVE];
-  xEv = vmovq_n_f32(xE);
-
-  dpc = bck->dpf[curr];
-  for (q = 0; q < Q; q++)
-    { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
-
-  /* DD backward passes */
-  dcv    = vextq_f32(DMO(dpc,0), zerov, 1);  /* left-shift-by-1 */
-  tp_dd  = om_fs->tfv + 8*Q - 1;
-  for (q = Q-1; q >= 0; q--)
-    { sv = vmulq_f32(dcv, *tp_dd); tp_dd--;
-      DMO(dpc,q) = vaddq_f32(DMO(dpc,q), sv); dcv = DMO(dpc,q); }
-  dcv = sv;
-  for (j = 1; j < 4; j++)
-    { dcv   = vextq_f32(dcv, zerov, 1);
-      tp_dd = om_fs->tfv + 8*Q - 1;
-      for (q = Q-1; q >= 0; q--)
-        { sv = vmulq_f32(dcv, *tp_dd); tp_dd--;
-          DMO(dpc,q) = vaddq_f32(DMO(dpc,q), sv);
-          dcv = vmulq_f32(dcv, *(tp_dd+1)); } }
-
-  /* MD correction */
-  dcv  = vextq_f32(DMO(dpc,0), zerov, 1);
-  tp7  = om_fs->tfv + 7*Q - 3;
-  for (q = Q-1; q >= 0; q--)
-    { MMO(dpc,q) = vaddq_f32(MMO(dpc,q), vmulq_f32(dcv, *tp7)); tp7 -= 7;
-      dcv = DMO(dpc,q); }
-
-  /* Rescale using fwd scale factor */
-  scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-  bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
-  if (scale > 1.0f)
-    { float sf = 1.0f / scale;
-      xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
-      xEv = vmovq_n_f32(sf);
-      for (r = 0; r < PARSER_ROWS_BWD; r++)
-        for (q = 0; q < Q; q++)
-          { MMO(bck->dpf[r],q) = vmulq_f32(MMO(bck->dpf[r],q), xEv);
-            DMO(bck->dpf[r],q) = vmulq_f32(DMO(bck->dpf[r],q), xEv);
-            IMO(bck->dpf[r],q) = vmulq_f32(IMO(bck->dpf[r],q), xEv); }
-      /* rescale the ring too: it holds C of rows L+1 and L+2, read by rows L-1 and L-2 */
-      for (r = 0; r < PARSER_ROWS_BWD; r++) { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-      bck->totscale += log(scale); }
-
-  xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-  bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-  bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-  bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-  bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-  bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
-
-  /*----------------------------------------------------------------
-   * Main recurrence: i = L-1 down to 1
-   *
-   * ivxf[q] = M(i+1,q)*R1 + M(i+2,q)*R2 + M(i+3,q)*R3
-   *         + M(i+4,q)*R4 + M(i+5,q)*R5
-   * B(i) = sum_k ivxf[k]*BM(k-1)
-   * C(i) = C(i+3) * T_CL
-   * J(i) = J(i+3) * T_JL + B(i) * T_JM
-   * N(i) = N(i+3) * T_NL + B(i) * T_NM
-   * E(i) = J(i)*T_EL + C(i)*T_EM
-   * M(i,k) = E*esc + D(i,k+1)*MD + I(i+3,k)*MI + ivx[k+1]*MM
-   * D(i,k) = E*esc + D(i,k+1)*DD + ivx[k+1]*DM
-   * I(i,k) =         I(i+3,k)*II + ivx[k+1]*IM
-   *
-   * Rows beyond L are all-zero (initialized above), so early iterations
-   * (i=L-1..L-5) automatically have zero contributions from beyond L.
-   *----------------------------------------------------------------*/
-
-  /* Set up nucleotide window for the backward direction.
-   * At position i, we need: x=dsq[i+1], w=dsq[i+2], v=dsq[i+3], u=dsq[i+4], t=dsq[i+5].
-   * As i decreases, the window shifts: old x becomes new w, old w becomes new v, etc.,
-   * and a new x = dsq[i+1] is loaded.
-   * Pre-loop: all placeholders (positions beyond L are out-of-bounds).
-   */
-  t = u = v = w = x = p7P_MAXCODONS5;
-
-  for (i = L-1; i >= 1; i--)
-    {
-      /* Advance nucleotide window: as i decreases by 1, shift all one step toward future */
-      t = u; u = v; v = w; w = x;
-      if (dsq[i+1] < p7P_MAXNUC) x = dsq[i+1]; else x = p7P_MAXCODONS5;
-
-      c1 = p7P_CODON1_FS5(x);             c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-      c2 = p7P_CODON2_FS5(x, w);          c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-      c3 = p7P_CODON3_FS5(x, w, v);       c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-      c4 = p7P_CODON4_FS5(x, w, v, u);    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-      c5 = p7P_CODON5_FS5(x, w, v, u, t); c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-
-      curr  =  i       % PARSER_ROWS_BWD;
-      prev1 = (i+1)    % PARSER_ROWS_BWD;
-      prev2 = (i+2)    % PARSER_ROWS_BWD;
-      prev3 = (i+3)    % PARSER_ROWS_BWD;
-      prev4 = (i+4)    % PARSER_ROWS_BWD;
-      prev5 = (i+5)    % PARSER_ROWS_BWD;
-      b     =  i       % PARSER_ROWS_BWD;
-      b3    = (i+3)    % PARSER_ROWS_BWD;
-
-      dpc  = bck->dpf[curr];
-      dpp1 = bck->dpf[prev1];
-      dpp2 = bck->dpf[prev2];
-      dpp3 = bck->dpf[prev3];
-      dpp4 = bck->dpf[prev4];
-      dpp5 = bck->dpf[prev5];
-
-      /* Phase 1: pre-compute ivxf[q] = M(i+1)*R1 + M(i+2)*R2 + M(i+3)*R3
-       *                               + M(i+4)*R4 + M(i+5)*R5 */
-      for (q = 0; q < Q; q++)
-        ivxf[q] = vaddq_f32(
-                    vaddq_f32(
-                      vaddq_f32(vmulq_f32(MMO(dpp1,q), om_fs->rfv[c1][q]),
-                                vmulq_f32(MMO(dpp2,q), om_fs->rfv[c2][q])),
-                      vaddq_f32(vmulq_f32(MMO(dpp3,q), om_fs->rfv[c3][q]),
-                                vmulq_f32(MMO(dpp4,q), om_fs->rfv[c4][q]))),
-                    vmulq_f32(MMO(dpp5,q), om_fs->rfv[c5][q]));
-
-      /* Phase 2: B(i) = sum_k ivxf[k] * BM(k-1), horizontal sum */
-      xBv = zerov;
-      tp7 = om_fs->tfv;
-      for (q = 0; q < Q; q++) { xBv = vaddq_f32(xBv, vmulq_f32(ivxf[q], *tp7)); tp7 += 7; }
-      esl_neon_hsum_float((esl_neon_128f_t)xBv, &xB);
-
-      /* Phase 3: special state recursions from i+3 buffers */
-      xC = xC_buf[b3] * om_fs->xf[p7O_C][p7O_LOOP];
-      xJ = xJ_buf[b3] * om_fs->xf[p7O_J][p7O_LOOP] + xB * om_fs->xf[p7O_J][p7O_MOVE];
-      xN = xN_buf[b3] * om_fs->xf[p7O_N][p7O_LOOP] + xB * om_fs->xf[p7O_N][p7O_MOVE];
-      xE = xJ * om_fs->xf[p7O_E][p7O_LOOP] + xC * om_fs->xf[p7O_E][p7O_MOVE];
-      xEv = vmovq_n_f32(xE);
-
-      /* Phase 4a: initialize M=D=xE, I=0 */
-      for (q = 0; q < Q; q++)
-        { MMO(dpc,q) = xEv; DMO(dpc,q) = xEv; IMO(dpc,q) = zerov; }
-
-      /* Phase 4b: add I(i+3,k)*MI to M, I(i+3,k)*II to I (same stripe, forward pass) */
-      tp7 = om_fs->tfv;
-      for (q = 0; q < Q; q++)
-        { MMO(dpc,q) = vaddq_f32(MMO(dpc,q), vmulq_f32(IMO(dpp3,q), *(tp7+5)));
-          IMO(dpc,q) = vaddq_f32(IMO(dpc,q), vmulq_f32(IMO(dpp3,q), *(tp7+6)));
-          tp7 += 7; }
-
-      /* Phase 4c: add ivx[k+1]*MM, ivx[k+1]*IM, ivx[k+1]*DM (backward pass) */
-      ivx_carry = vextq_f32(ivxf[0], zerov, 1);
-      tmmv = vextq_f32(*(om_fs->tfv+1), zerov, 1);
-      timv = vextq_f32(*(om_fs->tfv+2), zerov, 1);
-      tdmv = vextq_f32(*(om_fs->tfv+3), zerov, 1);
-      tp_mm = om_fs->tfv;
-      for (q = Q-1; q >= 0; q--)
-        { MMO(dpc,q) = vaddq_f32(MMO(dpc,q), vmulq_f32(ivx_carry, tmmv));
-          IMO(dpc,q) = vaddq_f32(IMO(dpc,q), vmulq_f32(ivx_carry, timv));
-          DMO(dpc,q) = vaddq_f32(DMO(dpc,q), vmulq_f32(ivx_carry, tdmv));
-          ivx_carry  = ivxf[q];
-          tp_mm = (tp_mm == om_fs->tfv) ? om_fs->tfv + 7*(Q-1) : tp_mm - 7;
-          tmmv = *(tp_mm+1);
-          timv = *(tp_mm+2);
-          tdmv = *(tp_mm+3); }
-
-      /* Phase 5: DD backward passes */
-      dcv   = vextq_f32(DMO(dpc,0), zerov, 1);
-      tp_dd = om_fs->tfv + 8*Q - 1;
-      for (q = Q-1; q >= 0; q--)
-        { sv = vmulq_f32(dcv, *tp_dd); tp_dd--;
-          DMO(dpc,q) = vaddq_f32(DMO(dpc,q), sv); dcv = DMO(dpc,q); }
-      dcv = sv;
-      for (j = 1; j < 4; j++)
-        { dcv = vextq_f32(dcv, zerov, 1); tp_dd = om_fs->tfv + 8*Q - 1;
-          for (q = Q-1; q >= 0; q--)
-            { sv = vmulq_f32(dcv, *tp_dd); tp_dd--;
-              DMO(dpc,q) = vaddq_f32(DMO(dpc,q), sv);
-              dcv = vmulq_f32(dcv, *(tp_dd+1)); } }
-
-      /* Phase 6: MD correction */
-      dcv = vextq_f32(DMO(dpc,0), zerov, 1);
-      tp7 = om_fs->tfv + 7*Q - 3;
-      for (q = Q-1; q >= 0; q--)
-        { MMO(dpc,q) = vaddq_f32(MMO(dpc,q), vmulq_f32(dcv, *tp7)); tp7 -= 7;
-          dcv = DMO(dpc,q); }
-
-      /* Phase 7: sparse rescaling */
-      if (xB > 1.0e16f) bck->has_own_scales = TRUE;
-
-      if (bck->has_own_scales) scale = (xB > 1.0e4f) ? xB : 1.0f;
-      else                     scale = fwd->xmx[i*p7X_NXCELLS+p7X_SCALE];
-
-      bck->xmx[i*p7X_NXCELLS+p7X_SCALE] = scale;
-      if (scale > 1.0f)
-        { float sf = 1.0f / scale;
-          xN *= sf; xJ *= sf; xC *= sf; xB *= sf; xE *= sf;
-          xEv = vmovq_n_f32(sf);
-          for (r = 0; r < PARSER_ROWS_BWD; r++)
-            for (q = 0; q < Q; q++)
-              { MMO(bck->dpf[r],q) = vmulq_f32(MMO(bck->dpf[r],q), xEv);
-                DMO(bck->dpf[r],q) = vmulq_f32(DMO(bck->dpf[r],q), xEv);
-                IMO(bck->dpf[r],q) = vmulq_f32(IMO(bck->dpf[r],q), xEv); }
-          for (r = 0; r < PARSER_ROWS_BWD; r++)
-            { xN_buf[r] *= sf; xB_buf[r] *= sf; xJ_buf[r] *= sf; xC_buf[r] *= sf; }
-          bck->totscale += log(scale); }
-
-      xN_buf[b] = xN; xB_buf[b] = xB; xJ_buf[b] = xJ; xC_buf[b] = xC;
-      bck->xmx[i*p7X_NXCELLS+p7X_E] = xE;
-      bck->xmx[i*p7X_NXCELLS+p7X_N] = xN;
-      bck->xmx[i*p7X_NXCELLS+p7X_J] = xJ;
-      bck->xmx[i*p7X_NXCELLS+p7X_B] = xB;
-      bck->xmx[i*p7X_NXCELLS+p7X_C] = xC;
-    } /* end main loop i=L-1..1 */
-
-  /*----------------------------------------------------------------
-   * Termination: i=0
-   * ivxf[q] = M(1)*R1 + M(2)*R2 + M(3)*R3 + M(4)*R4 + M(5)*R5
-   * B(0) = sum_k ivxf[k]*BM(k-1)
-   * N(0) = N(3)*T_NL + B(0)*T_NM
-   * Final score = N(0) + N(1) + N(2)   (matches scalar)
-   *----------------------------------------------------------------*/
-  /* Rebuild nucleotide window for i=0: x=dsq[1], w=dsq[2], v=dsq[3], u=dsq[4], t=dsq[5] */
-  if (dsq[1] < p7P_MAXNUC) x = dsq[1]; else x = p7P_MAXCODONS5;
-  if (L >= 2 && dsq[2] < p7P_MAXNUC) w = dsq[2]; else w = p7P_MAXCODONS5;
-  if (L >= 3 && dsq[3] < p7P_MAXNUC) v = dsq[3]; else v = p7P_MAXCODONS5;
-  if (L >= 4 && dsq[4] < p7P_MAXNUC) u = dsq[4]; else u = p7P_MAXCODONS5;
-  if (L >= 5 && dsq[5] < p7P_MAXNUC) t = dsq[5]; else t = p7P_MAXCODONS5;
-
-  c1 = p7P_CODON1_FS5(x);             c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-  c2 = p7P_CODON2_FS5(x, w);          c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-  c3 = p7P_CODON3_FS5(x, w, v);       c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-  c4 = p7P_CODON4_FS5(x, w, v, u);    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-  c5 = p7P_CODON5_FS5(x, w, v, u, t); c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-
-  prev1 = 1 % PARSER_ROWS_BWD;
-  prev2 = 2 % PARSER_ROWS_BWD;
-  prev3 = 3 % PARSER_ROWS_BWD;
-  prev4 = 4 % PARSER_ROWS_BWD;
-  prev5 = 5 % PARSER_ROWS_BWD;
-
-  dpp1 = bck->dpf[prev1];
-  dpp2 = bck->dpf[prev2];
-  dpp3 = bck->dpf[prev3];
-  dpp4 = bck->dpf[prev4];
-  dpp5 = bck->dpf[prev5];
-
-  for (q = 0; q < Q; q++)
-    ivxf[q] = vaddq_f32(
-                vaddq_f32(
-                  vaddq_f32(vmulq_f32(MMO(dpp1,q), om_fs->rfv[c1][q]),
-                            vmulq_f32(MMO(dpp2,q), om_fs->rfv[c2][q])),
-                  vaddq_f32(vmulq_f32(MMO(dpp3,q), om_fs->rfv[c3][q]),
-                            vmulq_f32(MMO(dpp4,q), om_fs->rfv[c4][q]))),
-                vmulq_f32(MMO(dpp5,q), om_fs->rfv[c5][q]));
-
-  xBv = zerov;
-  tp7 = om_fs->tfv;
-  for (q = 0; q < Q; q++) { xBv = vaddq_f32(xBv, vmulq_f32(ivxf[q], *tp7)); tp7 += 7; }
-  esl_neon_hsum_float((esl_neon_128f_t)xBv, &xB);
-
-  xN = xN_buf[3 % PARSER_ROWS_BWD] * om_fs->xf[p7O_N][p7O_LOOP]
-     + xB                           * om_fs->xf[p7O_N][p7O_MOVE];
-
-  bck->xmx[p7X_B]     = xB;
-  bck->xmx[p7X_N]     = xN;
-  bck->xmx[p7X_J]     = 0.0f;
-  bck->xmx[p7X_C]     = 0.0f;
-  bck->xmx[p7X_E]     = 0.0f;
-  bck->xmx[p7X_SCALE] = 1.0f;
-
-  /* Final score: log( N(0) + N(1) + N(2) ) + totscale (matches scalar). */
-  {
-    float xNtot = xN
-                + xN_buf[1 % PARSER_ROWS_BWD]
-                + xN_buf[2 % PARSER_ROWS_BWD];
-
-    if      (isnan(xNtot))           ESL_EXCEPTION(eslERANGE, "backward score is NaN");
-    else if (isinf(xNtot) == 1)      ESL_EXCEPTION(eslERANGE, "backward score overflow (is infinity)");
-    else if (L > 0 && xNtot == 0.0f) {
-      if (opt_sc != NULL) *opt_sc = -eslINFINITY;
-      return eslERANGE;
-    }
-
-    if (opt_sc != NULL)
-      *opt_sc = bck->totscale + logf(xNtot);
-  }
-
-  return eslOK;
-
-}
-
-
-/* Function:  p7_Forward_Frameshift()
+/* Function:  p7_Forward_Frameshift_5Codons()
  * Synopsis:  NEON-accelerated frameshift-aware Forward algorithm, 5 codon lengths, full matrix.
  *
  * Purpose:   Full O(ML) Forward algorithm for frameshift-aware translated comparison
@@ -1476,7 +1089,7 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
  * Returns:   <eslOK> on success.
  * Throws:    <eslEINVAL> on bad inputs; <eslERANGE> on score overflow/underflow.
  */
-/* Function:  p7_ForwardRow_Frameshift()
+/* Function:  p7_ForwardRow_Frameshift_5Codons()
  * Synopsis:  One row of the frameshift Forward algorithm.
  *
  * Purpose:   Forward row <i> of the 5-codon profile <om_fs> against the
@@ -1488,10 +1101,10 @@ p7_BackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPRO
  *            <xmx>; when the row is rescaled, the log of its scale factor
  *            is added to <*totscale>. Row 0 is the initialization, of
  *            <dpc>, <ivx>, <rg> and row 0 of <xmx>. Same calculation as
- *            each row of <p7_Forward_Frameshift()>, which calls it.
+ *            each row of <p7_Forward_Frameshift_5Codons()>, which calls it.
  */
 void
-p7_ForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
+p7_ForwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
                        float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i)
 {
   register float32x4_t mpv1, dpv1, ipv1;
@@ -1767,18 +1380,18 @@ p7_ForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float 
 }
 
 
-/* Function:  p7_ForwardRow3_Frameshift()
+/* Function:  p7_ForwardChkRow_Frameshift_5Codons()
  * Synopsis:  One row of the frameshift Forward algorithm, 3-cell rows.
  *
- * Purpose:   The row of <p7_ForwardRow_Frameshift()> in rows of
+ * Purpose:   The row of <p7_ForwardRow_Frameshift_5Codons()> in rows of
  *            <p7X_NSCELLS> vectors per stripe, holding only M (the C0
  *            sum), D and I: the same calculation and values, without
  *            the codon-length cells. Called by
- *            <p7_ForwardChk_Frameshift()> and
+ *            <p7_ForwardChk_Frameshift_5Codons()> and
  *            <p7_ForwardParser_Frameshift_5Codons()>.
  */
 void
-p7_ForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
+p7_ForwardChkRow_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float *xmx, float *totscale, P7_FS_FWDRING *rg,
                         float32x4_t **ivx, float32x4_t *dpc, const float32x4_t *dpp1, const float32x4_t *dpp3, int i)
 {
   register float32x4_t mpv1, dpv1, ipv1;
@@ -2033,7 +1646,7 @@ p7_ForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_fs, float
 
 
 int
-p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
+p7_Forward_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_OMX *fwd, P7_OIVX *ov, float *opt_sc)
 {
   P7_FS_FWDRING rg;
   int           i;
@@ -2045,9 +1658,9 @@ p7_Forward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7
   fwd->has_own_scales = TRUE;
   fwd->totscale       = 0.0;
 
-  p7_ForwardRow_Frameshift(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[0], NULL, NULL, 0);
+  p7_ForwardRow_Frameshift_5Codons(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[0], NULL, NULL, 0);
   for (i = 1; i <= L; i++)
-    p7_ForwardRow_Frameshift(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[i], fwd->dpf[i-1], (i >= 3) ? fwd->dpf[i-3] : NULL, i);
+    p7_ForwardRow_Frameshift_5Codons(dsq, om_fs, fwd->xmx, &fwd->totscale, &rg, ov->ivx, fwd->dpf[i], fwd->dpf[i-1], (i >= 3) ? fwd->dpf[i-3] : NULL, i);
 
   {
     float xCL   = rg.xC[   L    % PARSER_ROWS_FWD];
@@ -2082,14 +1695,14 @@ bwd_fs_ring_init(P7_FS_BWDRING *rg, const P7_FS_OPROFILE *om_fs, int L)
 }
 
 
-/* p7_BackwardRowL_Frameshift()
+/* p7_BackwardRowL_Frameshift_5Codons()
  * Frameshift Backward row <L> into <dpc>; special states and scale factor
  * into row <L> of <xmx> and into the ring <rg>. <fwd_xmx> holds the Forward
  * special states and scale factors (needed only for p7_BWD_SCALE_FORWARD).
  * If <totscale> is non-NULL the log of a scale factor > 1 is added to it.
  */
 void
-p7_BackwardRowL_Frameshift(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, float32x4_t *dpc, int L, int scale_mode)
+p7_BackwardRowL_Frameshift_5Codons(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, P7_FS_BWDRING *rg, float32x4_t *dpc, int L, int scale_mode)
 {
   register float32x4_t sv;
   register float32x4_t dcv;
@@ -2133,7 +1746,7 @@ p7_BackwardRowL_Frameshift(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, fl
 }
 
 
-/* p7_BackwardRow_Frameshift()
+/* p7_BackwardRow_Frameshift_5Codons()
  * Frameshift Backward row <i> (1 <= i < L) of a sequence <dsq> of length
  * <L>. <dp>[0] is row <i>, written here; <dp>[d] is row <i>+d for d =
  * 1..5, or a row of zeros past <L>. The look-back rows are corrected
@@ -2146,7 +1759,7 @@ p7_BackwardRowL_Frameshift(const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, fl
  * p7_BWD_SCALE_FORWARD turns on once xB exceeds 1e16.
  */
 void
-p7_BackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
+p7_BackwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const float *fwd_xmx, float *xmx, float *totscale, int *has_own_scales,
                         P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf, int i, int scale_mode)
 {
   register float32x4_t sv;
@@ -2256,14 +1869,14 @@ p7_BackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs
 }
 
 
-/* p7_BackwardRow0_Frameshift()
+/* p7_BackwardRow0_Frameshift_5Codons()
  * Frameshift Backward row 0 of a sequence <dsq> of length <L>: only the N
  * and B states, from rows 1..5 in <dp>[1..5] (rows past <L> are rows
  * of zeros) and row 3's N from the ring <rg>, with <ivxf> as workspace.
  * Writes row 0's special states into <xmx> and returns its N value.
  */
 float
-p7_BackwardRow0_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf)
+p7_BackwardRow0_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, float *xmx, const P7_FS_BWDRING *rg, float32x4_t *const *dp, float32x4_t *ivxf)
 {
   register float32x4_t xBv;
   float32x4_t   zerov;
@@ -2315,17 +1928,17 @@ p7_BackwardRow0_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
 }
 
 
-/* Function:  p7_Backward_Frameshift()
+/* Function:  p7_Backward_Frameshift_5Codons()
  * Synopsis:  NEON-accelerated frameshift-aware Backward algorithm, 5 codon lengths, full matrix.
  *
- * Purpose:   Full O(ML) Backward algorithm paired with <p7_Forward_Frameshift()>.
+ * Purpose:   Full O(ML) Backward algorithm paired with <p7_Forward_Frameshift_5Codons()>.
  *            Uses the forward matrix <fwd> to obtain per-row scale factors.
  *            The backward DP matrix <bck> is a standard <P7_OMX> (3-cell layout).
  *
  * Args:      dsq    - nucleotide sequence, 1..L
  *            L      - length of dsq
  *            om_fs  - optimized frameshift profile (codon_lengths == 5)
- *            fwd    - forward matrix from p7_Forward_Frameshift()
+ *            fwd    - forward matrix from p7_Forward_Frameshift_5Codons()
  *            bck    - RETURN: backward DP matrix (standard P7_OMX, 3-cell)
  *            ov     - intermediate value scratch space (uses channel 0)
  *            opt_sc - optRETURN: Backward score in nats
@@ -2334,7 +1947,7 @@ p7_BackwardRow0_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_f
  * Throws:    <eslEINVAL>, <eslERANGE> on error.
  */
 int
-p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
+p7_Backward_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, const P7_OMX *fwd, P7_OMX *bck, P7_OIVX *ov, float *opt_sc)
 {
   float32x4_t   zerov;
   float    xN;
@@ -2364,7 +1977,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
    * Initialization: row L
    *----------------------------------------------------------------*/
   dp[0]=bck->dpf[L];
-  p7_BackwardRowL_Frameshift(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, p7_BWD_SCALE_FORWARD);
+  p7_BackwardRowL_Frameshift_5Codons(om_fs, fwd->xmx, bck->xmx, &bck->totscale, &rg, dp[0], L, p7_BWD_SCALE_FORWARD);
 
   /*----------------------------------------------------------------
    * Main recurrence: i = L-1 down to 1
@@ -2372,7 +1985,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
   for (i = L-1; i >= 1; i--)
     {
       for (d=0;d<6;d++) dp[d]=(i+d<=L)?bck->dpf[i+d]:zero_row;
-      p7_BackwardRow_Frameshift(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, p7_BWD_SCALE_FORWARD);
+      p7_BackwardRow_Frameshift_5Codons(dsq, L, om_fs, fwd->xmx, bck->xmx, &bck->totscale, &bck->has_own_scales, &rg, dp, ivxf, i, p7_BWD_SCALE_FORWARD);
     } /* end main loop i=L-1..1 */
 
   /*----------------------------------------------------------------
@@ -2380,7 +1993,7 @@ p7_Backward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, c
    *----------------------------------------------------------------*/
   dp[0]=NULL;
   for (d=1;d<6;d++) dp[d]=(d<=L)?bck->dpf[d]:zero_row;
-  xN=p7_BackwardRow0_Frameshift(dsq, L, om_fs, bck->xmx, &rg, dp, ivxf);
+  xN=p7_BackwardRow0_Frameshift_5Codons(dsq, L, om_fs, bck->xmx, &rg, dp, ivxf);
 
   {
     float xNtot = xN + rg.xN[1%PARSER_ROWS_BWD] + rg.xN[2%PARSER_ROWS_BWD];
@@ -2502,7 +2115,7 @@ main(int argc, char **argv)
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
         p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+        p7_Forward_Frameshift_5Codons(dsq, L, om_fs5, fwd, ov5, &sc);
     }
   }
   esl_stopwatch_Stop(w);
@@ -2519,15 +2132,13 @@ main(int argc, char **argv)
       if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
         p7_ForwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, ov5, &sc);
       if (! esl_opt_GetBoolean(go, "-P"))
-        p7_Forward_Frameshift(dsq, L, om_fs5, fwd, ov5, &sc);
+        p7_Forward_Frameshift_5Codons(dsq, L, om_fs5, fwd, ov5, &sc);
 
       if (! esl_opt_GetBoolean(go, "-F")) {
         if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V"))
           p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd_p, bck_p, ov3, NULL);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T"))
-          p7_BackwardParser_Frameshift_5Codons(dsq, L, om_fs5, fwd_p, bck_p, ov5, NULL);
         if (! esl_opt_GetBoolean(go, "-P"))
-          p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, NULL);
+          p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, NULL);
       }
     }
   esl_stopwatch_Stop(w);
@@ -2602,7 +2213,7 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_OIVX        *ov5    = p7_oivx_Create(M, p7P_5CODONS);
   float tolerance, generic_tolerance;
   float fsc3, bsc3;
-  float fsc5, bsc5;
+  float fsc5;
   float full_fsc, full_bsc;
   float generic_fsc3;
   float generic_fsc5;
@@ -2663,20 +2274,15 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
-      p7_omx_GrowTo(oxb, M, PARSER_ROWS_BWD, curr_L);
-      if (p7_BackwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, oxb, ov5, &bsc5) == eslERANGE) continue;
-
-      if (fabs(fsc5-bsc5) > tolerance) esl_fatal(msg);
-
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
-      if (p7_Forward_Frameshift(dsq, curr_L, om_fs5, fwd, ov5, &full_fsc)            == eslERANGE) continue;
+      if (p7_Forward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, ov5, &full_fsc)            == eslERANGE) continue;
 
       if (fabs(fsc5-full_fsc) > tolerance) esl_fatal(msg);
 
       p7_omx_GrowTo_dpf(bck, M, curr_L, curr_L);
-      if (p7_Backward_Frameshift(dsq, curr_L, om_fs5, fwd, bck, ov5, &full_bsc)      == eslERANGE) continue;
+      if (p7_Backward_Frameshift_5Codons(dsq, curr_L, om_fs5, fwd, bck, ov5, &full_bsc)      == eslERANGE) continue;
 
-      if (fabs(bsc5-full_bsc) > tolerance) esl_fatal(msg);
+      if (fabs(fsc5-full_bsc) > tolerance) esl_fatal(msg);
     }
 
   free(dsq);
@@ -2730,7 +2336,7 @@ rowL_compare_specials(const P7_OMX *bck, const P7_GMX *gx, int L, float tol, con
 }
 
 /* utest_backward_rowL_scale_fs()
- * The frameshift Backward variants (full matrix, 5-codon parser, 3-codon
+ * The frameshift Backward variants (full matrix and 3-codon
  * parser) when Forward rescales one of the last rows. Each sequence is
  * the back-translated consensus of a model with sharpened match
  * emissions and M->M transitions, followed by 0 or 1 random nucleotides,
@@ -2753,10 +2359,8 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
   void            (*ox_destroy)(P7_OMX *)                                  = p7_omx_Destroy;
   P7_OIVX        *(*ov_create) (int, int)                                  = p7_oivx_Create;
   void            (*ov_destroy)(P7_OIVX *)                                 = p7_oivx_Destroy;
-  int (*fwd_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_Forward_Frameshift;
-  int (*bck_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift;
-  int (*fwd_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_ForwardParser_Frameshift_5Codons;
-  int (*bck_p5)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_BackwardParser_Frameshift_5Codons;
+  int (*fwd_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_Forward_Frameshift_5Codons;
+  int (*bck_full)(const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_Backward_Frameshift_5Codons;
   int (*fwd_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_OMX *, P7_OIVX *, float *)                 = p7_ForwardParser_Frameshift_3Codons;
   int (*bck_p3)  (const ESL_DSQ *, int, const P7_FS_OPROFILE *, const P7_OMX *, P7_OMX *, P7_OIVX *, float *) = p7_BackwardParser_Frameshift_3Codons;
   int             Lmax   = 3*M + 1;
@@ -2815,11 +2419,6 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
           p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
           rowL_compare_specials(bck, gx, L, tol, msg, "full matrix");
 
-          if (fwd_p5(dsq, L, om5, pf,     ov5, NULL) != eslOK) esl_fatal(msg);
-          if (bck_p5(dsq, L, om5, pf, pb, ov5, NULL) != eslOK) esl_fatal(msg);
-          p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
-          rowL_compare_specials(pb, gx, L, tol, msg, "5-codon parser");
-
           if (fwd_p3(dsq, L, om3, pf,     ov3, NULL) != eslOK) esl_fatal(msg);
           if (pf->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f || pf->xmx[(L-1)*p7X_NXCELLS+p7X_SCALE] > 1.0f) np3++;
           if (bck_p3(dsq, L, om3, pf, pb, ov3, NULL) != eslOK) esl_fatal(msg);
@@ -2875,14 +2474,14 @@ fs_row_mdi_differs(const void *cr, const void *fr, int Q, size_t vbytes)
  *   - every block loaded again, in increasing order as a forward
  *     sweep reads them, is identical to the one-block fill;
  *   - scores and cells (with each matrix's own row scale factors
- *     taken out) agree with p7_Backward_Frameshift() up to rounding;
+ *     taken out) agree with p7_Backward_Frameshift_5Codons() up to rounding;
  *   - the checkpointed Forward, in one block and in blocks of 5..12
  *     rows, has the same score, special states, scale factors and
- *     M (C0), D and I cells as p7_Forward_Frameshift(), and so does
+ *     M (C0), D and I cells as p7_Forward_Frameshift_5Codons(), and so does
  *     every block loaded again, last to first, as a backward pass
  *     reads them;
  *   - the 5-codon Forward parser has the same score, special states
- *     and scale factors as p7_Forward_Frameshift().
+ *     and scale factors as p7_Forward_Frameshift_5Codons().
  * With <require_scaling>, fail if no Backward or no Forward row was
  * rescaled.
  */
@@ -2909,10 +2508,10 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
   int           (*chk_growto)(P7_CHKOMX *, int, int, int)       = p7_chkomx_GrowTo;
   float         (*chk_get)   (const P7_CHKOMX *, int, int, int) = p7_chkomx_FGetMDI;
   float         (*omx_get)   (const P7_OMX *, int, int, int)    = p7_omx_FGetMDI;
-  int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_BackwardChk_Frameshift;
-  int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_BackwardChkLoad_Frameshift;
-  int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_ForwardChk_Frameshift;
-  int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_ForwardChkLoad_Frameshift;
+  int           (*bck_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_BackwardChk_Frameshift_5Codons;
+  int           (*bck_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_BackwardChkLoad_Frameshift_5Codons;
+  int           (*fwd_chk)   (const ESL_DSQ *, int, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, float *) = p7_ForwardChk_Frameshift_5Codons;
+  int           (*fwd_load)  (const ESL_DSQ *, const P7_FS_OPROFILE *, P7_CHKOMX *, P7_OIVX *, int)          = p7_ForwardChkLoad_Frameshift_5Codons;
   int             Q        = p7O_NQF(M);
   float           bsc, fsc, psc, sc1, sc2;
   float           a, c;
@@ -2961,8 +2560,8 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
         }
 
       p7_fs_oprofile_ReconfigLength(om_fs5, Ln/3);
-      if (p7_Forward_Frameshift (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift_5Codons (dsq, Ln, om_fs5, fwd,      ov5, &fsc) != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift_5Codons(dsq, Ln, om_fs5, fwd, bck, ov5, &bsc) != eslOK) esl_fatal(msg);
 
       blockR = 5 + esl_rnd_Roll(r, 8);
       if (chk_growto(cx1, M, Ln, Ln+1)  != eslOK) esl_fatal(msg);
@@ -2971,7 +2570,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
       if (bck_chk(dsq, Ln, om_fs5, cx2, ov5, &sc2) != eslOK) esl_fatal(msg);
 
       if (sc1 != sc2)                                  esl_fatal("%s: one-block and blocked scores differ (%f %f)", msg, sc1, sc2);
-      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward_Frameshift() %f", msg, sc1, bsc);
+      if (fabs(sc1 - bsc) > 0.0001 + 1e-5 * fabs(bsc)) esl_fatal("%s: score %f, p7_Backward_Frameshift_5Codons() %f", msg, sc1, bsc);
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (cx1->xmx[i*p7X_NXCELLS+x] != cx2->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: special states differ", msg);
@@ -3015,7 +2614,7 @@ utest_fwdback_chk_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDN
 
       /* 5-codon Forward parser: identical score, special states and scale factors */
       if (p7_ForwardParser_Frameshift_5Codons(dsq, Ln, om_fs5, pfx, ov5, &psc) != eslOK) esl_fatal(msg);
-      if (psc != fsc) esl_fatal("%s: Forward parser score %f, p7_Forward_Frameshift() %f", msg, psc, fsc);
+      if (psc != fsc) esl_fatal("%s: Forward parser score %f, p7_Forward_Frameshift_5Codons() %f", msg, psc, fsc);
       for (i = 0; i <= Ln; i++)
         for (x = 0; x < p7X_NXCELLS; x++)
           if (pfx->xmx[i*p7X_NXCELLS+x] != fwd->xmx[i*p7X_NXCELLS+x]) esl_fatal("%s: Forward parser special state %d of row %d differs", msg, x, i);

@@ -4,7 +4,7 @@
  * Contents:
  *    1. p7_OptimalAccuracySweep_Frameshift_avx(), p7_OATraceSweep_Frameshift_avx()
  *
- * Forward rows are computed by p7_ForwardRow_Frameshift_avx(), posteriors
+ * Forward rows are computed by p7_ForwardRow_Frameshift_5Codons_avx(), posteriors
  * by p7_DecodingRow_Frameshift_avx() and OA rows by
  * p7_OptimalAccuracyRow_Frameshift_avx() (optacc_fs_avx.c).
  */
@@ -178,7 +178,7 @@ oat_store_row_fs_avx(const P7_FS_OPROFILE *om_fs, P7_OATMX *ox, const __m256 *dp
  *
  * Purpose:   For the 5-codon frameshift profile <om_fs> and DNA sequence
  *            <dsq> of length <L>, with the checkpointed Backward matrix
- *            <cx> filled by <p7_BackwardChk_Frameshift_avx()>, compute in
+ *            <cx> filled by <p7_BackwardChk_Frameshift_5Codons_avx()>, compute in
  *            one sweep through rows 1..L the Forward, posterior and
  *            optimal accuracy (OA) rows, computing each block of
  *            Backward rows again from its checkpoint as the sweep reaches
@@ -187,7 +187,7 @@ oat_store_row_fs_avx(const P7_FS_OPROFILE *om_fs, P7_OATMX *ox, const __m256 *dp
  *            lengths. Rows of Forward, posterior and OA values are kept
  *            only as long as later rows need them (up to 5 rows back).
  *
- *            Each row is calculated as <p7_Forward_Frameshift_avx()>,
+ *            Each row is calculated as <p7_Forward_Frameshift_5Codons_avx()>,
  *            <p7_Decoding_Frameshift_avx()> and
  *            <p7_OptimalAccuracy_Frameshift_avx()> calculate it; the
  *            posteriors are those <p7_Decoding_Frameshift_avx()> gives for
@@ -206,7 +206,7 @@ oat_store_row_fs_avx(const P7_FS_OPROFILE *om_fs, P7_OATMX *ox, const __m256 *dp
  * Args:      dsq       - DNA sequence in digitized form, 1..L
  *            L         - length of dsq
  *            om_fs     - 5-codon frameshift profile
- *            cx        - checkpointed Backward matrix from p7_BackwardChk_Frameshift_avx()
+ *            cx        - checkpointed Backward matrix from p7_BackwardChk_Frameshift_5Codons_avx()
  *            ov        - workspace for the profile's M and 5 codon lengths
  *            ox        - RESULT: what the OA trace reads
  *            opt_null2 - optRETURN: null2 odds ratios, <0..Kp-1>; caller allocated
@@ -219,7 +219,7 @@ oat_store_row_fs_avx(const P7_FS_OPROFILE *om_fs, P7_OATMX *ox, const __m256 *dp
  * Throws:    <eslEMEM> on allocation failure; <eslEINVAL> if the arguments
  *            aren't set up for this computation; <eslERANGE> if the
  *            Forward score or a posterior scale factor is out of range (as
- *            <p7_Forward_Frameshift_avx()> and <p7_Decoding_Frameshift_avx()>).
+ *            <p7_Forward_Frameshift_5Codons_avx()> and <p7_Decoding_Frameshift_avx()>).
  */
 int
 p7_OptimalAccuracySweep_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OPROFILE *om_fs, P7_CHKOMX *cx, P7_OIVX *ov, P7_OATMX *ox,
@@ -269,7 +269,7 @@ p7_OptimalAccuracySweep_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OP
                    logf(cx->xmx[1*p7X_NXCELLS + p7X_N]) + log_sbck[1],
                    logf(cx->xmx[2*p7X_NXCELLS + p7X_N]) + log_sbck[2]));
 
-  p7_ForwardRow_Frameshift_avx(dsq, om_fs, wk->xmx, &totscale, &rg, ov->ivx_avx, wk->dpf_avx[0], NULL, NULL, 0);
+  p7_ForwardRow_Frameshift_5Codons_avx(dsq, om_fs, wk->xmx, &totscale, &rg, ov->ivx_avx, wk->dpf_avx[0], NULL, NULL, 0);
   log_sfwd[0] = logf(wk->xmx[p7X_SCALE]);
   p7_OptimalAccuracyRow_Frameshift_avx(om_fs, NULL, NULL, oxmx, oa[0], NULL, NULL, NULL, NULL, NULL, 0);
   oat_store_row_fs_avx(om_fs, ox, oa[0], oxmx, NULL, NULL, 0);
@@ -277,9 +277,9 @@ p7_OptimalAccuracySweep_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OP
   for (i = 1; i <= L; i++)
     {
       b = (i / cx->blockR) * cx->blockR;
-      if (b != cx->b && (status = p7_BackwardChkLoad_Frameshift_avx(dsq, om_fs, cx, bv, b)) != eslOK) goto ERROR;
+      if (b != cx->b && (status = p7_BackwardChkLoad_Frameshift_5Codons_avx(dsq, om_fs, cx, bv, b)) != eslOK) goto ERROR;
 
-      p7_ForwardRow_Frameshift_avx(dsq, om_fs, wk->xmx, &totscale, &rg, ov->ivx_avx, wk->dpf_avx[i%4], wk->dpf_avx[(i-1)%4],
+      p7_ForwardRow_Frameshift_5Codons_avx(dsq, om_fs, wk->xmx, &totscale, &rg, ov->ivx_avx, wk->dpf_avx[i%4], wk->dpf_avx[(i-1)%4],
                                    (i >= 3) ? wk->dpf_avx[(i-3)%4] : NULL, i);
       log_sfwd[i] = log_sfwd[i-1] + logf(wk->xmx[i*p7X_NXCELLS + p7X_SCALE]);
 
@@ -315,7 +315,7 @@ p7_OptimalAccuracySweep_Frameshift_avx(const ESL_DSQ *dsq, int L, const P7_FS_OP
         }
     }
 
-  /* Forward score, as p7_Forward_Frameshift_avx() computes it */
+  /* Forward score, as p7_Forward_Frameshift_5Codons_avx() computes it */
   xCtot = rg.xC[   L    %PARSER_ROWS_FWD]
         + rg.xC[((L-1)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD]*om_fs->xf[p7O_C][p7O_LOOP]
         + rg.xC[((L-2)%PARSER_ROWS_FWD+PARSER_ROWS_FWD)%PARSER_ROWS_FWD]*om_fs->xf[p7O_C][p7O_LOOP];

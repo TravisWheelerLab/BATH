@@ -431,7 +431,7 @@ p7_domaindef_ByPosteriorHeuristics_Frameshift_BATH(P7_PIPELINE *pli, ESL_SQ *win
         p7_fs_oprofile_ReconfigMultihit(om_fs5, saveL); 
         if ((status = p7_chkomx_SetDirection(pli->chk, p7_CHK_FORWARD, 5)) != eslOK) return status;
         if ((status = p7_chkomx_GrowTo(pli->chk, om_fs5->M, j-i+1, p7_chk_BlockRows(om_fs5->M, j-i+1, 5, p7X_NSCELLS))) != eslOK) return status;
-        status = p7_ForwardChk_Frameshift(windowsq->dsq+i-1, j-i+1, om_fs5, pli->chk, pli->ov5, NULL);
+        status = p7_ForwardChk_Frameshift_5Codons(windowsq->dsq+i-1, j-i+1, om_fs5, pli->chk, pli->ov5, NULL);
         if      (status == eslERANGE) nc = 0; /* forward underflow; no valid traces for this region */
         else if (status != eslOK)     return status;
         else if ((status = region_trace_ensemble_frameshift(ddef, om_fs5, windowsq->dsq, i, j, pli->chk, pli->ov5, &nc)) != eslOK) return status;
@@ -853,7 +853,7 @@ region_trace_ensemble(P7_DOMAINDEF *ddef, const P7_OPROFILE *om, const ESL_DSQ *
  * tracebacks to sort it out.
  * 
  * Caller provides a checkpointed Forward matrix <cx> filled by
- * <p7_ForwardChk_Frameshift()> for the sequence region <dsq+ireg-1>,
+ * <p7_ForwardChk_Frameshift_5Codons()> for the sequence region <dsq+ireg-1>,
  * length <jreg-ireg+1>, with <ov> as workspace, for the model <om_fs5>
  * configured in multihit mode with its target length distribution
  * set to the total length of <dsq>: i.e., the same model
@@ -1014,7 +1014,7 @@ rescore_isolated_domain_frameshift(P7_DOMAINDEF *ddef, P7_PIPELINE *pli, P7_FS_O
   p7_fs_oprofile_ReconfigLength(om_fs5, Ld/3);
   if ((status = p7_chkomx_SetDirection(cx, p7_CHK_BACKWARD, 5)) != eslOK) goto ERROR;
   if ((status = p7_chkomx_GrowTo(cx, om_fs5->M, Ld, p7_chk_BlockRows(om_fs5->M, Ld, 5, p7X_NSCELLS))) != eslOK) goto ERROR;
-  status = p7_BackwardChk_Frameshift(windowsq->dsq+i-1, Ld, om_fs5, cx, pli->ov5, &bcksc);
+  status = p7_BackwardChk_Frameshift_5Codons(windowsq->dsq+i-1, Ld, om_fs5, cx, pli->ov5, &bcksc);
   if (status == eslERANGE) return eslOK;   /* Backward score underflow */
   if (status != eslOK) ESL_XEXCEPTION(status, "backward frameshift failed");
 

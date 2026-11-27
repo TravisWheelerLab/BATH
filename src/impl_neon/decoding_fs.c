@@ -118,9 +118,9 @@ p7_DecodingRow_Frameshift(const P7_FS_OPROFILE *om_fs, const float *bxmx, const 
  * Synopsis:  NEON posterior decoding of residue assignments; frameshift full-matrix version.
  *
  * Purpose:   NEON equivalent of <p7_GDecoding_Frameshift()>.  Given filled forward
- *            matrix <fwd> (8-cell FS layout, from <p7_Forward_Frameshift()>)
+ *            matrix <fwd> (8-cell FS layout, from <p7_Forward_Frameshift_5Codons()>)
  *            and backward matrix <bck> (3-cell layout, from
- *            <p7_Backward_Frameshift()>), overwrites <fwd> with the posterior
+ *            <p7_Backward_Frameshift_5Codons()>), overwrites <fwd> with the posterior
  *            decoding matrix.
  *
  *            Each value at row i is the posterior probability that the
@@ -451,8 +451,8 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
+      p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
     }
   esl_stopwatch_Stop(w);
   base_time = w->user;
@@ -462,8 +462,8 @@ main(int argc, char **argv)
   for (i = 0; i < N; i++)
     {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-      p7_Forward_Frameshift (dsq, L, om_fs5, fwd,      ov5, &fsc);
-      p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
+      p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd,      ov5, &fsc);
+      p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc);
       p7_Decoding_Frameshift(om_fs5, fwd, bck);  /* overwrites fwd in-place */
     }
   esl_stopwatch_Stop(w);
@@ -543,8 +543,8 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                     != eslOK) esl_fatal(msg);
 
       /* NEON: fwd becomes the posterior matrix */
-      if (p7_Forward_Frameshift (dsq, L, om_fs5, fwd, ov5, &fsc)        != eslOK) esl_fatal(msg);
-      if (p7_Backward_Frameshift(dsq, L, om_fs5, fwd, bck, ov5, &bsc)   != eslOK) esl_fatal(msg);
+      if (p7_Forward_Frameshift_5Codons (dsq, L, om_fs5, fwd, ov5, &fsc)        != eslOK) esl_fatal(msg);
+      if (p7_Backward_Frameshift_5Codons(dsq, L, om_fs5, fwd, bck, ov5, &bsc)   != eslOK) esl_fatal(msg);
       if (p7_Decoding_Frameshift(om_fs5, fwd, bck)                      != eslOK) esl_fatal(msg);
       if (p7_omx_FDeconvert(fwd, gxpp)                                  != eslOK) esl_fatal(msg);
 

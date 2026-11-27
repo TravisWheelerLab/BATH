@@ -1448,6 +1448,7 @@ extern int p7_EntropyWeight(const P7_HMM *hmm, const P7_BG *bg, const P7_PRIOR *
 
 extern int p7_EntropyWeight_exp(const P7_HMM *hmm, const P7_BG *bg, const P7_PRIOR *pri, double etarget, double *ret_exp);
 /* generic_decoding.c */
+extern void p7_GDecodingRow  (const P7_PROFILE *gm, const float *fdp, const float *fxp, const float *bdp, const float *bxp, float overall_sc, float *pp, float *ppx);
 extern int p7_GDecoding      (const P7_PROFILE *gm, const P7_GMX *fwd,       P7_GMX *bck, P7_GMX *pp);
 extern int p7_GDomainDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, const P7_GMX *bck, P7_DOMAINDEF *ddef);
 

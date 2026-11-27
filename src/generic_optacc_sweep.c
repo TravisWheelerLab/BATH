@@ -41,47 +41,6 @@
  * 1. OA sweep and trace
  *****************************************************************/
 
-/* decode_row()
- * Posterior probabilities of row <i> (1..L) into <pp> (one row,
- * [k*p7G_NSCELLS+s]) and <ppx> (N, J, C of the row), from Forward row
- * <i> in <fdp>, the Forward special states of row i-1 in <fxp>, the
- * Backward row <i> in <bdp> and its special states in <bxp>, with
- * overall score <overall_sc>. Same calculation as p7_GDecoding().
- */
-static void
-decode_row(const P7_PROFILE *gm, const float *fdp, const float *fxp, const float *bdp, const float *bxp,
-           float overall_sc, float *pp, float *ppx)
-{
-  int   M = gm->M;
-  int   k;
-  float denom = 0.0;
-
-  pp[0*p7G_NSCELLS + p7G_M] = pp[0*p7G_NSCELLS + p7G_I] = pp[0*p7G_NSCELLS + p7G_D] = 0.0;
-  for (k = 1; k < M; k++)
-    {
-      pp[k*p7G_NSCELLS + p7G_M] = expf(fdp[k*p7G_NSCELLS + p7G_M] + bdp[k*p7G_NSCELLS + p7G_M] - overall_sc); denom += pp[k*p7G_NSCELLS + p7G_M];
-      pp[k*p7G_NSCELLS + p7G_I] = expf(fdp[k*p7G_NSCELLS + p7G_I] + bdp[k*p7G_NSCELLS + p7G_I] - overall_sc); denom += pp[k*p7G_NSCELLS + p7G_I];
-      pp[k*p7G_NSCELLS + p7G_D] = 0.;
-    }
-  pp[M*p7G_NSCELLS + p7G_M] = expf(fdp[M*p7G_NSCELLS + p7G_M] + bdp[M*p7G_NSCELLS + p7G_M] - overall_sc); denom += pp[M*p7G_NSCELLS + p7G_M];
-  pp[M*p7G_NSCELLS + p7G_I] = 0.;
-  pp[M*p7G_NSCELLS + p7G_D] = 0.;
-
-  ppx[p7G_E] = 0.;
-  ppx[p7G_N] = expf(fxp[p7G_N] + bxp[p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
-  ppx[p7G_J] = expf(fxp[p7G_J] + bxp[p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
-  ppx[p7G_B] = 0.;
-  ppx[p7G_C] = expf(fxp[p7G_C] + bxp[p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
-  denom += ppx[p7G_N] + ppx[p7G_J] + ppx[p7G_C];
-
-  denom = 1.0 / denom;
-  for (k = 1; k < M; k++) { pp[k*p7G_NSCELLS + p7G_M] *= denom; pp[k*p7G_NSCELLS + p7G_I] *= denom; }
-  pp[M*p7G_NSCELLS + p7G_M] *= denom;
-  ppx[p7G_N] *= denom;
-  ppx[p7G_J] *= denom;
-  ppx[p7G_C] *= denom;
-}
-
 /* oa_row()
  * OA row <i> (1..L) into dp[i] and xmx row i, from row i-1 and the
  * posterior row <pp> / <ppx> of row i. Same calculation as
@@ -318,7 +277,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
       if (b != cx->b && (status = p7_GBackwardChkLoad(dsq, gm, cx, b)) != eslOK) goto ERROR;
 
       p7_GForwardRow(dsq, gm, fdp, fxmx, i);
-      decode_row(gm, fdp[i], fxmx + (i-1)*p7G_NXCELLS, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx);
+      p7_GDecodingRow(gm, fdp[i], fxmx + (i-1)*p7G_NXCELLS, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx);
       oa_row(gm, pp, ppx, odp, oxmx, i);
       oat_store_row(gm, odp, oxmx, pp, ppx, ox, i);
 

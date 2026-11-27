@@ -17,6 +17,57 @@
  * 1. Posterior decoding algorithms.
  *****************************************************************/
 
+/* Function:  p7_GDecodingRow()
+ * Synopsis:  Posterior decoding of one row.
+ *
+ * Purpose:   Posterior probabilities of row <i> (1..L) into <pp> (one
+ *            row, [k*p7G_NSCELLS+s]) and <ppx> (the special states of
+ *            the row), from Forward row <i> in <fdp>, the Forward special
+ *            states of row i-1 in <fxp>, Backward row <i> in <bdp> and
+ *            its special states in <bxp>, with overall score
+ *            <overall_sc>. The row is renormalized to sum to 1. Used by
+ *            <p7_GDecoding()> for each row and by the OA sweep
+ *            <p7_GOptimalAccuracySweep()>.
+ *
+ *            <pp>, <ppx> may be the Backward row <bdp>, <bxp>: each
+ *            Backward value is read before the posterior overwrites it.
+ *            They may not be the Forward row.
+ */
+void
+p7_GDecodingRow(const P7_PROFILE *gm, const float *fdp, const float *fxp, const float *bdp, const float *bxp,
+                float overall_sc, float *pp, float *ppx)
+{
+  int   M = gm->M;
+  int   k;
+  float denom = 0.0;
+
+  pp[0*p7G_NSCELLS + p7G_M] = pp[0*p7G_NSCELLS + p7G_I] = pp[0*p7G_NSCELLS + p7G_D] = 0.0;
+  for (k = 1; k < M; k++)
+    {
+      pp[k*p7G_NSCELLS + p7G_M] = expf(fdp[k*p7G_NSCELLS + p7G_M] + bdp[k*p7G_NSCELLS + p7G_M] - overall_sc); denom += pp[k*p7G_NSCELLS + p7G_M];
+      pp[k*p7G_NSCELLS + p7G_I] = expf(fdp[k*p7G_NSCELLS + p7G_I] + bdp[k*p7G_NSCELLS + p7G_I] - overall_sc); denom += pp[k*p7G_NSCELLS + p7G_I];
+      pp[k*p7G_NSCELLS + p7G_D] = 0.;
+    }
+  pp[M*p7G_NSCELLS + p7G_M] = expf(fdp[M*p7G_NSCELLS + p7G_M] + bdp[M*p7G_NSCELLS + p7G_M] - overall_sc); denom += pp[M*p7G_NSCELLS + p7G_M];
+  pp[M*p7G_NSCELLS + p7G_I] = 0.;
+  pp[M*p7G_NSCELLS + p7G_D] = 0.;
+
+  ppx[p7G_E] = 0.;
+  ppx[p7G_N] = expf(fxp[p7G_N] + bxp[p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
+  ppx[p7G_J] = expf(fxp[p7G_J] + bxp[p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
+  ppx[p7G_B] = 0.;
+  ppx[p7G_C] = expf(fxp[p7G_C] + bxp[p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
+  denom += ppx[p7G_N] + ppx[p7G_J] + ppx[p7G_C];
+
+  denom = 1.0 / denom;
+  for (k = 1; k < M; k++) { pp[k*p7G_NSCELLS + p7G_M] *= denom; pp[k*p7G_NSCELLS + p7G_I] *= denom; }
+  pp[M*p7G_NSCELLS + p7G_M] *= denom;
+  ppx[p7G_N] *= denom;
+  ppx[p7G_J] *= denom;
+  ppx[p7G_C] *= denom;
+}
+
+
 /* Function:  p7_GDecoding()
  * Synopsis:  Posterior decoding of residue assignments.
  *
@@ -83,7 +134,6 @@ p7_GDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
   int          M    = gm->M;
   int          i,k;
   float        overall_sc = bck->xmx[p7G_N];   /* Backward score */
-  float        denom;
   
   pp->M = M;
   pp->L = L;
@@ -97,34 +147,7 @@ p7_GDecoding(const P7_PROFILE *gm, const P7_GMX *fwd, P7_GMX *bck, P7_GMX *pp)
     MMX(0,k) = IMX(0,k) = DMX(0,k) = 0.0;
   
   for (i = 1; i <= L; i++)
-    {
-      denom = 0.0;
-      MMX(i,0) = IMX(i,0) = DMX(i,0) = 0.0;
-      for (k = 1; k < M; k++)
-	{
-	  MMX(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_M] + bck->dp[i][k*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX(i,k);
-	  IMX(i,k) = expf(fwd->dp[i][k*p7G_NSCELLS + p7G_I] + bck->dp[i][k*p7G_NSCELLS + p7G_I] - overall_sc); denom += IMX(i,k);
-	  DMX(i,k) = 0.;
-	}
-      MMX(i,M)     = expf(fwd->dp[i][M*p7G_NSCELLS + p7G_M] + bck->dp[i][M*p7G_NSCELLS + p7G_M] - overall_sc); denom += MMX(i,M);
-      IMX(i,M)     = 0.;
-      DMX(i,M)     = 0.;
-      
-      /* order doesn't matter.  note that this whole function is trivially simd parallel */
-      XMX(i,p7G_E) = 0.;
-      XMX(i,p7G_N) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_N] + bck->xmx[p7G_NXCELLS*i + p7G_N] + gm->xsc[p7P_N][p7P_LOOP] - overall_sc);
-      XMX(i,p7G_J) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_J] + bck->xmx[p7G_NXCELLS*i + p7G_J] + gm->xsc[p7P_J][p7P_LOOP] - overall_sc);
-      XMX(i,p7G_B) = 0.;
-      XMX(i,p7G_C) = expf(fwd->xmx[p7G_NXCELLS*(i-1) + p7G_C] + bck->xmx[p7G_NXCELLS*i + p7G_C] + gm->xsc[p7P_C][p7P_LOOP] - overall_sc);
-      denom += XMX(i,p7G_N) + XMX(i,p7G_J) + XMX(i,p7G_C);
-      
-      denom = 1.0 / denom;
-      for (k = 1; k < M; k++) {  MMX(i,k) *= denom; IMX(i,k) *= denom; }
-      MMX(i,M)     *= denom;
-      XMX(i,p7G_N) *= denom;
-      XMX(i,p7G_J) *= denom;
-      XMX(i,p7G_C) *= denom;
-    }
+    p7_GDecodingRow(gm, fwd->dp[i], fwd->xmx + (i-1)*p7G_NXCELLS, bck->dp[i], bck->xmx + i*p7G_NXCELLS, overall_sc, dp[i], xmx + i*p7G_NXCELLS);
   return eslOK;
 }
 

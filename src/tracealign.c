@@ -315,6 +315,7 @@ p7_tracealign_computeTraces(P7_HMM *hmm, ESL_SQ  **sq, int offset, int N, P7_TRA
         else             p7_gmx_GrowTo(gxb,  hmm->M, sq[idx]->n, sq[idx]->n);
 
         p7_ReconfigLength(gm, sq[idx]->n);
+        p7_FLogsumInit();
 
         p7_GForward (sq[idx]->dsq, sq[idx]->n, gm, gxf, &fwdsc);
         p7_GBackward(sq[idx]->dsq, sq[idx]->n, gm, gxb, NULL);

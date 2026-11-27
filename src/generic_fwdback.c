@@ -146,8 +146,6 @@ p7_GForward(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float *
   float *xmx = gx->xmx;
   int    i;
 
-  p7_FLogsumInit();		/* Would like to get rid of this -- have main()'s all initialize instead, more efficient */
-
   for (i = 0; i <= L; i++)
     p7_GForwardRow(dsq, gm, gx->dp, gx->xmx, i);
 
@@ -277,7 +275,6 @@ p7_GBackward(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float 
   float *xmx = gx->xmx;
   int    i;
 
-  p7_FLogsumInit();
   for (i = L; i >= 0; i--)
     p7_GBackwardRow(dsq, L, gm, gx->dp, gx->xmx, i);
 

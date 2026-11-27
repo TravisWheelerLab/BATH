@@ -358,6 +358,7 @@ main(int argc, char **argv)
   float           sc, fsc, vsc;
   float           bestsc  = -eslINFINITY;
 
+  p7_FLogsumInit();
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");
 
@@ -581,6 +582,7 @@ main(int argc, char **argv)
   int             L      = 10;
   int             ntrace = 1000;
 
+  p7_FLogsumInit();
   if ((abc = esl_alphabet_Create(eslAMINO))         == NULL)  esl_fatal("failed to create alphabet");
   if (p7_hmm_Sample(r, M, abc, &hmm)                != eslOK) esl_fatal("failed to sample an HMM");
   if ((bg = p7_bg_Create(abc))                      == NULL)  esl_fatal("failed to create null model");
@@ -670,6 +672,7 @@ main(int argc, char **argv)
   float           vsc, fsc, tsc;
   int             status;
 
+  p7_FLogsumInit();
   /* Read in one HMM */
   if (p7_hmmfile_OpenE(hmmfile, NULL, &hfp, NULL) != eslOK) p7_Fail("Failed to open HMM file %s", hmmfile);
   if (p7_hmmfile_Read(hfp, &abc, &hmm)            != eslOK) p7_Fail("Failed to read HMM");

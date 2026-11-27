@@ -593,6 +593,7 @@ main(int argc, char **argv)
   int             nseq = 20;
   char            errbuf[eslERRBUFSIZE];
 
+  p7_FLogsumInit();
   if ((abc = esl_alphabet_Create(eslAMINO))         == NULL)  esl_fatal("failed to create alphabet");
   if (p7_hmm_Sample(r, M, abc, &hmm)                != eslOK) esl_fatal("failed to sample an HMM");
   if ((bg = p7_bg_Create(abc))                      == NULL)  esl_fatal("failed to create null model");

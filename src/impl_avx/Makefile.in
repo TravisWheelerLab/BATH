@@ -89,9 +89,6 @@ OBJS =  decoding.o\
 	viterbi_sp_chk.o\
 	viterbi_sp_chk_sse.o\
 	viterbi_sp_chk_avx.o\
-	vitscore.o\
-	vitscore_sse.o\
-	vitscore_avx.o\
 	p7_omx.o\
 	p7_omx_sse.o\
 	p7_omx_avx.o\

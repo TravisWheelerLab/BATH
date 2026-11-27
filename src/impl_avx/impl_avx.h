@@ -1120,17 +1120,6 @@ extern int p7_Viterbi_SplicedChk_avx     (const ESL_DSQ *sub_dsq, const P7_FS_OP
 extern int p7_Viterbi_SplicedTraceChk_avx(const ESL_DSQ *sub_dsq, const P7_FS_OPROFILE *om_tr, P7_CHKOMX *cx, P7_CHKOIVX *cv, const P7_FS_PROFILE *gm_tr, const float *signal_scores, P7_OIVX *acc_ov, P7_OIVX *don_ov, P7_TRACE *tr, int i_start, int i_end, int k_start, int k_end, int min_intron, int global_start, int global_end, float *vitsc, float *max_drop);
 #endif
 
-/* vitscore.c — self-patching dispatcher */
-extern int (*p7_ViterbiScore)(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-/* vitscore_sse.c — SSE implementation */
-#ifdef eslENABLE_SSE
-extern int p7_ViterbiScore_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-#endif
-/* vitscore_avx.c — AVX2 implementation */
-#ifdef eslENABLE_AVX
-extern int p7_ViterbiScore_avx(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *ret_sc);
-#endif
-
 
 /*****************************************************************
  * 6. Runtime dispatch initializer

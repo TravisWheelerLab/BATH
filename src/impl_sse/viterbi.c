@@ -46,8 +46,7 @@
  *            full-matrix DP matrix <ox>. Return the Viterbi score (in nats)
  *            in <ret_sc>.
  *
- *            Unlike <p7_ViterbiScore()>, the complete DP matrix is retained
- *            in <ox->dpf[0..L]> and special-state scores are stored in
+ *            The complete DP matrix is retained in <ox->dpf[0..L]> and special-state scores are stored in
  *            <ox->xmx>, enabling subsequent traceback by <p7_OTrace()>.
  *
  *            The model <om> must be configured with lspace float scores,

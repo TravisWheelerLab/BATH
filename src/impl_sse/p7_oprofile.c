@@ -1204,9 +1204,9 @@ p7_oprofile_Convert_Log(const P7_PROFILE *gm, P7_OPROFILE *om)
  *            from probability-space (odds ratios, as set by <p7_oprofile_Convert()>)
  *            to log-space (log odds) in-place.
  *
- *            After this call, <om> is suitable for use in <p7_Viterbi()> and
- *            <p7_ViterbiScore()>, which use <_mm_add_ps> (log-space addition)
- *            rather than <_mm_mul_ps> (probability-space multiplication).
+ *            After this call, <om> is suitable for use in <p7_Viterbi()>,
+ *            which uses <_mm_add_ps> (log-space addition) rather than
+ *            <_mm_mul_ps> (probability-space multiplication).
  *
  *            This modifies <om> in-place and renders it unsuitable for
  *            <p7_Forward()> or <p7_Backward()> without converting back.

@@ -11,13 +11,13 @@
 
 #include "p7_config.h"
 
+#ifdef eslENABLE_SSE
+
 #include <stdio.h>
 #include <math.h>
 
-#ifdef eslENABLE_SSE
 #include <xmmintrin.h>
 #include <emmintrin.h>
-#endif
 
 #include "easel.h"
 #include "esl_sse.h"
@@ -25,10 +25,8 @@
 #include "hmmer.h"
 #include "impl_avx.h"
 
-#ifdef eslENABLE_SSE
 static int forward_engine_sse (int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om,                    P7_OMX *fwd, float *opt_sc);
 static int backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc);
-#endif
 
 /*****************************************************************
  * 1. Forward/Backward SSE API.
@@ -37,7 +35,6 @@ static int backward_engine_sse(int do_full, const ESL_DSQ *dsq, int L, const P7_
 int
 p7_Forward_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
 {
-#ifdef eslENABLE_SSE
 #if eslDEBUGLEVEL > 0
   if (om->M >  ox->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
   if (L     >= ox->validR)       ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
@@ -45,15 +42,11 @@ p7_Forward_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, flo
   if (! p7_oprofile_IsLocal(om)) ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
   return forward_engine_sse(TRUE, dsq, L, om, ox, opt_sc);
-#else
-  return eslENORESULT;
-#endif
 }
 
 int
 p7_ForwardParser_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *ox, float *opt_sc)
 {
-#ifdef eslENABLE_SSE
 #if eslDEBUGLEVEL > 0
   if (om->M >  ox->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
   if (ox->validR < 1)            ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
@@ -61,15 +54,11 @@ p7_ForwardParser_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_OMX *o
   if (! p7_oprofile_IsLocal(om)) ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
   return forward_engine_sse(FALSE, dsq, L, om, ox, opt_sc);
-#else
-  return eslENORESULT;
-#endif
 }
 
 int
 p7_Backward_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
-#ifdef eslENABLE_SSE
 #if eslDEBUGLEVEL > 0
   if (om->M >  bck->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
   if (L     >= bck->validR)       ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
@@ -78,15 +67,11 @@ p7_Backward_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
   return backward_engine_sse(TRUE, dsq, L, om, fwd, bck, opt_sc);
-#else
-  return eslENORESULT;
-#endif
 }
 
 int
 p7_BackwardParser_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7_OMX *fwd, P7_OMX *bck, float *opt_sc)
 {
-#ifdef eslENABLE_SSE
 #if eslDEBUGLEVEL > 0
   if (om->M >  bck->allocQ4*4)    ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few columns)");
   if (bck->validR < 1)            ESL_EXCEPTION(eslEINVAL, "DP matrix allocated too small (too few MDI rows)");
@@ -95,16 +80,11 @@ p7_BackwardParser_sse(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, const P7
   if (! p7_oprofile_IsLocal(om))  ESL_EXCEPTION(eslEINVAL, "Forward implementation makes assumptions that only work for local alignment");
 #endif
   return backward_engine_sse(FALSE, dsq, L, om, fwd, bck, opt_sc);
-#else
-  return eslENORESULT;
-#endif
 }
 
 /*****************************************************************
  * 2. Static engine implementations.
  *****************************************************************/
-
-#ifdef eslENABLE_SSE
 
 /* Function:  p7_ForwardRow_sse()
  * Synopsis:  One row of the SSE Forward algorithm.

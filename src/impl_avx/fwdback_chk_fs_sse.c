@@ -5,9 +5,8 @@
  *    1. p7_ForwardChk_Frameshift_5Codons_sse(),  p7_ForwardChkLoad_Frameshift_5Codons_sse():  checkpointed Forward
  *       p7_BackwardChk_Frameshift_5Codons_sse(), p7_BackwardChkLoad_Frameshift_5Codons_sse(): checkpointed Backward
  *
- * Rows are computed by p7_ForwardChkRow_Frameshift_5Codons_sse(),
- * p7_BackwardRowL_Frameshift_5Codons_sse(), p7_BackwardRow_Frameshift_5Codons_sse() and
- * p7_BackwardRow0_Frameshift_5Codons_sse() (fwdback_fs_sse.c).
+ * Rows are computed by p7_ForwardChkRow_Frameshift_5Codons_sse() and
+ * p7_BackwardRow_Frameshift_5Codons_sse() (fwdback_fs_sse.c).
  */
 #include "p7_config.h"
 
@@ -302,29 +301,15 @@ backward_frameshift_chk_block_sse(const ESL_DSQ *dsq, const P7_FS_OPROFILE *om_f
   __m128 *dp[6];
   int     L    = cx->L;
   int     top  = ESL_MIN(L, b + cx->blockR - 1);
-  int     Q    = p7O_NQF(om_fs->M);
   float   xN   = 0.0f;
-  int     i, d, q;
+  int     i, d;
 
-  for (i = top; i >= ESL_MAX(b, 1); i--)
+  for (i = top; i >= b; i--)
     {
-      if (i == L)
-        p7_BackwardRowL_Frameshift_5Codons_sse(om_fs, NULL, cx->xmx, totscale, rg, cx->dpf[L], L, scale_mode);
-      else
-        {
-          for (d = 0; d < 6; d++) dp[d] = (i+d <= L) ? cx->dpf[i+d] : zero_row;
-          p7_BackwardRow_Frameshift_5Codons_sse(dsq, L, om_fs, NULL, cx->xmx, totscale, NULL, rg, dp, ivxf, i, scale_mode);
-        }
+      for (d = 0; d < 6; d++) dp[d] = (i+d <= L) ? cx->dpf[i+d] : zero_row;
+      xN = p7_BackwardRow_Frameshift_5Codons_sse(dsq, L, om_fs, NULL, cx->xmx, totscale, NULL, rg, dp, ivxf, i, scale_mode);
     }
-
-  if (b == 0)
-    {
-      dp[0] = NULL;
-      for (d = 1; d < 6; d++) dp[d] = (d <= L) ? cx->dpf[d] : zero_row;
-      xN  = p7_BackwardRow0_Frameshift_5Codons_sse(dsq, L, om_fs, cx->xmx, rg, dp, ivxf);
-      xN += rg->xN[1%PARSER_ROWS_BWD] + rg->xN[2%PARSER_ROWS_BWD];
-      for (q = 0; q < Q * p7X_NSCELLS; q++) cx->dpf[0][q] = _mm_setzero_ps();
-    }
+  if (b == 0) xN += rg->xN[1%PARSER_ROWS_BWD] + rg->xN[2%PARSER_ROWS_BWD];
   return xN;
 }
 

@@ -255,8 +255,8 @@ utest_null2_fs_expectation(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET 
       p7_gmx_GrowTo(gxb, M, curr_L, curr_L);
       p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
 
-      if (p7_GForward_Frameshift (dsq, curr_L, gm_fs5, gxf, iv5, &fsc) != eslOK) esl_fatal(msg);
-      if (p7_GBackward_Frameshift(dsq, curr_L, gm_fs5, gxb, iv5, &bsc) != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift_5Codons (dsq, curr_L, gm_fs5, gxf, iv5, &fsc) != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift_5Codons(dsq, curr_L, gm_fs5, gxb, iv5, &bsc) != eslOK) esl_fatal(msg);
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                    != eslOK) esl_fatal(msg);
       if (p7_GNull2_fs_ByExpectation(gm_fs5, gxf, gn2)                  != eslOK) esl_fatal(msg);
 

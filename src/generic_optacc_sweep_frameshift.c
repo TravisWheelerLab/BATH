@@ -2,7 +2,7 @@
  * (non-SIMD) version.
  *
  * The Backward matrix is first computed checkpointed
- * (<p7_GBackwardChk_Frameshift()>). One sweep through the rows 1..L
+ * (<p7_GBackwardChk_Frameshift_5Codons()>). One sweep through the rows 1..L
  * then computes, for each row, the Forward row, the Backward row (its
  * block computed again from its checkpoint), the posterior
  * probabilities and the optimal accuracy (OA) scores, keeping only the
@@ -10,7 +10,7 @@
  * stored in a <P7_OATMX> as each row is finished, and
  * <p7_GOATraceSweep_Frameshift()> traces from it alone, so no
  * full-size matrix is kept. Traces are identical to those of
- * <p7_GForward_Frameshift()>, <p7_GBackward_Frameshift()>,
+ * <p7_GForward_Frameshift_5Codons()>, <p7_GBackward_Frameshift_5Codons()>,
  * <p7_GDecoding_Frameshift()>, <p7_GOptimalAccuracy_Frameshift()> and
  * <p7_GOATrace_Frameshift()>, with each residue's posterior probability
  * given as the value its PP character stands for. The standard-model
@@ -309,7 +309,7 @@ oat_store_row_fs(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, cons
  *
  * Purpose:   For the 5-codon frameshift profile <gm_fs5> and DNA
  *            sequence <dsq> of length <L>, with the checkpointed
- *            Backward matrix <cx> filled by <p7_GBackwardChk_Frameshift()>,
+ *            Backward matrix <cx> filled by <p7_GBackwardChk_Frameshift_5Codons()>,
  *            compute in one sweep through rows 1..L the Forward,
  *            posterior and optimal accuracy (OA) rows, computing each
  *            block of Backward rows again from its checkpoint as the
@@ -333,7 +333,7 @@ oat_store_row_fs(const P7_FS_PROFILE *gm_fs5, float **dp, const float *xmx, cons
  * Args:      dsq      - DNA sequence in digitized form, 1..L
  *            L        - length of dsq (>= 3)
  *            gm_fs5   - 5-codon frameshift profile
- *            cx       - checkpointed Backward matrix from p7_GBackwardChk_Frameshift()
+ *            cx       - checkpointed Backward matrix from p7_GBackwardChk_Frameshift_5Codons()
  *            iv       - workspace, allocated for 5 codon lengths
  *            ox       - RESULT: what the OA trace reads
  *            opt_null2- optRETURN: null2 odds ratios, <0..Kp-1>; caller allocated
@@ -391,7 +391,7 @@ p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFI
 
   fdp[0] = mem;
   odp[0] = mem + 4*W;
-  p7_GForwardRow_Frameshift(dsq, gm_fs5, fdp, fxmx, iv->ivx, 0);
+  p7_GForwardRow_Frameshift_5Codons(dsq, gm_fs5, fdp, fxmx, iv->ivx, 0);
   oxmx[0*p7G_NXCELLS + p7G_N] = 0.;
   oxmx[0*p7G_NXCELLS + p7G_B] = 0.;
   oxmx[0*p7G_NXCELLS + p7G_E] = oxmx[0*p7G_NXCELLS + p7G_C] = oxmx[0*p7G_NXCELLS + p7G_J] = -eslINFINITY;
@@ -405,9 +405,9 @@ p7_GOptimalAccuracySweep_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFI
       odp[i] = mem + (4 + i%6)*W;
 
       b = (i / cx->blockR) * cx->blockR;
-      if (b != cx->b && (status = p7_GBackwardChkLoad_Frameshift(dsq, gm_fs5, cx, bv, b)) != eslOK) goto ERROR;
+      if (b != cx->b && (status = p7_GBackwardChkLoad_Frameshift_5Codons(dsq, gm_fs5, cx, bv, b)) != eslOK) goto ERROR;
 
-      p7_GForwardRow_Frameshift(dsq, gm_fs5, fdp, fxmx, iv->ivx, i);
+      p7_GForwardRow_Frameshift_5Codons(dsq, gm_fs5, fdp, fxmx, iv->ivx, i);
       decode_fs_row(gm_fs5, fdp[i], (i > 2) ? fxmx + (i-3)*p7G_NXCELLS : NULL, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx, i);
       oa_fs_row(gm_fs5, pp, ppx, odp, oxmx, i);
       oat_store_row_fs(gm_fs5, odp, oxmx, pp, ppx, ox, i);
@@ -541,7 +541,7 @@ p7_GOATraceSweep_Frameshift(const P7_FS_PROFILE *gm_fs5, const P7_OATMX *ox, P7_
 
 /* utest_sweep_fs()
  * The frameshift OA sweep and its trace against the full-matrix path
- * (p7_GForward_Frameshift, p7_GBackward_Frameshift,
+ * (p7_GForward_Frameshift_5Codons, p7_GBackward_Frameshift_5Codons,
  * p7_GDecoding_Frameshift, p7_GOptimalAccuracy_Frameshift,
  * p7_GOATrace_Frameshift) on random DNA and back-translated sequences
  * emitted from the model, with Backward blocks of 5..12 rows and of the
@@ -602,8 +602,8 @@ utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL
       p7_fs_ReconfigLength(gm5, Ln/3);
 
       /* full-matrix path */
-      p7_GForward_Frameshift (dsq, Ln, gm5, fwd, iv, &fsc);
-      p7_GBackward_Frameshift(dsq, Ln, gm5, bck, iv, NULL);
+      p7_GForward_Frameshift_5Codons (dsq, Ln, gm5, fwd, iv, &fsc);
+      p7_GBackward_Frameshift_5Codons(dsq, Ln, gm5, bck, iv, NULL);
       p7_GDecoding_Frameshift(gm5, fwd, bck);                      /* <fwd> now holds the posteriors */
       p7_GOptimalAccuracy_Frameshift(gm5, fwd, oa, &oasc1);
       p7_trace_Reuse(tr1);
@@ -613,7 +613,7 @@ utest_sweep_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL
       /* sweep */
       blockR = (n % 3 == 2) ? Ln+1 : 5 + esl_rnd_Roll(r, 8);
       if (p7_chkgmx_GrowTo(cx, M, Ln, blockR)                       != eslOK) esl_fatal(msg);
-      if (p7_GBackwardChk_Frameshift(dsq, Ln, gm5, cx, iv, NULL)     != eslOK) esl_fatal(msg);
+      if (p7_GBackwardChk_Frameshift_5Codons(dsq, Ln, gm5, cx, iv, NULL)     != eslOK) esl_fatal(msg);
       if (p7_GOptimalAccuracySweep_Frameshift(dsq, Ln, gm5, cx, iv, ox, null2b, &fsc2, &oasc2) != eslOK) esl_fatal(msg);
       p7_trace_Reuse(tr2);
       if (p7_GOATraceSweep_Frameshift(gm5, ox, tr2) != eslOK) esl_fatal(msg);

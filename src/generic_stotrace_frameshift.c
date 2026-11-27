@@ -34,7 +34,7 @@ nt_at(const ESL_DSQ *dsq, int j)
  * state before it together, from the 20 terms the Forward sums for this
  * cell: X(i-c, k-1) + t(X->M_k) + e_c(k), for X in B, M, I, D and c = 1..5
  * (c <= i), where e_c is the emission score of the codon of length c that
- * ends at <i>, as p7_GForwardRow_Frameshift() sums them. Sets <*ret_c>
+ * ends at <i>, as p7_GForwardRow_Frameshift_5Codons() sums them. Sets <*ret_c>
  * and <*ret_prv>. <sc> is workspace for 20 scores.
  */
 static void
@@ -235,13 +235,13 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
  *
  * Purpose:   Sample <ntr> stochastic tracebacks of the 5-codon profile
  *            <gm_fs5> against <dsq> of length <L> from the checkpointed
- *            Forward matrix <cx> that <p7_GForwardChk_Frameshift()>
+ *            Forward matrix <cx> that <p7_GForwardChk_Frameshift_5Codons()>
  *            filled: trace <t> into <tr[t]>, with its own random number
  *            generator <r[t]>.
  *
  *            All traces are sampled together. The blocks of <cx> are
  *            loaded from the last to the first, each computed again from
- *            its checkpoint by <p7_GForwardChkLoad_Frameshift()> with
+ *            its checkpoint by <p7_GForwardChkLoad_Frameshift_5Codons()> with
  *            <iv> as workspace, and every trace is taken back through the
  *            rows of the loaded block before the next block is loaded, so
  *            the Forward matrix is computed again only once for all the
@@ -252,7 +252,7 @@ gsto_fs_step(ESL_RANDOMNESS *r, const P7_FS_PROFILE *gm_fs, float * const *dp, c
  *            dsq    - digital sequence, 1..L
  *            L      - length of dsq
  *            gm_fs5 - 5-codon frameshift profile
- *            cx     - checkpointed Forward matrix from p7_GForwardChk_Frameshift()
+ *            cx     - checkpointed Forward matrix from p7_GForwardChk_Frameshift_5Codons()
  *            iv     - intermediate value matrix, workspace
  *            tr     - <ntr> traces; RETURN: the sampled traces
  *
@@ -293,7 +293,7 @@ p7_GStochasticTraceChk_Frameshift(ESL_RANDOMNESS **r, int ntr, const ESL_DSQ *ds
    * block holding row i and the 5 rows saved before it */
   for (b = (L / cx->blockR) * cx->blockR; b >= 0; b -= cx->blockR)
     {
-      if (b != cx->b && (status = p7_GForwardChkLoad_Frameshift(dsq, gm_fs5, cx, iv, b)) != eslOK) goto ERROR;
+      if (b != cx->b && (status = p7_GForwardChkLoad_Frameshift_5Codons(dsq, gm_fs5, cx, iv, b)) != eslOK) goto ERROR;
       for (t = 0; t < ntr; t++)
         while (sprv[t] != p7T_S && i[t] >= b)
           if ((status = gsto_fs_step(r[t], gm_fs5, cx->dp, cx->xmx, dsq, sc, tr[t], &sprv[t], &i[t], &k[t])) != eslOK) goto ERROR;
@@ -403,7 +403,7 @@ main(int argc, char **argv)
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
 
   p7_chkgmx_GrowTo(cx, gm_fs5->M, L, L+1);
-  p7_GForwardChk_Frameshift(dsq, L, gm_fs5, cx, iv, &fsc);
+  p7_GForwardChk_Frameshift_5Codons(dsq, L, gm_fs5, cx, iv, &fsc);
 
   esl_stopwatch_Start(w);
   p7_GStochasticTraceChk_Frameshift(rng, N, dsq, L, gm_fs5, cx, iv, tr);

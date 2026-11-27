@@ -1463,15 +1463,14 @@ extern void p7_GBackwardRow(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, flo
 extern int p7_GBackward    (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm,       P7_GMX *gx, float *ret_sc);
 
 /* generic_fwdback_frameshift.c */
-extern void p7_GForwardRow_Frameshift (const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
-extern void p7_GForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
-extern void p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
-extern int p7_GForward_Frameshift     (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
-extern int p7_GBackward_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
-extern int p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *ret_sc);
+extern void p7_GForwardRow_Frameshift_5Codons (const ESL_DSQ *dsq,        const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
+extern int  p7_GForward_Frameshift_5Codons    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern void p7_GForwardRow_Frameshift_3Codons (const ESL_DSQ *dsq,        const P7_FS_PROFILE *gm_fs3, float **dp, float *xmx, float *ivx, int i);
+extern int  p7_GForward_Frameshift_3Codons    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern void p7_GBackwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
+extern int  p7_GBackward_Frameshift_5Codons   (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
+extern void p7_GBackwardRow_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, float **dp, float *xmx, float *ivx, int i);
+extern int  p7_GBackward_Frameshift_3Codons   (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc);
 
 /* generic_msv.c */
 extern int p7_GMSV           (const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_GMX *gx, float nu, float *ret_sc);
@@ -1658,10 +1657,11 @@ extern int p7_GBackwardChk              (const ESL_DSQ *dsq, int L, const P7_PRO
 extern int p7_GBackwardChkLoad          (const ESL_DSQ *dsq, const P7_PROFILE *gm, P7_CHKGMX *cx, int b);
 
 /* generic_fwdback_chk_frameshift.c */
-extern int p7_GForwardChk_Frameshift     (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
-extern int p7_GForwardChkLoad_Frameshift (const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
-extern int p7_GBackwardChk_Frameshift    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
-extern int p7_GBackwardChkLoad_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
+extern void p7_GForwardChkRow_Frameshift_5Codons  (const ESL_DSQ *dsq,        const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i);
+extern int  p7_GForwardChk_Frameshift_5Codons     (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
+extern int  p7_GForwardChkLoad_Frameshift_5Codons (const ESL_DSQ *dsq,        const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
+extern int  p7_GBackwardChk_Frameshift_5Codons    (const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, float *opt_sc);
+extern int  p7_GBackwardChkLoad_Frameshift_5Codons(const ESL_DSQ *dsq,        const P7_FS_PROFILE *gm_fs5, P7_CHKGMX *cx, P7_IVX *iv, int b);
 
 /* generic_optacc_sweep.c */
 extern int p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHKGMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);

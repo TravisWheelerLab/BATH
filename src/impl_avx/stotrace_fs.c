@@ -115,7 +115,7 @@ utest_stotrace_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA,
       /* Generic forward */
       p7_gmx_GrowTo(gxf, M, curr_L, curr_L);
       p7_ivx_GrowTo(iv5, M, p7P_5CODONS);
-      if (p7_GForward_Frameshift(dsq, curr_L, gm_fs5, gxf, iv5, &gfsc) != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift_5Codons(dsq, curr_L, gm_fs5, gxf, iv5, &gfsc) != eslOK) esl_fatal(msg);
 
       /* SIMD forward */
       p7_omx_GrowTo_dpf(fwd, M, curr_L, curr_L);
@@ -257,8 +257,8 @@ utest_stotrace_posterior_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET
       for (c = 0; c < 6; c++) { sum[c] += cnt[c]; sumsq[c] += (double) cnt[c] * cnt[c]; }
     }
 
-  if (p7_GForward_Frameshift (dsq, Ln, gm_fs5, fx, iv, NULL) != eslOK) esl_fatal(msg);
-  if (p7_GBackward_Frameshift(dsq, Ln, gm_fs5, bx, iv, NULL) != eslOK) esl_fatal(msg);
+  if (p7_GForward_Frameshift_5Codons (dsq, Ln, gm_fs5, fx, iv, NULL) != eslOK) esl_fatal(msg);
+  if (p7_GBackward_Frameshift_5Codons(dsq, Ln, gm_fs5, bx, iv, NULL) != eslOK) esl_fatal(msg);
   if (p7_GDecoding_Frameshift(gm_fs5, fx, bx)               != eslOK) esl_fatal(msg);
   for (c = 0; c < 6; c++) expct[c] = 0.;
   for (i = 1; i <= Ln; i++)

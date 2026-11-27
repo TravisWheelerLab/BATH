@@ -213,8 +213,8 @@ main(int argc, char **argv)
   iv     = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_GForward_Frameshift (dsq, L, gm_fs5, gx1, iv, &fsc);
-  p7_GBackward_Frameshift(dsq, L, gm_fs5, gx2, iv, &bsc);
+  p7_GForward_Frameshift_5Codons (dsq, L, gm_fs5, gx1, iv, &fsc);
+  p7_GBackward_Frameshift_5Codons(dsq, L, gm_fs5, gx2, iv, &bsc);
   p7_GDecoding_Frameshift(gm_fs5, gx1, gx2);   
 
   esl_stopwatch_Start(w);

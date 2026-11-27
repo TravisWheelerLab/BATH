@@ -756,7 +756,7 @@ utest_basic(ESL_GETOPTS *go)
   if (esl_opt_GetBoolean(go, "-v")) p7_trace_fs_Dump(stdout, tr, NULL, dsq, abcDNA);
 
   p7_FLogsumInit();
-  if (p7_GForward_Frameshift(dsq, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
+  if (p7_GForward_Frameshift_5Codons(dsq, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
   if (esl_opt_GetBoolean(go, "-v")) printf("utest_basic: Forward score: %.4f\n", fsc);
   if (fsc < vsc - 0.001) esl_fatal("utest_basic: Forward score (%.4f) < Viterbi score (%.4f)", fsc, vsc);
 
@@ -824,7 +824,7 @@ utest_viterbi_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_AL
       if (p7_GVTrace_Frameshift(dsqDNA, L, gm_fs5, vit, tr)        != eslOK) esl_fatal("traceback failed");
       if (p7_trace_fs_Validate(tr, abcDNA, dsqDNA, errbuf)         != eslOK) esl_fatal("trace invalid: %s", errbuf);
 
-      if (p7_GForward_Frameshift(dsqDNA, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
+      if (p7_GForward_Frameshift_5Codons(dsqDNA, L, gm_fs5, fwd, iv, &fsc) != eslOK) esl_fatal("Forward failed");
       if (fsc < vsc - 0.001) esl_fatal("Forward score (%.4f) < Viterbi score (%.4f)", fsc, vsc);
 
       if (p7_bg_fs_NullOne(bgAA, dsqAA, L/3, &nullsc) != eslOK) esl_fatal("null score failed");

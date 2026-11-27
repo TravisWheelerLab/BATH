@@ -540,8 +540,8 @@ utest_decoding_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, 
       if (esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq)                 != eslOK) esl_fatal(msg);
 
       /* generic: gxf becomes the posterior matrix */
-      if (p7_GForward_Frameshift (dsq, L, gm_fs5, gxf, iv5, &fsc)       != eslOK) esl_fatal(msg);
-      if (p7_GBackward_Frameshift(dsq, L, gm_fs5, gxb, iv5, &bsc)       != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift_5Codons (dsq, L, gm_fs5, gxf, iv5, &fsc)       != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift_5Codons(dsq, L, gm_fs5, gxb, iv5, &bsc)       != eslOK) esl_fatal(msg);
       if (p7_GDecoding_Frameshift(gm_fs5, gxf, gxb)                     != eslOK) esl_fatal(msg);
 
       /* SSE: fwd becomes the posterior matrix */
@@ -576,8 +576,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
   ESL_DSQ        *dsq    = malloc(sizeof(ESL_DSQ) * (L+2));
   P7_OMX         *fwd    = p7_omx_Create(M, PARSER_ROWS_FWD, L);
   P7_OMX         *bwd    = p7_omx_Create(M, PARSER_ROWS_BWD, L);
-  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
-  P7_GMX         *bgx    = p7_gmx_Create(M, PARSER_ROWS_BWD, L, p7G_NSCELLS);
+  P7_GMX         *fgx    = p7_gmx_Create(M, L, L, p7G_NSCELLS);
+  P7_GMX         *bgx    = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   P7_IVX         *iv     = p7_ivx_Create(M, p7P_3CODONS);
   P7_OIVX        *ov3    = p7_oivx_Create(M, p7P_3CODONS);
   P7_DOMAINDEF    oddef, gddef;
@@ -607,8 +607,8 @@ utest_domdef(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_G
       if (p7_BackwardParser_Frameshift_3Codons(dsq, L, om_fs3, fwd, bwd, ov3, NULL) != eslOK) esl_fatal(msg);
       if (p7_DomainDecoding_Frameshift(om_fs3, fwd, bwd, &oddef)             != eslOK) esl_fatal(msg);
 
-      if (p7_GForwardParser_Frameshift_3Codons (dsq, L, gm_fs3, fgx, iv, NULL) != eslOK) esl_fatal(msg);
-      if (p7_GBackwardParser_Frameshift_3Codons(dsq, L, gm_fs3, bgx, iv, NULL) != eslOK) esl_fatal(msg);
+      if (p7_GForward_Frameshift_3Codons (dsq, L, gm_fs3, fgx, iv, NULL) != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift_3Codons(dsq, L, gm_fs3, bgx, iv, NULL) != eslOK) esl_fatal(msg);
       if (p7_GDomainDecoding_Frameshift(gm_fs3, fgx, bgx, &gddef)            != eslOK) esl_fatal(msg);
 
       for (i = 0; i <= L; i++)

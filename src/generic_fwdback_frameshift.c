@@ -1,10 +1,11 @@
-/* Forward/Backward Frameshift algorithms;
- * 
+/* Forward/Backward Frameshift algorithms, full matrices.
+ *
  * Contents:
- *   1. Forward, Backward, implementations.  
- *   2. Benchmark driver.
- *   3. Unit tests.
- *   4. Test driver
+ *   1. Forward, 5 and 3 codon lengths.
+ *   2. Backward, 5 and 3 codon lengths.
+ *   3. Benchmark driver.
+ *   4. Unit tests.
+ *   5. Test driver.
  */
 #include "p7_config.h"
 
@@ -25,21 +26,21 @@
 #define MSC_FS5(k)  (rsc5[(k)])
 
 /*****************************************************************
- * 1. Forward, Backward, implementations.
+ * 1. Forward, 5 and 3 codon lengths.
  *****************************************************************/
 
-/* nt_at()
+/* nt_at_fs5()
  * The nucleotide at position <j> of <dsq> for codon lookup: the
  * placeholder <p7P_MAXCODONS5> before position 1 or for anything but
  * A,C,G,T.
  */
 static inline int
-nt_at(const ESL_DSQ *dsq, int j)
+nt_at_fs5(const ESL_DSQ *dsq, int j)
 {
   return (j >= 1 && dsq[j] < p7P_MAXNUC) ? dsq[j] : p7P_MAXCODONS5;
 }
 
-/* Function:  p7_GForwardRow_Frameshift()
+/* Function:  p7_GForwardRow_Frameshift_5Codons()
  * Synopsis:  One row of the frameshift Forward algorithm.
  *
  * Purpose:   Forward row <i> (0..L) of the 5-codon profile <gm_fs5>
@@ -50,13 +51,13 @@ nt_at(const ESL_DSQ *dsq, int j)
  *            partial sums are written. The codon context of row <i> is
  *            read from dsq[i-4..i]. Row 0 is the initialization, of
  *            <dp>[0], row 0 of <xmx> and all of <ivx>. Same calculation
- *            as each row of <p7_GForward_Frameshift()>, which calls it.
+ *            as each row of <p7_GForward_Frameshift_5Codons()>, which calls it.
  *
  *            Caller must have initialized the log-sum calculation with
  *            a call to <p7_FLogsumInit()>.
  */
 void
-p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i)
+p7_GForwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i)
 {
   float const *tsc  = gm_fs5->tsc;
   float const *rsc1, *rsc2, *rsc3, *rsc4, *rsc5;
@@ -82,11 +83,11 @@ p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float
       return;
     }
 
-  x = nt_at(dsq, i);
-  w = nt_at(dsq, i-1);
-  v = nt_at(dsq, i-2);
-  u = nt_at(dsq, i-3);
-  t = nt_at(dsq, i-4);
+  x = nt_at_fs5(dsq, i);
+  w = nt_at_fs5(dsq, i-1);
+  v = nt_at_fs5(dsq, i-2);
+  u = nt_at_fs5(dsq, i-3);
+  t = nt_at_fs5(dsq, i-4);
 
   if (i == 1)
     {
@@ -326,566 +327,23 @@ p7_GForwardRow_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float
 }
 
 
-/* Function:  p7_GForwardRow3_Frameshift()
- * Synopsis:  One row of the frameshift Forward algorithm, 3-cell rows.
- *
- * Purpose:   The row of <p7_GForwardRow_Frameshift()> in rows of
- *            <p7G_NSCELLS> cells per position, holding only D, I and M
- *            (the C0 sum): the same calculation and values, with the
- *            codon-length terms of each position kept in temporaries.
- *            Rows are indexed by row number in <dp>, as for
- *            <p7_GForwardRow_Frameshift()>. Called by
- *            <p7_GForwardChk_Frameshift()> and
- *            <p7_GForwardParser_Frameshift_5Codons()>.
- *
- *            Caller must have initialized the log-sum calculation with
- *            a call to <p7_FLogsumInit()>.
- */
-void
-p7_GForwardRow3_Frameshift(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i)
-{
-  float        mc[p7P_5CODONS+1];   /* M_C1..M_C5 of the current k */
-  float const *tsc  = gm_fs5->tsc;
-  float const *rsc1, *rsc2, *rsc3, *rsc4, *rsc5;
-  int          M    = gm_fs5->M;
-  int          k;
-  int          c1, c2, c3, c4, c5;
-  int          t, u, v, w, x;
-  int          ivx_1, ivx_2, ivx_3, ivx_4, ivx_5;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 0 : -eslINFINITY;
-
-  if (i == 0)
-    {
-      for (k = 0; k <= M; k++)
-        for (c1 = 0; c1 < p7P_5CODONS; c1++)
-          IVX5(c1,k) = -eslINFINITY;
-      XMX_FS(0,p7G_N) = 0.;
-      XMX_FS(0,p7G_B) = gm_fs5->xsc[p7P_N][p7P_MOVE];
-      XMX_FS(0,p7G_E) = XMX_FS(0,p7G_J) = XMX_FS(0,p7G_C) = -eslINFINITY;
-      for (k = 0; k <= M; k++) {
-        MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;
-      }
-      return;
-    }
-
-  x = nt_at(dsq, i);
-  w = nt_at(dsq, i-1);
-  v = nt_at(dsq, i-2);
-  u = nt_at(dsq, i-3);
-  t = nt_at(dsq, i-4);
-
-  if (i == 1)
-    {
-      XMX_FS(1,p7G_N) = 0.;
-      XMX_FS(1,p7G_B) = gm_fs5->xsc[p7P_N][p7P_MOVE];
-      XMX_FS(1,p7G_E) = -eslINFINITY;
-      MMX(1,0) = IMX(1,0) = DMX(1,0) = -eslINFINITY;
-
-      c1 = p7P_CODON1_FS5(x);
-      c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-      rsc1 = gm_fs5->rsc[c1];
-      for (k = 1; k <= M; k++) {
-        IVX5(1,k) = XMX_FS(0,p7G_B) + TSC(p7P_BM,k-1);
-
-        mc[1] = IVX5(1,k) + MSC_FS1(k);
-        mc[2] = -eslINFINITY;
-        mc[3] = -eslINFINITY;
-        mc[4] = -eslINFINITY;
-        mc[5] = -eslINFINITY;
-        MMX(1,k) = mc[1];
-        IMX(1,k)  = -eslINFINITY;
-        DMX(1,k)  = p7_FLogsum(MMX(1,k-1) + TSC(p7P_MD,k-1),
-                                  DMX(1,k-1)        + TSC(p7P_DD,k-1));
-
-        XMX_FS(1,p7G_E) = p7_FLogsum(MMX(1,k) + esc,
-                          p7_FLogsum(DMX(1,k) + esc,
-                                     XMX_FS(1,p7G_E)));
-      }
-      XMX_FS(1,p7G_J) = XMX_FS(1,p7G_E) + gm_fs5->xsc[p7P_E][p7P_LOOP];
-      XMX_FS(1,p7G_C) = XMX_FS(1,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
-      return;
-    }
-
-  if (i == 2)
-    {
-      XMX_FS(2,p7G_N) = 0.;
-      XMX_FS(2,p7G_B) = gm_fs5->xsc[p7P_N][p7P_MOVE];
-      XMX_FS(2,p7G_E) = -eslINFINITY;
-      MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
-
-      c1 = p7P_CODON1_FS5(x);
-      c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-      c2 = p7P_CODON2_FS5(w, x);
-      c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-      rsc1 = gm_fs5->rsc[c1];
-      rsc2 = gm_fs5->rsc[c2];
-
-      for (k = 1; k <= M; k++) {
-        IVX5(2,k) = p7_FLogsum(MMX(1,k-1) + TSC(p7P_MM,k-1),
-                    p7_FLogsum(IMX(1,k-1)        + TSC(p7P_IM,k-1),
-                    p7_FLogsum(DMX(1,k-1)        + TSC(p7P_DM,k-1),
-                               XMX_FS(1,p7G_B)      + TSC(p7P_BM,k-1))));
-        mc[1] = IVX5(2,k) + MSC_FS1(k);
-        mc[2] = IVX5(1,k) + MSC_FS2(k);
-        mc[3] = -eslINFINITY;
-        mc[4] = -eslINFINITY;
-        mc[5] = -eslINFINITY;
-        MMX(2,k) = p7_FLogsum( mc[1], mc[2]);
-        IMX(2,k)  = -eslINFINITY;
-        DMX(2,k)  = p7_FLogsum(MMX(2,k-1) + TSC(p7P_MD,k-1),
-                                  DMX(2,k-1)        + TSC(p7P_DD,k-1));
-
-        XMX_FS(2,p7G_E) = p7_FLogsum(MMX(2,k) + esc,
-                          p7_FLogsum(DMX(2,k)        + esc,
-                                     XMX_FS(2,p7G_E)));
-      }
-      XMX_FS(2,p7G_J) = XMX_FS(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_LOOP];
-      XMX_FS(2,p7G_C) = XMX_FS(2,p7G_E) + gm_fs5->xsc[p7P_E][p7P_MOVE];
-      return;
-    }
-
-  c1 = p7P_CODON1_FS5(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-  c2 = p7P_CODON2_FS5(w, x);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-  c3 = p7P_CODON3_FS5(v, w, x);
-  c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-  c4 = p7P_CODON4_FS5(u, v, w, x);
-  c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-  rsc1 = gm_fs5->rsc[c1];
-  rsc2 = gm_fs5->rsc[c2];
-  rsc3 = gm_fs5->rsc[c3];
-  rsc4 = gm_fs5->rsc[c4];
-
-  ivx_1 = i     % p7P_5CODONS;
-  ivx_2 = (i-1) % p7P_5CODONS;
-  ivx_3 = (i-2) % p7P_5CODONS;
-  ivx_4 = (i-3) % p7P_5CODONS;
-
-  if (i < 5)   /* rows 3 and 4 */
-    {
-      MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
-
-      XMX_FS(i,p7G_E) = -eslINFINITY;
-
-      for (k = 1; k < M; k++)
-        {
-          IVX5(ivx_1,k) = p7_FLogsum(MMX(i-1,k-1) + TSC(p7P_MM,k-1),
-                          p7_FLogsum(IMX(i-1,k-1)        + TSC(p7P_IM,k-1),
-                          p7_FLogsum(DMX(i-1,k-1)        + TSC(p7P_DM,k-1),
-                                     XMX_FS(i-1,p7G_B)      + TSC(p7P_BM,k-1))));
-
-          mc[1] = IVX5(ivx_1,k) + MSC_FS1(k);
-          mc[2] = IVX5(ivx_2,k) + MSC_FS2(k);
-          mc[3] = IVX5(ivx_3,k) + MSC_FS3(k);
-          mc[4] = -eslINFINITY;
-          mc[5] = -eslINFINITY;
-          if( i == 4 )
-            mc[4] = IVX5(ivx_4,k) + MSC_FS4(k);
-
-          MMX(i,k) = p7_FLogsum( mc[1],
-                               p7_FLogsum( mc[2],
-                               p7_FLogsum( mc[3],
-                                           mc[4])));
-
-          IMX(i,k) = p7_FLogsum(MMX(i-3,k) + TSC(p7P_MI,k),
-                                   IMX(i-3,k)        + TSC(p7P_II,k));
-
-          DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
-                                   DMX(i,k-1)        + TSC(p7P_DD,k-1));
-
-          XMX_FS(i,p7G_E) = p7_FLogsum(MMX(i,k) + esc,
-                            p7_FLogsum(DMX(i,k)        + esc,
-                                       XMX_FS(i,p7G_E)));
-        }
-
-      IVX5(ivx_1,M) = p7_FLogsum(MMX(i-1,M-1) + TSC(p7P_MM,M-1),
-                      p7_FLogsum(IMX(i-1,M-1)        + TSC(p7P_IM,M-1),
-                      p7_FLogsum(DMX(i-1,M-1)        + TSC(p7P_DM,M-1),
-                                 XMX_FS(i-1,p7G_B)      + TSC(p7P_BM,M-1))));
-
-      mc[1] = IVX5(ivx_1,M) + MSC_FS1(M);
-      mc[2] = IVX5(ivx_2,M) + MSC_FS2(M);
-      mc[3] = IVX5(ivx_3,M) + MSC_FS3(M);
-      mc[4] = -eslINFINITY;
-      mc[5] = -eslINFINITY;
-      if( i == 4 )
-        mc[4] = IVX5(ivx_4,M) + MSC_FS4(M);
-
-      MMX(i,M) = p7_FLogsum( mc[1],
-                           p7_FLogsum( mc[2],
-                           p7_FLogsum( mc[3],
-                                       mc[4])));
-
-      IMX(i,M) = -eslINFINITY;
-
-      DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
-                               DMX(i,M-1)        + TSC(p7P_DD,M-1));
-
-      XMX_FS(i,p7G_E) = p7_FLogsum(MMX(i,M),
-                        p7_FLogsum(DMX(i,M),
-                                   XMX_FS(i,p7G_E)));
-
-      XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-3,p7G_J) + gm_fs5->xsc[p7P_J][p7P_LOOP],
-                                   XMX_FS(i,p7G_E)   + gm_fs5->xsc[p7P_E][p7P_LOOP]);
-      XMX_FS(i,p7G_C) = p7_FLogsum(XMX_FS(i-3,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
-                                   XMX_FS(i,p7G_E)   + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-      XMX_FS(i,p7G_N) =            XMX_FS(i-3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP];
-      XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm_fs5->xsc[p7P_N][p7P_MOVE],
-                                   XMX_FS(i,p7G_J) + gm_fs5->xsc[p7P_J][p7P_MOVE]);
-      return;
-    }
-
-  /* rows 5..L */
-  c5 = p7P_CODON5_FS5(t, u, v, w, x);
-  c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-  rsc5 = gm_fs5->rsc[c5];
-  ivx_5 = (i-4) % p7P_5CODONS;
-
-  MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
-
-  XMX_FS(i, p7G_E) = -eslINFINITY;
-
-  for (k = 1; k < M; k++)
-    {
-      IVX5(ivx_1,k) = p7_FLogsum(MMX(i-1,k-1)   + TSC(p7P_MM,k-1),
-                      p7_FLogsum(IMX(i-1,k-1)          + TSC(p7P_IM,k-1),
-                      p7_FLogsum(DMX(i-1,k-1)          + TSC(p7P_DM,k-1),
-                                 XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,k-1))));
-
-      mc[1] = IVX5(ivx_1,k) + MSC_FS1(k);
-      mc[2] = IVX5(ivx_2,k) + MSC_FS2(k);
-      mc[3] = IVX5(ivx_3,k) + MSC_FS3(k);
-      mc[4] = IVX5(ivx_4,k) + MSC_FS4(k);
-      mc[5] = IVX5(ivx_5,k) + MSC_FS5(k);
-
-      MMX(i,k) =  p7_FLogsum(p7_FLogsum(mc[1],
-                            p7_FLogsum(mc[2], mc[3])),
-                            p7_FLogsum(mc[4], mc[5]));
-
-      IMX(i,k) = p7_FLogsum(MMX(i-3,k) + TSC(p7P_MI,k),
-                               IMX(i-3,k)        + TSC(p7P_II,k));
-
-      DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
-                               DMX(i,k-1)        + TSC(p7P_DD,k-1));
-
-      XMX_FS(i,p7G_E) = p7_FLogsum(MMX(i,k) + esc,
-                        p7_FLogsum(DMX(i,k)        + esc,
-                                   XMX_FS(i,p7G_E)));
-    }
-
-  IVX5(ivx_1,M) = p7_FLogsum(MMX(i-1,M-1)   + TSC(p7P_MM,M-1),
-                  p7_FLogsum(IMX(i-1,M-1)          + TSC(p7P_IM,M-1),
-                  p7_FLogsum(DMX(i-1,M-1)          + TSC(p7P_DM,M-1),
-                             XMX_FS(i-1,p7G_B)        + TSC(p7P_BM,M-1))));
-
-  mc[1] = IVX5(ivx_1,M) + MSC_FS1(M);
-  mc[2] = IVX5(ivx_2,M) + MSC_FS2(M);
-  mc[3] = IVX5(ivx_3,M) + MSC_FS3(M);
-  mc[4] = IVX5(ivx_4,M) + MSC_FS4(M);
-  mc[5] = IVX5(ivx_5,M) + MSC_FS5(M);
-
-  MMX(i,M) =  p7_FLogsum(p7_FLogsum(mc[1],
-                        p7_FLogsum(mc[2], mc[3])),
-                        p7_FLogsum(mc[4], mc[5]));
-
-  IMX(i,M) = -eslINFINITY;
-
-  DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
-                           DMX(i,M-1) + TSC(p7P_DD,M-1));
-
-  XMX_FS(i,p7G_E) = p7_FLogsum(p7_FLogsum(MMX(i,M),
-                                          DMX(i,M)),
-                                          XMX_FS(i,p7G_E));
-
-  XMX_FS(i,p7G_J) = p7_FLogsum(XMX_FS(i-3,p7G_J) + gm_fs5->xsc[p7P_J][p7P_LOOP],
-                               XMX_FS(i,p7G_E)   + gm_fs5->xsc[p7P_E][p7P_LOOP]);
-  XMX_FS(i,p7G_C) = p7_FLogsum(XMX_FS(i-3,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
-                               XMX_FS(i,p7G_E)   + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-  XMX_FS(i,p7G_N) =            XMX_FS(i-3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP];
-  XMX_FS(i,p7G_B) = p7_FLogsum(XMX_FS(i,p7G_N) + gm_fs5->xsc[p7P_N][p7P_MOVE],
-                               XMX_FS(i,p7G_J) + gm_fs5->xsc[p7P_J][p7P_MOVE]);
-}
-
-
-/* Function:  p7_GForward_Frameshift()
- * Synopsis:  The Frameshift Aware Forward algorithm.
+/* Function:  p7_GForward_Frameshift_5Codons()
+ * Synopsis:  The frameshift Forward algorithm, 5 codon lengths.
  *
  * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comparison between a dna sequence and a
- *            frameshift-aware codon HMM.  
+ *            aware translated comparison of the DNA sequence <dsq> of
+ *            length <L> to the profile <gm_fs5>, with five codon
+ *            lengths (1 to 5 nucleotides).
  *
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm_fs5>, and DP matrix <gx> allocated with <L> cells for 
- *            all 5 special states <N,B,E,J,C>, and <L> by <gm_fs5->M> 
- *            cells for all core model states <M,I,D> and all 5 codon
- *            lengths; calculate the probability of the sequence
- *            given the model using the Forward algorithm; use the 
- *            intermediate value matrix to store partial calculations; 
- *            return the Forward matrix in <gx>, and the Forward score 
- *            in <ret_sc>.
- *            
- *            The Forward score is in lod score form.  To convert to a
- *            bitscore, the caller needs to subtract a null model lod
- *            score, then convert to bits.
- *           
- *            Caller must have initialized the log-sum calculation
- *            with a call to <p7_FLogsumInit()>.
+ *            Caller provides the DP matrix <gx>, allocated for at least
+ *            <gm_fs5->M> by <L> with <p7G_NSCELLS_FS> cells per position
+ *            (M_C0..M_C5, I, D; M_C1..M_C5 are the M state by codon
+ *            length, M_C0 their sum), and the intermediate value matrix
+ *            <iv> with <p7P_5CODONS> rows. Each row is computed by
+ *            <p7_GForwardRow_Frameshift_5Codons()>. The Forward matrix
+ *            is returned in <gx> and the Forward score in <opt_sc>.
  *
- * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            L      - length of dsq
- *            gm_fs5  - a frameshift-aware codon profile. 
- *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value matrix 
- *            opt_sc - optRETURN: Forward lod score in nats
- *           
- * Return:    <eslOK> on success.
- */
-int
-p7_GForward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
-{
-  float **dp  = gx->dp;
-  float  *xmx = gx->xmx;
-  int     i;
-
-  if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
-
-  for (i = 0; i <= L; i++)
-    p7_GForwardRow_Frameshift(dsq, gm_fs5, dp, xmx, iv->ivx, i);
-
-  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX_FS(L,p7G_C),
-                                p7_FLogsum( XMX_FS(L-1,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
-                                            (L >= 2 ? XMX_FS(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
-                                            gm_fs5->xsc[p7P_C][p7P_MOVE];
-
-  gx->M = gm_fs5->M;
-  gx->L = L;
-  return eslOK;
-}
-
-
-/* Function:  p7_GForwardParser_Frameshift_3Codons()
- * Synopsis:  The frameshift-aware Forward algorithm using 3 codon lengths - low memory.
- *
- * Purpose:   The Forward dynamic programming algorithm for frameshift
- *            aware translated comparison between a dna sequence and an
- *            frameshift aware codon HMM, using three codon lengths, 
- *            with a minimal sized DP matrix. 
- *
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm_fs3>, and DP matrix <gx> allocated with <L> cells for
- *            the special states <N,B,E,J,C>, and <PARSER_ROWS_FWD> by 
- *            <gm_fs3->M> cells for all core model states <M,I,D>; 
- *            calculate the probability of the sequence given the model 
- *            and 3 permissible codon lengths using the Forward algorithm - 
- *            reusing the rows in the core matrix; use the intermediate 
- *            value matrix <iv> to store partial calculations; return the 
- *            Forward matrix in <gx>, and the Forward score in <ret_sc>.
- *           
  *            The Forward score is in lod score form. To convert to a
- *            bitscore, the caller needs to subtract a null model lod
- *            score, then convert to bits.
- *           
- *            Caller must have initialized the log-sum calculation
- *            with a call to <p7_FLogsumInit()>.
- *
- * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            L      - length of dsq
- *            gm_fs3 - frameshift-aware codon profile. 
- *            gx     - DP matrix 
- *            iv     - intermediate value matrix 
- *            opt_sc - optRETURN: Forward lod score in nats
- *           
- * Return:    <eslOK> on success.
- */
-int
-p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
-{ 
-
-  float const *tsc  = gm_fs3->tsc;
-  float const *rsc2, *rsc3, *rsc4;
-  float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx;
-  float       *ivx  = iv->ivx;
-  int          M    = gm_fs3->M;
-  int          i, k;
-  int          c2, c3, c4;
-  int          u, v, w, x;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs3) ? 0 : -eslINFINITY;
-  int curr, prev2, prev3;
-  int ivx_2, ivx_3, ivx_4;
- 
-  if(gm_fs3->codon_lengths != 3) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 3 codon lengths");
-
-  for (i = 0; i < p7P_3CODONS; i++) {
-    for(k = 0; k <= M; k++) { 
-      IVX3(i,k) = -eslINFINITY;
-    }
-  }
-
-  /* Initialization of rows 0-1 */
-  for(i = 0; i < 2; i++ ) {
-    XMX(i,p7G_N) = 0.;                          /* S->N, p=1          */
-    XMX(i,p7G_B) = gm_fs3->xsc[p7P_N][p7P_MOVE]; /* S->N->B, no N-tail */
-    XMX(i,p7G_E) = XMX(i,p7G_J) = XMX(i,p7G_C) = -eslINFINITY;
-    for (k = 0; k <= M; k++) 
-      MMX(i,k) = IMX(i,k) = DMX(i,k) = -eslINFINITY;
-  }
-
-  /* Initialization of row 2 (rows past L are not computed) */
-  if (L >= 2) {
-  u = v = p7P_MAXCODONS3;
-  
-  if(dsq[1] < p7P_MAXNUC) w = dsq[1];
-  else                                            w = p7P_MAXCODONS3;
-
-  if(dsq[2] < p7P_MAXNUC) x = dsq[2];
-  else                                            x = p7P_MAXCODONS3;
-
-  /* Length 2 quasi-codon */
-  c2 = p7P_CODON2_FS3(w, x);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
-  rsc2 = gm_fs3->rsc[c2];
-
-  XMX(2,p7G_E) = -eslINFINITY;
-  MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
-
-  for (k = 1; k <= M; k++)
-  {
-    IVX3(2,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);
-    MMX(2,k)  = IVX3(2,k) + MSC_FS2(k); 
-    IMX(2,k) = -eslINFINITY;
-    DMX(2,k) = p7_FLogsum(MMX(2,k-1)        + TSC(p7P_MD,k-1),
-                          DMX(2,k-1)        + TSC(p7P_DD,k-1));
-    XMX(2,p7G_E) = p7_FLogsum(MMX(2,k) + esc,
-                   p7_FLogsum(DMX(2,k) + esc,
-                              XMX(2,p7G_E)));
-  }
-
-  XMX(2,p7G_N) = 0.; /* S->N, p=1            */
-  XMX(2,p7G_J) = XMX(2,p7G_E) + gm_fs3->xsc[p7P_E][p7P_LOOP];
-  XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs3->xsc[p7P_E][p7P_MOVE]; 
-  XMX(2,p7G_B) = p7_FLogsum(XMX(2,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
-                            XMX(2,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
-  } /* end L >= 2 */
-
-  /* Main Recursion */
-  for(i = 3; i <= L; i++) {
-
-    u = v;
-    v = w;
-    w = x;
-	
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */
-    if(dsq[i] < p7P_MAXNUC) x = dsq[i];
-    else                                            x = p7P_MAXCODONS3;
-
-	/* Length 2 quasi-codon */
-	c2 = p7P_CODON2_FS3(w, x);
-	c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
-
-	/* Length 3 codon */
-    c3 = p7P_CODON3_FS3(v, w, x);
-	c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
-
-	/* Length 4 quasi-codon */
-	c4 = p7P_CODON4_FS3(u, v, w, x);
-	c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
-    rsc2 = gm_fs3->rsc[c2];
-    rsc3 = gm_fs3->rsc[c3];
-    rsc4 = gm_fs3->rsc[c4];
-
-	curr  = i     % PARSER_ROWS_FWD;
-    prev2 = (i-2) % PARSER_ROWS_FWD;
-    prev3 = (i-3) % PARSER_ROWS_FWD;
-
-	ivx_2 = i     % p7P_3CODONS;
-	ivx_3 = (i-1) % p7P_3CODONS;
-	ivx_4 = (i-2) % p7P_3CODONS;
-
-	MMX(curr,0) = IMX(curr,0) = DMX(curr,0) = -eslINFINITY;
-
-	XMX(i,p7G_E) = -eslINFINITY;
-
-    for (k = 1; k < M; k++)
-    {
-    /* For every row the 1 nuc codon transitions must be recalculated (i-1).
-     * The other codon transitions can be reused with i-1 becoming i-2,
-     * i-2 becoming i-3 and so on */
-      IVX3(ivx_2,k) = p7_FLogsum(MMX(prev2,k-1) + TSC(p7P_MM,k-1),
-                      p7_FLogsum(IMX(prev2,k-1) + TSC(p7P_IM,k-1),
-                      p7_FLogsum(DMX(prev2,k-1) + TSC(p7P_DM,k-1),
-                                 XMX(i-2,p7G_B) + TSC(p7P_BM,k-1))));
-
-      MMX(curr,k) =                         IVX3(ivx_2,k) + MSC_FS2(k);
-      MMX(curr,k) = p7_FLogsum(MMX(curr,k), IVX3(ivx_3,k) + MSC_FS3(k));
-      MMX(curr,k) = p7_FLogsum(MMX(curr,k), IVX3(ivx_4,k) + MSC_FS4(k));
-
-	  IMX(curr,k) = p7_FLogsum(MMX(prev3,k)  + TSC(p7P_MI,k),
-                               IMX(prev3,k)  + TSC(p7P_II,k));
-
-      DMX(curr,k) = p7_FLogsum(MMX(curr,k-1) + TSC(p7P_MD,k-1),
-                               DMX(curr,k-1) + TSC(p7P_DD,k-1));
-
-      XMX(i,p7G_E) = p7_FLogsum(MMX(curr,k) + esc,
-                     p7_FLogsum(DMX(curr,k) + esc,
-                                XMX(i,p7G_E)));
-	}
-
-	IVX3(ivx_2,M) = p7_FLogsum(MMX(prev2,M-1) + TSC(p7P_MM,M-1),  
-                    p7_FLogsum(IMX(prev2,M-1) + TSC(p7P_IM,M-1),
-                    p7_FLogsum(DMX(prev2,M-1) + TSC(p7P_DM,M-1),
-                               XMX(i-2,p7G_B) + TSC(p7P_BM,M-1))));
-    
-	MMX(curr,M) =                         IVX3(ivx_2,M) + MSC_FS2(M);
-    MMX(curr,M) = p7_FLogsum(MMX(curr,M), IVX3(ivx_3,M) + MSC_FS3(M));
-    MMX(curr,M) = p7_FLogsum(MMX(curr,M), IVX3(ivx_4,M) + MSC_FS4(M));
-
-	IMX(curr,M) = -eslINFINITY;
-
-    DMX(curr,M) = p7_FLogsum(MMX(curr,M-1) + TSC(p7P_MD,M-1),
-                             DMX(curr,M-1)        + TSC(p7P_DD,M-1));
-
-    XMX(i,p7G_E) = p7_FLogsum(MMX(curr,M),
-                   p7_FLogsum(DMX(curr,M),
-                              XMX(i,p7G_E)));
-
-    XMX(i,p7G_N) =            XMX(i-3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP];
-    
-    XMX(i,p7G_J) = p7_FLogsum(XMX(i-3,p7G_J) + gm_fs3->xsc[p7P_J][p7P_LOOP],
-                              XMX(i,p7G_E)   + gm_fs3->xsc[p7P_E][p7P_LOOP]);
-
-    XMX(i,p7G_C) = p7_FLogsum(XMX(i-3,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP],
-                              XMX(i,p7G_E)   + gm_fs3->xsc[p7P_E][p7P_MOVE]);
-
-    XMX(i,p7G_B) = p7_FLogsum(XMX(i,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
-                              XMX(i,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
-  
-  }
-   
-  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
-                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP],
-                                            (L >= 2 ? XMX(L-2,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
-		                                    gm_fs3->xsc[p7P_C][p7P_MOVE];
-  gx->M = M;
-  gx->L = L;
- 
-  return eslOK;
-
-}
-
-
-/* Function:  p7_GForwardParser_Frameshift_5Codons()
- * Synopsis:  The frameshift-aware Forward algorithm using 5 codon lengths - low memory.
- *
- * Purpose:   The Forward score of <p7_GForward_Frameshift()> for <gm_fs5>
- *            against <dsq> of length <L>, in a ring of <PARSER_ROWS_FWD>
- *            3-cell rows of <gx> (plus special states for all rows),
- *            with <iv> as workspace. Each row is computed by
- *            <p7_GForwardRow_Frameshift()>, so the score is identical to
- *            that of <p7_GForward_Frameshift()>.
- *
- *            The Forward score is in lod score form.  To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
  *
@@ -895,54 +353,272 @@ p7_GForwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROF
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
  *            gm_fs5 - frameshift aware codon profile, 5 codon lengths
- *            gx     - DP matrix: <PARSER_ROWS_FWD> rows of <p7G_NSCELLS>
- *                     cells per position, special states for 0..L
+ *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Forward lod score in nats
  *
  * Return:    <eslOK> on success.
  *
- * Throws:    <eslEMEM> on allocation failure.
+ * Throws:    <eslEINVAL> if <gm_fs5> isn't for 5 codon lengths or <gx>
+ *            doesn't have <p7G_NSCELLS_FS> cells per position.
  */
 int
-p7_GForwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_GForward_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
-  float **dp  = NULL;   /* row i is ring row i % PARSER_ROWS_FWD of <gx> */
+  float **dp  = gx->dp;
   float  *xmx = gx->xmx;
   int     i;
-  int     status;
 
   if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
+  if (gx->nscells != p7G_NSCELLS_FS) ESL_EXCEPTION(eslEINVAL, "DP matrix not allocated with p7G_NSCELLS_FS cells");
 
-  ESL_ALLOC(dp, sizeof(float *) * (L+1));
-  for (i = 0; i <= L; i++) dp[i] = gx->dp[i % PARSER_ROWS_FWD];
   for (i = 0; i <= L; i++)
-    p7_GForwardRow3_Frameshift(dsq, gm_fs5, dp, xmx, iv->ivx, i);
-  free(dp);
+    p7_GForwardRow_Frameshift_5Codons(dsq, gm_fs5, dp, xmx, iv->ivx, i);
 
   if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX_FS(L,p7G_C),
                                 p7_FLogsum( XMX_FS(L-1,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP],
                                             (L >= 2 ? XMX_FS(L-2,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
                                             gm_fs5->xsc[p7P_C][p7P_MOVE];
+
   gx->M = gm_fs5->M;
   gx->L = L;
   return eslOK;
-
- ERROR:
-  return status;
 }
 
-/* nuc_at()
+
+/* nt_at_fs3()
+ * The nucleotide at position <j> of <dsq> for 3-codon lookup: the
+ * placeholder <p7P_MAXCODONS3> before position 1 or for anything but
+ * A,C,G,T.
+ */
+static inline int
+nt_at_fs3(const ESL_DSQ *dsq, int j)
+{
+  return (j >= 1 && dsq[j] < p7P_MAXNUC) ? dsq[j] : p7P_MAXCODONS3;
+}
+
+/* Function:  p7_GForwardRow_Frameshift_3Codons()
+ * Synopsis:  One row of the frameshift Forward algorithm, 3 codon lengths.
+ *
+ * Purpose:   Forward row <i> (0..L) of the 3-codon profile <gm_fs3>
+ *            against the DNA sequence <dsq> into <dp>[i] (<p7G_NSCELLS>
+ *            cells per position) and row <i> of <xmx>, from rows i-2
+ *            and i-3 (core cells and special states) and the codon
+ *            partial sums of rows i-1 and i-2 in <ivx> (<p7P_3CODONS>
+ *            rows of a P7_IVX), where row <i>'s own partial sums are
+ *            written. The codon context of row <i> is read from
+ *            dsq[i-3..i]. Row 0 is the initialization, of <dp>[0], row
+ *            0 of <xmx> and all of <ivx>. Same calculation as each row
+ *            of <p7_GForward_Frameshift_3Codons()>, which calls it.
+ *
+ *            Caller must have initialized the log-sum calculation with
+ *            a call to <p7_FLogsumInit()>.
+ */
+void
+p7_GForwardRow_Frameshift_3Codons(const ESL_DSQ *dsq, const P7_FS_PROFILE *gm_fs3, float **dp, float *xmx, float *ivx, int i)
+{
+  float const *tsc  = gm_fs3->tsc;
+  float const *rsc2, *rsc3, *rsc4;
+  int          M    = gm_fs3->M;
+  int          k;
+  int          c2, c3, c4;
+  int          u, v, w, x;
+  int          ivx_2, ivx_3, ivx_4;
+  float        esc  = p7_fs_profile_IsLocal(gm_fs3) ? 0 : -eslINFINITY;
+
+  if (i == 0)
+    for (k = 0; k <= M; k++)
+      for (c2 = 0; c2 < p7P_3CODONS; c2++)
+        IVX3(c2,k) = -eslINFINITY;
+
+  if (i <= 1)
+    {
+      XMX(i,p7G_N) = 0.;                           /* S->N, p=1          */
+      XMX(i,p7G_B) = gm_fs3->xsc[p7P_N][p7P_MOVE]; /* S->N->B, no N-tail */
+      XMX(i,p7G_E) = XMX(i,p7G_J) = XMX(i,p7G_C) = -eslINFINITY;
+      for (k = 0; k <= M; k++)
+        MMX(i,k) = IMX(i,k) = DMX(i,k) = -eslINFINITY;
+      return;
+    }
+
+  x = nt_at_fs3(dsq, i);
+  w = nt_at_fs3(dsq, i-1);
+  v = nt_at_fs3(dsq, i-2);
+  u = nt_at_fs3(dsq, i-3);
+
+  /* Length 2 quasi-codon */
+  c2   = p7P_CODON2_FS3(w, x);
+  c2   = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
+  rsc2 = gm_fs3->rsc[c2];
+
+  if (i == 2)
+    {
+      XMX(2,p7G_E) = -eslINFINITY;
+      MMX(2,0) = IMX(2,0) = DMX(2,0) = -eslINFINITY;
+
+      for (k = 1; k <= M; k++)
+        {
+          IVX3(2,k) = XMX(0,p7G_B) + TSC(p7P_BM,k-1);
+          MMX(2,k)  = IVX3(2,k) + MSC_FS2(k);
+          IMX(2,k)  = -eslINFINITY;
+          DMX(2,k)  = p7_FLogsum(MMX(2,k-1) + TSC(p7P_MD,k-1),
+                                 DMX(2,k-1) + TSC(p7P_DD,k-1));
+          XMX(2,p7G_E) = p7_FLogsum(MMX(2,k) + esc,
+                         p7_FLogsum(DMX(2,k) + esc,
+                                    XMX(2,p7G_E)));
+        }
+
+      XMX(2,p7G_N) = 0.; /* S->N, p=1 */
+      XMX(2,p7G_J) = XMX(2,p7G_E) + gm_fs3->xsc[p7P_E][p7P_LOOP];
+      XMX(2,p7G_C) = XMX(2,p7G_E) + gm_fs3->xsc[p7P_E][p7P_MOVE];
+      XMX(2,p7G_B) = p7_FLogsum(XMX(2,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
+                                XMX(2,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
+      return;
+    }
+
+  /* Length 3 codon */
+  c3 = p7P_CODON3_FS3(v, w, x);
+  c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
+
+  /* Length 4 quasi-codon */
+  c4 = p7P_CODON4_FS3(u, v, w, x);
+  c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
+  rsc3 = gm_fs3->rsc[c3];
+  rsc4 = gm_fs3->rsc[c4];
+
+  ivx_2 = i     % p7P_3CODONS;
+  ivx_3 = (i-1) % p7P_3CODONS;
+  ivx_4 = (i-2) % p7P_3CODONS;
+
+  MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+  XMX(i,p7G_E) = -eslINFINITY;
+
+  for (k = 1; k < M; k++)
+    {
+      /* Only the partial sum for the length 2 codon is new in each row;
+       * those of rows i-1 and i-2 serve the length 3 and 4 codons. */
+      IVX3(ivx_2,k) = p7_FLogsum(MMX(i-2,k-1)   + TSC(p7P_MM,k-1),
+                      p7_FLogsum(IMX(i-2,k-1)   + TSC(p7P_IM,k-1),
+                      p7_FLogsum(DMX(i-2,k-1)   + TSC(p7P_DM,k-1),
+                                 XMX(i-2,p7G_B) + TSC(p7P_BM,k-1))));
+
+      MMX(i,k) =                      IVX3(ivx_2,k) + MSC_FS2(k);
+      MMX(i,k) = p7_FLogsum(MMX(i,k), IVX3(ivx_3,k) + MSC_FS3(k));
+      MMX(i,k) = p7_FLogsum(MMX(i,k), IVX3(ivx_4,k) + MSC_FS4(k));
+
+      IMX(i,k) = p7_FLogsum(MMX(i-3,k) + TSC(p7P_MI,k),
+                            IMX(i-3,k) + TSC(p7P_II,k));
+
+      DMX(i,k) = p7_FLogsum(MMX(i,k-1) + TSC(p7P_MD,k-1),
+                            DMX(i,k-1) + TSC(p7P_DD,k-1));
+
+      XMX(i,p7G_E) = p7_FLogsum(MMX(i,k) + esc,
+                     p7_FLogsum(DMX(i,k) + esc,
+                                XMX(i,p7G_E)));
+    }
+
+  IVX3(ivx_2,M) = p7_FLogsum(MMX(i-2,M-1)   + TSC(p7P_MM,M-1),
+                  p7_FLogsum(IMX(i-2,M-1)   + TSC(p7P_IM,M-1),
+                  p7_FLogsum(DMX(i-2,M-1)   + TSC(p7P_DM,M-1),
+                             XMX(i-2,p7G_B) + TSC(p7P_BM,M-1))));
+
+  MMX(i,M) =                      IVX3(ivx_2,M) + MSC_FS2(M);
+  MMX(i,M) = p7_FLogsum(MMX(i,M), IVX3(ivx_3,M) + MSC_FS3(M));
+  MMX(i,M) = p7_FLogsum(MMX(i,M), IVX3(ivx_4,M) + MSC_FS4(M));
+
+  IMX(i,M) = -eslINFINITY;
+
+  DMX(i,M) = p7_FLogsum(MMX(i,M-1) + TSC(p7P_MD,M-1),
+                        DMX(i,M-1) + TSC(p7P_DD,M-1));
+
+  XMX(i,p7G_E) = p7_FLogsum(MMX(i,M),
+                 p7_FLogsum(DMX(i,M),
+                            XMX(i,p7G_E)));
+
+  XMX(i,p7G_N) =            XMX(i-3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP];
+
+  XMX(i,p7G_J) = p7_FLogsum(XMX(i-3,p7G_J) + gm_fs3->xsc[p7P_J][p7P_LOOP],
+                            XMX(i,p7G_E)   + gm_fs3->xsc[p7P_E][p7P_LOOP]);
+
+  XMX(i,p7G_C) = p7_FLogsum(XMX(i-3,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP],
+                            XMX(i,p7G_E)   + gm_fs3->xsc[p7P_E][p7P_MOVE]);
+
+  XMX(i,p7G_B) = p7_FLogsum(XMX(i,p7G_N) + gm_fs3->xsc[p7P_N][p7P_MOVE],
+                            XMX(i,p7G_J) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
+}
+
+
+/* Function:  p7_GForward_Frameshift_3Codons()
+ * Synopsis:  The frameshift Forward algorithm, 3 codon lengths.
+ *
+ * Purpose:   The Forward dynamic programming algorithm for frameshift
+ *            aware translated comparison of the DNA sequence <dsq> of
+ *            length <L> to the profile <gm_fs3>, with three codon
+ *            lengths (2, 3 and 4 nucleotides).
+ *
+ *            Caller provides the DP matrix <gx>, allocated for at least
+ *            <gm_fs3->M> by <L> with <p7G_NSCELLS> cells per position
+ *            (M, I, D), and the intermediate value matrix <iv> with
+ *            <p7P_3CODONS> rows. Each row is computed by
+ *            <p7_GForwardRow_Frameshift_3Codons()>. The Forward matrix
+ *            is returned in <gx> and the Forward score in <opt_sc>.
+ *
+ *            The Forward score is in lod score form. To convert to a
+ *            bitscore, the caller needs to subtract a null model lod
+ *            score, then convert to bits.
+ *
+ *            Caller must have initialized the log-sum calculation
+ *            with a call to <p7_FLogsumInit()>.
+ *
+ * Args:      dsq    - nucleotide sequence in digitized form, 1..L
+ *            L      - length of dsq
+ *            gm_fs3 - frameshift aware codon profile, 3 codon lengths
+ *            gx     - DP matrix with room for an MxL alignment
+ *            iv     - intermediate value matrix
+ *            opt_sc - optRETURN: Forward lod score in nats
+ *
+ * Return:    <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <gm_fs3> isn't for 3 codon lengths or <gx>
+ *            doesn't have <p7G_NSCELLS> cells per position.
+ */
+int
+p7_GForward_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+{
+  float *xmx = gx->xmx;
+  int    i;
+
+  if (gm_fs3->codon_lengths != 3) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 3 codon lengths");
+  if (gx->nscells != p7G_NSCELLS)    ESL_EXCEPTION(eslEINVAL, "DP matrix not allocated with p7G_NSCELLS cells");
+
+  for (i = 0; i <= L; i++)
+    p7_GForwardRow_Frameshift_3Codons(dsq, gm_fs3, gx->dp, xmx, iv->ivx, i);
+
+  if (opt_sc != NULL) *opt_sc = p7_FLogsum( XMX(L,p7G_C),
+                                p7_FLogsum( XMX(L-1,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP],
+                                            (L >= 2 ? XMX(L-2,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP] : -eslINFINITY))) +
+                                            gm_fs3->xsc[p7P_C][p7P_MOVE];
+  gx->M = gm_fs3->M;
+  gx->L = L;
+  return eslOK;
+}
+
+
+/*****************************************************************
+ * 2. Backward, 5 and 3 codon lengths.
+ *****************************************************************/
+
+/* nuc_at_fs5()
  * The nucleotide at position <j> of <dsq> for codon lookup: the
  * placeholder <p7P_MAXCODONS5> past <L> or for anything but A,C,G,T.
  */
 static inline int
-nuc_at(const ESL_DSQ *dsq, int L, int j)
+nuc_at_fs5(const ESL_DSQ *dsq, int L, int j)
 {
   return (j <= L && dsq[j] < p7P_MAXNUC) ? dsq[j] : p7P_MAXCODONS5;
 }
 
-/* Function:  p7_GBackwardRow_Frameshift()
+/* Function:  p7_GBackwardRow_Frameshift_5Codons()
  * Synopsis:  One row of the frameshift Backward algorithm.
  *
  * Purpose:   Frameshift Backward row <i> (0..L) of the 5-codon profile
@@ -952,13 +628,13 @@ nuc_at(const ESL_DSQ *dsq, int L, int j)
  *            the special states of row i+3; row <L> is the
  *            initialization. The codon context of row <i> is read from
  *            dsq[i+1..i+5]. Same calculation as each row of
- *            <p7_GBackward_Frameshift()>, which calls it.
+ *            <p7_GBackward_Frameshift_5Codons()>, which calls it.
  *
  *            Caller must have initialized the log-sum calculation with
  *            a call to <p7_FLogsumInit()>.
  */
 void
-p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i)
+p7_GBackwardRow_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, float **dp, float *xmx, float *ivx, int i)
 {
   float const *tsc = gm_fs5->tsc;
   float const *rsc1, *rsc2, *rsc3, *rsc4, *rsc5;
@@ -968,11 +644,11 @@ p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs
   int          c1, c2, c3, c4, c5;
   int          t, u, v, w, x;
 
-  x = nuc_at(dsq, L, i+1);
-  w = nuc_at(dsq, L, i+2);
-  v = nuc_at(dsq, L, i+3);
-  u = nuc_at(dsq, L, i+4);
-  t = nuc_at(dsq, L, i+5);
+  x = nuc_at_fs5(dsq, L, i+1);
+  w = nuc_at_fs5(dsq, L, i+2);
+  v = nuc_at_fs5(dsq, L, i+3);
+  u = nuc_at_fs5(dsq, L, i+4);
+  t = nuc_at_fs5(dsq, L, i+5);
 
   if (i == L)
     {
@@ -1243,19 +919,22 @@ p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs
 }
 
 
-/* Function:  p7_GBackward_Frameshift()
- * Synopsis:  The Backward algorithm.
+/* Function:  p7_GBackward_Frameshift_5Codons()
+ * Synopsis:  The frameshift Backward algorithm, 5 codon lengths.
  *
- * Purpose:   The Frameshift Aware Backward dynamic programming algorithm.
- * 
- *            Given a digital sequence <dsq> of length <L>, a profile
- *            <gm_fs5>, and DP matrix <gx> allocated for at least <gm->M>
- *            by <L> cells; calculate the probability of the sequence
- *            given the model using the Backward algorithm;  use the
- *            intermediate value matrix to store partial calculations;
- *            return the Backward matrix in <gx>, and the Backward score 
- *            in <ret_sc>.
- *           
+ * Purpose:   The Backward dynamic programming algorithm for frameshift
+ *            aware translated comparison of the DNA sequence <dsq> of
+ *            length <L> to the profile <gm_fs5>, with five codon
+ *            lengths (1 to 5 nucleotides).
+ *
+ *            Caller provides the DP matrix <gx>, allocated for at least
+ *            <gm_fs5->M> by <L> with <p7G_NSCELLS> cells per position,
+ *            and the intermediate value matrix <iv> (at least M+1
+ *            floats). Each row is computed by
+ *            <p7_GBackwardRow_Frameshift_5Codons()>. The Backward
+ *            matrix is returned in <gx> and the Backward score in
+ *            <opt_sc>.
+ *
  *            The Backward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
@@ -1265,23 +944,27 @@ p7_GBackwardRow_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs
  *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs5  - frameshift aware codon profile.
+ *            gm_fs5 - frameshift aware codon profile, 5 codon lengths
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Backward lod score in nats
- *           
+ *
  * Return:    <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <gm_fs5> isn't for 5 codon lengths or <gx>
+ *            doesn't have <p7G_NSCELLS> cells per position.
  */
 int
-p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_GBackward_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
   float *xmx = gx->xmx;
   int    i;
 
-  if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 5 codon lengths");
+  if (gm_fs5->codon_lengths != 5) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 5 codon lengths");
+  if (gx->nscells != p7G_NSCELLS)    ESL_EXCEPTION(eslEINVAL, "DP matrix not allocated with p7G_NSCELLS cells");
 
   for (i = L; i >= 0; i--)
-    p7_GBackwardRow_Frameshift(dsq, L, gm_fs5, gx->dp, gx->xmx, iv->ivx, i);
+    p7_GBackwardRow_Frameshift_5Codons(dsq, L, gm_fs5, gx->dp, gx->xmx, iv->ivx, i);
 
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
@@ -1292,785 +975,298 @@ p7_GBackward_Frameshift(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, 
 }
 
 
-/* Function:  p7_GBackwardParser_Frameshift_3Codons()
- * Synopsis:  The Backward algorithm.
- *
- * Purpose:   The Backward dynamic programming algorithm - low memory, 3 codon lengths.
- * 
- *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs3>, 
- *            and DP matrix <gx> allocated for at least <L>  cells for the 
- *            special states, and <PARSER_ROWS_BWD> by <gm_fs3->M> cells for 
- *            the core model states <M,I,D>; calculate the probability of the 
- *            sequence given the model using the Backward algorithm; use the 
- *            intermediate value matrix to store partial calculations; return 
- *            the Backward matrix in <gx>, and the Backward score in <ret_sc>.
- *           
- *            The Backward score is in lod score form. To convert to a
- *            bitscore, the caller needs to subtract a null model lod
- *            score, then convert to bits.
- *
- * Args:      dsq    - nucleotide sequence in digitized form, 1..L
- *            L      - length of dsq
- *            gm_fs3  - frameshift aware codon profile.
- *            gx     - DP matrix with room for an MxL alignment
- *            iv     - intermediate value matrix
- *            opt_sc - optRETURN: Backward lod score in nats
- *           
- * Return:    <eslOK> on success.
+/* nuc_at_fs3()
+ * The nucleotide at position <j> of <dsq> for 3-codon lookup: the
+ * placeholder <p7P_MAXCODONS3> past <L> or for anything but A,C,G,T.
  */
-int
-p7_GBackwardParser_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+static inline int
+nuc_at_fs3(const ESL_DSQ *dsq, int L, int j)
 {
+  return (j <= L && dsq[j] < p7P_MAXNUC) ? dsq[j] : p7P_MAXCODONS3;
+}
 
-  float const *tsc  = gm_fs3->tsc;
+/* Function:  p7_GBackwardRow_Frameshift_3Codons()
+ * Synopsis:  One row of the frameshift Backward algorithm, 3 codon lengths.
+ *
+ * Purpose:   Frameshift Backward row <i> (0..L) of the 3-codon profile
+ *            <gm_fs3> against <dsq> of length <L>: core cells
+ *            (<p7G_NSCELLS> per position) through row pointers <dp>,
+ *            special states in <xmx>, with <ivx> (M+1 floats) as
+ *            workspace. Reads rows i+2..i+4 (core) and the special
+ *            states of row i+3; row <L> is the initialization. The
+ *            codon context of row <i> is read from dsq[i+1..i+4]. Same
+ *            calculation as each row of
+ *            <p7_GBackward_Frameshift_3Codons()>, which calls it.
+ *
+ *            Caller must have initialized the log-sum calculation with
+ *            a call to <p7_FLogsumInit()>.
+ */
+void
+p7_GBackwardRow_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, float **dp, float *xmx, float *ivx, int i)
+{
+  float const *tsc = gm_fs3->tsc;
   float const *rsc2, *rsc3, *rsc4;
-  float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx;
-  float       *ivx  = iv->ivx;
-  int          M    = gm_fs3->M;
-  int          i, k;
+  int          M   = gm_fs3->M;
+  float        esc = p7_fs_profile_IsLocal(gm_fs3) ? 0 : -eslINFINITY;
+  int          k;
   int          c2, c3, c4;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs3) ? 0 : -eslINFINITY;
   int          u, v, w, x;
-  int          curr, prev2, prev3, prev4;
 
-  if(gm_fs3->codon_lengths != 3) ESL_EXCEPTION(eslEINVAL, "proflie not allocated for 3 codon lengths");
-
-  for(k = 0; k <= M; k++)
-    ivx[k] = -eslINFINITY;
-
-  /* Short sequences (L < 5) skip some of the row initializations below,
-   * so the codon context must start as placeholders. */
-  u = v = w = x = p7P_MAXCODONS3;
-
-  /* Initialization of row L and L-1 (row 0 is done at the end) */
-  XMX(L,p7G_C)   =                               gm_fs3->xsc[p7P_C][p7P_MOVE];
-  if (L >= 2)
-    XMX(L-1,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
-  for(i = L; i >= L-1 && i >= 1; i--) {
-    curr = i % PARSER_ROWS_BWD;
-    XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY;  /* need to enter and exit model */
-    XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]; /* E<-C, no tail */
-    MMX(curr,M)  = DMX(curr,M) = XMX(i,p7G_E);                  /* {MD}_M <- E (prob 1.0) */
-    IMX(curr,M)  = -eslINFINITY;                                /* no I_M state        */
-
-    for (k = M-1; k >= 1; k--) 
+  if (i >= L-1 && i >= 1)
     {
-   
-      MMX(curr,k) = p7_FLogsum( XMX(i,p7G_E)    + esc,
-                                DMX(curr, k+1)  + TSC(p7P_MD,k));
+      XMX(i,p7G_C) = (i == L ? gm_fs3->xsc[p7P_C][p7P_MOVE] : gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE]);
+      XMX(i,p7G_J) = XMX(i,p7G_B) = XMX(i,p7G_N) = -eslINFINITY;  /* need to enter and exit model */
+      XMX(i,p7G_E) = XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]; /* E<-C, no tail */
+      MMX(i,M)     = DMX(i,M) = XMX(i,p7G_E);                     /* {MD}_M <- E (prob 1.0) */
+      IMX(i,M)     = -eslINFINITY;                                /* no I_M state        */
 
-      DMX(curr,k) = p7_FLogsum( XMX(i,p7G_E)    + esc,
-                                DMX(curr, k+1)  + TSC(p7P_DD,k));
-
-      IMX(curr,k) = -eslINFINITY;
+      for (k = M-1; k >= 1; k--)
+        {
+          MMX(i,k) = p7_FLogsum( XMX(i,p7G_E) + esc,
+                                 DMX(i,k+1)   + TSC(p7P_MD,k));
+          DMX(i,k) = p7_FLogsum( XMX(i,p7G_E) + esc,
+                                 DMX(i,k+1)   + TSC(p7P_DD,k));
+          IMX(i,k) = -eslINFINITY;
+        }
+      MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+      return;
     }
-    MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
 
-  }
-  
-  /* Check for degenerate nucleotides */
+  x = nuc_at_fs3(dsq, L, i+1);
+  w = nuc_at_fs3(dsq, L, i+2);
+  v = nuc_at_fs3(dsq, L, i+3);
+  u = nuc_at_fs3(dsq, L, i+4);
 
-  /* Initialization of row L-2 (row 0 is done at the end) */
-  if (L >= 2) {
-    if(dsq[L] < p7P_MAXNUC) x = dsq[L];
-    else                                              x = p7P_MAXCODONS3;
-  }
-
-  if (L >= 3) {
-  w = x;
-
-  if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
-  else                                              x = p7P_MAXCODONS3;
-  
-  
   c2 = p7P_CODON2_FS3(x, w);
   c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
   rsc2 = gm_fs3->rsc[c2];
 
-  curr  = (L-2) % PARSER_ROWS_BWD;
-  prev2 = L     % PARSER_ROWS_BWD;
-
-  ivx[1]       = MMX(prev2,1) + MSC_FS2(1);
-  XMX(L-2,p7G_B) = ivx[1]      + TSC(p7P_BM,0);
-  for (k = 2; k <= M; k++)
-  {
-    ivx[k] =  MMX(prev2,k) + MSC_FS2(k);
-
-    XMX(L-2,p7G_B) = p7_FLogsum( XMX(L-2,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-  }
-
-  XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs3->xsc[p7P_J][p7P_MOVE];
-  XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE];
-  XMX(L-2,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
-  
-  XMX(L-2,p7G_E) = p7_FLogsum(XMX(L-2,p7G_J) + gm_fs3->xsc[p7P_E][p7P_LOOP],
-                              XMX(L-2,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]);
-
-  MMX(curr,M)  = DMX(curr,M) = XMX(L-2,p7G_E); 
-  IMX(curr,M)  = -eslINFINITY;       
-
-  for (k = M-1; k >= 1; k--)
-  {
-    MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                  p7_FLogsum( ivx[k+1]        + TSC(p7P_MM,k),
-                              XMX(L-2,p7G_E)    + esc));
-
-    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(L-2,p7G_E) + esc,
-                                          DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                          ivx[k+1]        + TSC(p7P_DM,k));
-
-    IMX(curr,k) = ivx[k+1]            + TSC(p7P_IM,k);
-  }
-
-  MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-  } /* end L >= 3 */
-
-  /* Initialization of rows L-3 and L-4 (row 0 is done at the end) */
-  u = v = p7P_MAXCODONS3;
-  for (i = L-3; i > L-5 && i >= 1; i--)
-  {
-    u = v;
-    v = w;
-    w = x;
-
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS3; 
-  
-    /* find correct index for looking up scores of codons and quasicodons */ 
-    c2 = p7P_CODON2_FS3(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
-
-    c3 = p7P_CODON3_FS3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
-
-    c4 = p7P_CODON4_FS3(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
-    rsc2 = gm_fs3->rsc[c2];
-    rsc3 = gm_fs3->rsc[c3];
-    rsc4 = gm_fs3->rsc[c4];
-
-    curr  =  i    % PARSER_ROWS_BWD;
-    prev2 = (i+2) % PARSER_ROWS_BWD;
-    prev3 = (i+3) % PARSER_ROWS_BWD;
-    prev4 = (i+4) % PARSER_ROWS_BWD;
-
-    ivx[1] =                     MMX(prev2,1) + MSC_FS2(1);
-
-    ivx[1] = p7_FLogsum( ivx[1], MMX(prev3,1) + MSC_FS3(1));
-
-    if( i == L-4 )
-      ivx[1] = p7_FLogsum( ivx[1], MMX(prev4,1) + MSC_FS4(1));
-
-    XMX(i,p7G_B)   =  ivx[1] + TSC(p7P_BM,0);
-
-     for (k = 2; k <= M; k++)
+  if (i == 0)
     {
-      ivx[k] =                     MMX(prev2,k) + MSC_FS2(k);
+      /* At i=0, only N,B states are reachable. Rows past L do not
+       * exist; when L < 4 they contribute nothing. */
+      c3 = p7P_CODON3_FS3(x, w, v);
+      c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
+      c4 = p7P_CODON4_FS3(x, w, v, u);
+      c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
+      rsc3 = gm_fs3->rsc[c3];
+      rsc4 = gm_fs3->rsc[c4];
 
-      ivx[k] = p7_FLogsum( ivx[k], MMX(prev3,k) + MSC_FS3(k));
+      ivx[1] = p7_FLogsum( (L >= 2 ? MMX(2,1) + MSC_FS2(1) : -eslINFINITY),
+               p7_FLogsum( (L >= 3 ? MMX(3,1) + MSC_FS3(1) : -eslINFINITY),
+                           (L >= 4 ? MMX(4,1) + MSC_FS4(1) : -eslINFINITY)));
 
-      if( i == L-4 )
-        ivx[k]  = p7_FLogsum( ivx[k], MMX(prev4,k) + MSC_FS4(k));
+      XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
-      XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+      for (k = 2; k <= M; k++)
+        {
+          ivx[k] = p7_FLogsum( (L >= 2 ? MMX(2,k) + MSC_FS2(k) : -eslINFINITY),
+                   p7_FLogsum( (L >= 3 ? MMX(3,k) + MSC_FS3(k) : -eslINFINITY),
+                               (L >= 4 ? MMX(4,k) + MSC_FS4(k) : -eslINFINITY)));
+
+          XMX(0,p7G_B) = p7_FLogsum(XMX(0,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+        }
+
+      XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
+
+      XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
+                                 XMX(0,p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
+
+      for (k = M; k >= 0; k--)
+        MMX(0,k) = DMX(0,k) = IMX(0,k) = -eslINFINITY;
+      return;
     }
 
-    XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs3->xsc[p7P_J][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
-
-    XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP];
-
-    XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
-
-    XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs3->xsc[p7P_E][p7P_LOOP],
-                              XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]);
-
-    MMX(curr,M)     = DMX(curr,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
-    IMX(curr,M)     = -eslINFINITY;            /* no I_M state        */
-
-    for (k = M-1; k >= 1; k--)
+  if (i == L-2)
     {
-      MMX(curr,k) = p7_FLogsum( DMX(curr,k+1) + TSC(p7P_MD,k),
-                    p7_FLogsum( IMX(prev3,k)  + TSC(p7P_MI,k),
-                    p7_FLogsum( ivx[k+1]      + TSC(p7P_MM,k),
-                                XMX(i,p7G_E)  + esc)));
-        
-      DMX(curr,k) = p7_FLogsum( DMX(curr,k+1) + TSC(p7P_DD,k),
-                    p7_FLogsum( XMX(i,p7G_E)  + esc,
-                                ivx[k+1]      + TSC(p7P_DM,k)));
+      ivx[1]       = MMX(L,1) + MSC_FS2(1);
+      XMX(i,p7G_B) = ivx[1]   + TSC(p7P_BM,0);
+      for (k = 2; k <= M; k++)
+        {
+          ivx[k] = MMX(L,k) + MSC_FS2(k);
+          XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+        }
 
-      IMX(curr,k) = p7_FLogsum( IMX(prev3,k)  + TSC(p7P_II,k),
-                                ivx[k+1]       + TSC(p7P_IM,k));
+      XMX(i,p7G_J) = XMX(i,p7G_B) + gm_fs3->xsc[p7P_J][p7P_MOVE];
+      XMX(i,p7G_N) = XMX(i,p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE];
+      XMX(i,p7G_C) = gm_fs3->xsc[p7P_C][p7P_LOOP] + gm_fs3->xsc[p7P_C][p7P_MOVE];
+
+      XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs3->xsc[p7P_E][p7P_LOOP],
+                                XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]);
+
+      MMX(i,M) = DMX(i,M) = XMX(i,p7G_E);
+      IMX(i,M) = -eslINFINITY;
+
+      for (k = M-1; k >= 1; k--)
+        {
+          MMX(i,k) = p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
+                     p7_FLogsum( ivx[k+1]     + TSC(p7P_MM,k),
+                                 XMX(i,p7G_E) + esc));
+
+          DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
+                                             DMX(i,k+1)   + TSC(p7P_DD,k)),
+                                             ivx[k+1]     + TSC(p7P_DM,k));
+
+          IMX(i,k) = ivx[k+1] + TSC(p7P_IM,k);
+        }
+
+      MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
+      return;
     }
 
-    MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
-  }
-
-  /* Main recursion */
-  for (i = L-5; i > 0; i--)
-  {
-    u = v;
-    v = w;
-    w = x;
-
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS3; 
-  
-    /* find correct index for looking up scores of codons and quasicodons */ 
-    c2 = p7P_CODON2_FS3(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
-
-    c3 = p7P_CODON3_FS3(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
-
-    c4 = p7P_CODON4_FS3(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
-
-    curr  =  i    % PARSER_ROWS_BWD;
-    prev2 = (i+2) % PARSER_ROWS_BWD;
-    prev3 = (i+3) % PARSER_ROWS_BWD;
-    prev4 = (i+4) % PARSER_ROWS_BWD;
-
-    rsc2 = gm_fs3->rsc[c2];
-    rsc3 = gm_fs3->rsc[c3];
-    rsc4 = gm_fs3->rsc[c4];
-
-    ivx[1] = p7_FLogsum( MMX(prev2,1) + MSC_FS2(1),
-             p7_FLogsum( MMX(prev3,1) + MSC_FS3(1),
-                         MMX(prev4,1) + MSC_FS4(1)));
-
-    XMX(i,p7G_B) = ivx[1] + TSC(p7P_BM,0);
-
-    for (k = 2; k <= M; k++) {
-      ivx[k] = p7_FLogsum( MMX(prev2,k) + MSC_FS2(k),
-               p7_FLogsum( MMX(prev3,k) + MSC_FS3(k),
-                           MMX(prev4,k) + MSC_FS4(k)));
-
-      XMX(i,p7G_B) = p7_FLogsum( XMX(i, p7G_B), ivx[k] + TSC(p7P_BM,k-1));  
-    }
-  
-    XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs3->xsc[p7P_J][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
-
-    XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP];
-
-    XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
-
-    XMX(i,p7G_E) = p7_FLogsum( XMX(i,p7G_J) + gm_fs3->xsc[p7P_E][p7P_LOOP],
-                               XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]);
-    
-    MMX(curr,M)     = DMX(curr,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
-    IMX(curr,M)     = -eslINFINITY;            /* no I_M state        */
-
-    for (k = M-1; k >= 1; k--)
-    {
-      MMX(curr,k) = p7_FLogsum( p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                                p7_FLogsum( IMX(prev3,k)   + TSC(p7P_MI,k),
-                                            ivx[k+1]      + TSC(p7P_MM,k))),
-                                            XMX(i,p7G_E) + esc);
-
-      DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
-                                            DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                            ivx[k+1]      + TSC(p7P_DM,k));
-
-      IMX(curr,k) = p7_FLogsum(             IMX(prev3,k  ) + TSC(p7P_II,k),
-                                            ivx[k+1]      + TSC(p7P_IM,k));
-    }
-
-    MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
-  }
-
-  /* At i=0, only N,B states are reachable. */
-  u = v;
-  v = w;
-  w = x;
-
-  /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-  if(dsq[1] < p7P_MAXNUC) x = dsq[1];
-  else                                            x = p7P_MAXCODONS3; 
-  
-  /* find correct index for looking up scores of codons and quasicodons */ 
-  c2 = p7P_CODON2_FS3(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN3_QC1);
-
+  /* find correct index for looking up scores of codons and quasicodons */
   c3 = p7P_CODON3_FS3(x, w, v);
   c3 = p7P_MINIDX(c3, p7P_DEGEN3_C);
-
   c4 = p7P_CODON4_FS3(x, w, v, u);
   c4 = p7P_MINIDX(c4, p7P_DEGEN3_QC1);
-
-  prev2 = 2 % PARSER_ROWS_BWD;
-  prev3 = 3 % PARSER_ROWS_BWD;
-  prev4 = 4 % PARSER_ROWS_BWD;
-
-  rsc2 = gm_fs3->rsc[c2];
   rsc3 = gm_fs3->rsc[c3];
   rsc4 = gm_fs3->rsc[c4];
 
-  /* Rows past L do not exist; when L < 4 they contribute nothing. */
-  ivx[1] = p7_FLogsum( (L >= 2 ? MMX(prev2,1) + MSC_FS2(1) : -eslINFINITY),
-           p7_FLogsum( (L >= 3 ? MMX(prev3,1) + MSC_FS3(1) : -eslINFINITY),
-                       (L >= 4 ? MMX(prev4,1) + MSC_FS4(1) : -eslINFINITY)));
+  if (i > L-5)   /* rows L-3 and L-4: row i+4 exists only for L-4 */
+    {
+      ivx[1] =                     MMX(i+2,1) + MSC_FS2(1);
+      ivx[1] = p7_FLogsum( ivx[1], MMX(i+3,1) + MSC_FS3(1));
+      if (i == L-4)
+        ivx[1] = p7_FLogsum( ivx[1], MMX(i+4,1) + MSC_FS4(1));
 
-  XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
+      XMX(i,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
-  for (k = 2; k <= M; k++)
-  {
-   ivx[k] =  p7_FLogsum( (L >= 2 ? MMX(prev2,k) + MSC_FS2(k) : -eslINFINITY),
-             p7_FLogsum( (L >= 3 ? MMX(prev3,k) + MSC_FS3(k) : -eslINFINITY),
-                         (L >= 4 ? MMX(prev4,k) + MSC_FS4(k) : -eslINFINITY)));
+      for (k = 2; k <= M; k++)
+        {
+          ivx[k] =                     MMX(i+2,k) + MSC_FS2(k);
+          ivx[k] = p7_FLogsum( ivx[k], MMX(i+3,k) + MSC_FS3(k));
+          if (i == L-4)
+            ivx[k] = p7_FLogsum( ivx[k], MMX(i+4,k) + MSC_FS4(k));
 
-    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-  }
+          XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+        }
+    }
+  else
+    {
+      ivx[1] = p7_FLogsum( MMX(i+2,1) + MSC_FS2(1),
+               p7_FLogsum( MMX(i+3,1) + MSC_FS3(1),
+                           MMX(i+4,1) + MSC_FS4(1)));
 
-  XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
+      XMX(i,p7G_B) = ivx[1] + TSC(p7P_BM,0);
 
-  XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
-                             XMX(0,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
+      for (k = 2; k <= M; k++)
+        {
+          ivx[k] = p7_FLogsum( MMX(i+2,k) + MSC_FS2(k),
+                   p7_FLogsum( MMX(i+3,k) + MSC_FS3(k),
+                               MMX(i+4,k) + MSC_FS4(k)));
 
-  for (k = M; k >= 0; k--)
-    MMX(0,k) = DMX(0,k) =  IMX(0,k) = -eslINFINITY;
+          XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
+        }
+    }
 
-  if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
-                                 p7_FLogsum( XMX(1,p7G_N),
-                                             (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
-  gx->M = M;
-  gx->L = L;
-  
-  return eslOK;
+  XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs3->xsc[p7P_J][p7P_LOOP],
+                             XMX(i,  p7G_B) + gm_fs3->xsc[p7P_J][p7P_MOVE]);
 
+  XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs3->xsc[p7P_C][p7P_LOOP];
+
+  XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs3->xsc[p7P_N][p7P_LOOP],
+                             XMX(i,  p7G_B) + gm_fs3->xsc[p7P_N][p7P_MOVE]);
+
+  XMX(i,p7G_E) = p7_FLogsum( XMX(i,p7G_J) + gm_fs3->xsc[p7P_E][p7P_LOOP],
+                             XMX(i,p7G_C) + gm_fs3->xsc[p7P_E][p7P_MOVE]);
+
+  MMX(i,M) = DMX(i,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
+  IMX(i,M) = -eslINFINITY;            /* no I_M state        */
+
+  if (i > L-5)
+    for (k = M-1; k >= 1; k--)
+      {
+        MMX(i,k) = p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
+                   p7_FLogsum( IMX(i+3,k)   + TSC(p7P_MI,k),
+                   p7_FLogsum( ivx[k+1]     + TSC(p7P_MM,k),
+                               XMX(i,p7G_E) + esc)));
+
+        DMX(i,k) = p7_FLogsum( DMX(i,k+1)   + TSC(p7P_DD,k),
+                   p7_FLogsum( XMX(i,p7G_E) + esc,
+                               ivx[k+1]     + TSC(p7P_DM,k)));
+
+        IMX(i,k) = p7_FLogsum( IMX(i+3,k)   + TSC(p7P_II,k),
+                               ivx[k+1]     + TSC(p7P_IM,k));
+      }
+  else
+    for (k = M-1; k >= 1; k--)
+      {
+        MMX(i,k) = p7_FLogsum( p7_FLogsum( DMX(i,k+1)   + TSC(p7P_MD,k),
+                               p7_FLogsum( IMX(i+3,k)   + TSC(p7P_MI,k),
+                                           ivx[k+1]     + TSC(p7P_MM,k))),
+                                           XMX(i,p7G_E) + esc);
+
+        DMX(i,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
+                                           DMX(i,k+1)   + TSC(p7P_DD,k)),
+                                           ivx[k+1]     + TSC(p7P_DM,k));
+
+        IMX(i,k) = p7_FLogsum(             IMX(i+3,k)   + TSC(p7P_II,k),
+                                           ivx[k+1]     + TSC(p7P_IM,k));
+      }
+
+  MMX(i,0) = IMX(i,0) = DMX(i,0) = -eslINFINITY;
 }
 
-/* Function:  p7_GBackwardParser_Frameshift_5Codons()
- * Synopsis:  The Backward algorithm.
+
+/* Function:  p7_GBackward_Frameshift_3Codons()
+ * Synopsis:  The frameshift Backward algorithm, 3 codon lengths.
  *
- * Purpose:   The Backward dynamic programming algorithm - low memory, 5 codon lengths.
+ * Purpose:   The Backward dynamic programming algorithm for frameshift
+ *            aware translated comparison of the DNA sequence <dsq> of
+ *            length <L> to the profile <gm_fs3>, with three codon
+ *            lengths (2, 3 and 4 nucleotides).
  *
- *            Given a digital sequence <dsq> of length <L>, a profile <gm_fs5>,
- *            and DP matrix <gx> allocated for at least <L>  cells for the
- *            special states, and <PARSER_ROWS_BWD> by <gm_fs5->M> cells for
- *            the core model states <M,I,D>; calculate the probability of the
- *            sequence given the model using the Backward algorithm; use the
- *            intermediate value matrix to store partial calculations; return
- *            the Backward matrix in <gx>, and the Backward score in <ret_sc>.
+ *            Caller provides the DP matrix <gx>, allocated for at least
+ *            <gm_fs3->M> by <L> with <p7G_NSCELLS> cells per position,
+ *            and the intermediate value matrix <iv> (at least M+1
+ *            floats). Each row is computed by
+ *            <p7_GBackwardRow_Frameshift_3Codons()>. The Backward
+ *            matrix is returned in <gx> and the Backward score in
+ *            <opt_sc>.
  *
  *            The Backward score is in lod score form. To convert to a
  *            bitscore, the caller needs to subtract a null model lod
  *            score, then convert to bits.
  *
+ *            Caller must have initialized the log-sum calculation
+ *            with a call to <p7_FLogsumInit()>.
+ *
  * Args:      dsq    - nucleotide sequence in digitized form, 1..L
  *            L      - length of dsq
- *            gm_fs5  - frameshift aware codon profile.
+ *            gm_fs3 - frameshift aware codon profile, 3 codon lengths
  *            gx     - DP matrix with room for an MxL alignment
  *            iv     - intermediate value matrix
  *            opt_sc - optRETURN: Backward lod score in nats
  *
  * Return:    <eslOK> on success.
+ *
+ * Throws:    <eslEINVAL> if <gm_fs3> isn't for 3 codon lengths or <gx>
+ *            doesn't have <p7G_NSCELLS> cells per position.
  */
 int
-p7_GBackwardParser_Frameshift_5Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs5, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
+p7_GBackward_Frameshift_3Codons(const ESL_DSQ *dsq, int L, const P7_FS_PROFILE *gm_fs3, P7_GMX *gx, P7_IVX *iv, float *opt_sc)
 {
+  float *xmx = gx->xmx;
+  int    i;
 
-  float const *tsc  = gm_fs5->tsc;
-  float const *rsc1, *rsc2, *rsc3, *rsc4, *rsc5;
-  float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx;
-  float       *ivx   = iv->ivx;
-  int          M    = gm_fs5->M;
-  int          i, k;;
-  int          c1, c2, c3, c4, c5;
-  float        esc  = p7_fs_profile_IsLocal(gm_fs5) ? 0 : -eslINFINITY;
-  int          t, u, v, w, x;
-  int          curr, prev1, prev2, prev3, prev4, prev5;
+  if (gm_fs3->codon_lengths != 3) ESL_EXCEPTION(eslEINVAL, "profile not allocated for 3 codon lengths");
+  if (gx->nscells != p7G_NSCELLS)    ESL_EXCEPTION(eslEINVAL, "DP matrix not allocated with p7G_NSCELLS cells");
 
-  for(k = 0; k <= M; k++)
-    ivx[k] = -eslINFINITY;
-
-  /* Short sequences (L < 5) skip some of the row initializations below,
-   * so the codon context must start as placeholders. */
-  t = u = v = w = x = p7P_MAXCODONS5;
-
-  /* Initialization of row L  */
-  curr  =  L    % PARSER_ROWS_BWD;
-  XMX(L,p7G_J) = XMX(L,p7G_B) = XMX(L,p7G_N) = -eslINFINITY; /* need to enter and exit model */
-  XMX(L,p7G_C) = gm_fs5->xsc[p7P_C][p7P_MOVE];                   /* C<-T         */
-  XMX(L,p7G_E) = XMX(L,p7G_C) + gm_fs5->xsc[p7P_E][p7P_MOVE];    /* E<-C, no tail */
-  MMX(curr,M)     = DMX(curr,M) = XMX(L,p7G_E);                    /* {MD}_M <- E (prob 1.0) */
-  IMX(curr,M)     = -eslINFINITY;                               /* no I_M state        */
-
-  /* Initialization of core model for row L */
-  for (k = M-1; k >= 1; k--) 
-  {
-    /*L comes from E & D state only */
-    MMX(curr,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
-                              DMX(curr, k+1)  + TSC(p7P_MD,k));
- 
-    DMX(curr,k) = p7_FLogsum( XMX(L,p7G_E) + esc,
-                              DMX(curr, k+1)  + TSC(p7P_DD,k));
-
-    /* no I state at L to L-2 */
-    IMX(curr,k) = -eslINFINITY;
-  }
-  MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
-  /* Initialization of row L - 1 (row 0 is done at the end) */
-  if (L >= 2) {
-  if(dsq[L] < p7P_MAXNUC) x = dsq[L];
-  else                                            x = p7P_MAXCODONS5;
-
-  c1 = p7P_CODON1_FS5(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-  rsc1 = gm_fs5->rsc[c1];
-
-  curr  = (L-1)    % PARSER_ROWS_BWD;
-  prev1 =  L       % PARSER_ROWS_BWD;
-
-  ivx[1]       = MMX(prev1,1) + MSC_FS1(1);
-  XMX(L-1,p7G_B) = ivx[1]   + TSC(p7P_BM,0);
-  for (k = 2; k <= M; k++)
-  {
-    ivx[k] =  MMX(prev1,k) + MSC_FS1(k);
-
-    XMX(L-1,p7G_B) = p7_FLogsum( XMX(L-1,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-  }
-
-  XMX(L-1,p7G_J) = XMX(L-1,p7G_B) + gm_fs5->xsc[p7P_J][p7P_MOVE];
-  XMX(L-1,p7G_N) = XMX(L-1,p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE];
-  XMX(L-1,p7G_C) = gm_fs5->xsc[p7P_C][p7P_LOOP] + gm_fs5->xsc[p7P_C][p7P_MOVE];
-  XMX(L-1,p7G_E) = p7_FLogsum( XMX(L-1,p7G_J) + gm_fs5->xsc[p7P_E][p7P_LOOP],
-				               XMX(L-1,p7G_C) + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-
-  MMX(curr,M)  = DMX(curr,M) = XMX(L-1,p7G_E); 
-  for (k = M-1; k >= 1; k--)
-  {
-    MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                 p7_FLogsum( ivx[k+1]       + TSC(p7P_MM,k),
-                             XMX(L-1,p7G_E)  + esc));
-
-    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(L-1,p7G_E) + esc,
-                                          DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                          ivx[k+1]       + TSC(p7P_DM,k));
-
-    IMX(curr,k) = ivx[k+1]            + TSC(p7P_IM,k);
-  }
-
-  MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-  } /* end L >= 2 */
-
-  /* Initialization of row L - 2 (row 0 is done at the end) */
-  if (L >= 3) {
-  w = x;
-
-  if(dsq[L-1] < p7P_MAXNUC) x = dsq[L-1];
-  else                                            x = p7P_MAXCODONS5;
-
-  c1 = p7P_CODON1_FS5(x);
-  c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-
-  c2 = p7P_CODON2_FS5(x, w);
-  c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-  rsc1 = gm_fs5->rsc[c1];
-  rsc2 = gm_fs5->rsc[c2];
-
-  curr  = (L-2)    % PARSER_ROWS_BWD;
-  prev1 = (L-1)      % PARSER_ROWS_BWD;
-  prev2 =  L       % PARSER_ROWS_BWD;
-  ivx[1] =                     MMX(prev1,1) + MSC_FS1(1);
-  ivx[1] = p7_FLogsum( ivx[1], MMX(prev2,1) + MSC_FS2(1));
-
-  XMX(L-2,p7G_B)   =  ivx[1] + TSC(p7P_BM,0);
-  for (k = 2; k <= M; k++)
-  {
-    ivx[k] =                     MMX(prev1,k) + MSC_FS1(k);
-    ivx[k] = p7_FLogsum( ivx[k], MMX(prev2,k) + MSC_FS2(k));
-   
-    XMX(L-2,p7G_B) = p7_FLogsum( XMX(L-2,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-  }
-  
-  XMX(L-2,p7G_J) = XMX(L-2,p7G_B) + gm_fs5->xsc[p7P_J][p7P_MOVE];
-  XMX(L-2,p7G_N) = XMX(L-2,p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE];
-  XMX(L-2,p7G_C) = gm_fs5->xsc[p7P_C][p7P_LOOP] + gm_fs5->xsc[p7P_C][p7P_MOVE];
-  XMX(L-2,p7G_E) = p7_FLogsum( XMX(L-2,p7G_J) + gm_fs5->xsc[p7P_E][p7P_LOOP],
-                               XMX(L-2,p7G_C) + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-
-  MMX(curr,M)  = DMX(curr,M) = XMX(L-2,p7G_E);
-  for (k = M-1; k >= 1; k--)
-  {
-    MMX(curr,k) = p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                 p7_FLogsum( ivx[k+1]       + TSC(p7P_MM,k),
-                             XMX(L-2,p7G_E)  + esc));
-
-    DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(L-2,p7G_E) + esc,
-                                          DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                          ivx[k+1]       + TSC(p7P_DM,k));
-
-    IMX(curr,k) = ivx[k+1]            + TSC(p7P_IM,k);
-  }
-  MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-  } /* end L >= 3 */
-
-  /* Initialization of rows L-3 and L-4 (row 0 is done at the end) */
-  t = u = v = p7P_MAXCODONS5;
-  for (i = L-3; i > L-5 && i >= 1; i--)
-  {
-    u = v;
-    v = w;
-    w = x;
-
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS5; 
-  
-    /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1_FS5(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-
-    c2 = p7P_CODON2_FS5(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-
-    c3 = p7P_CODON3_FS5(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-
-    c4 = p7P_CODON4_FS5(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-    rsc1 = gm_fs5->rsc[c1];
-    rsc2 = gm_fs5->rsc[c2];
-    rsc3 = gm_fs5->rsc[c3];
-    rsc4 = gm_fs5->rsc[c4];
-
-    curr  =  i    % PARSER_ROWS_BWD;
-    prev1 = (i+1) % PARSER_ROWS_BWD;
-    prev2 = (i+2) % PARSER_ROWS_BWD;
-    prev3 = (i+3) % PARSER_ROWS_BWD;
-    prev4 = (i+4) % PARSER_ROWS_BWD;
-
-    ivx[1] =                    MMX(prev1,1) + MSC_FS1(1);
-    ivx[1] = p7_FLogsum(ivx[1], MMX(prev2,1) + MSC_FS2(1));
-    ivx[1] = p7_FLogsum(ivx[1], MMX(prev3,1) + MSC_FS3(1));
-    if( i == L-4 )
-      ivx[1] = p7_FLogsum(ivx[1], MMX(prev4,1) + MSC_FS4(1));
-
-    XMX(i,p7G_B)   =  ivx[1] + TSC(p7P_BM,0);
-
-    for (k = 2; k <= M; k++)
-    {
-      ivx[k] =                    MMX(prev1,k) + MSC_FS1(k);
-      ivx[k] = p7_FLogsum(ivx[k], MMX(prev2,k) + MSC_FS2(k));
-      ivx[k] = p7_FLogsum(ivx[k], MMX(prev3,k) + MSC_FS3(k));
-      if( i == L-4 )
-        ivx[k] = p7_FLogsum(ivx[k], MMX(prev4,k) + MSC_FS4(k));
-
-      XMX(i,p7G_B) = p7_FLogsum( XMX(i,p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-    }
-
-    XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs5->xsc[p7P_J][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs5->xsc[p7P_J][p7P_MOVE]);
-
-    XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP];
-
-    XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]);
-
-    XMX(i,p7G_E) = p7_FLogsum(XMX(i,p7G_J) + gm_fs5->xsc[p7P_E][p7P_LOOP],
-                              XMX(i,p7G_C) + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-
-    MMX(curr,M)     =            DMX(curr,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
- 
-    IMX(curr,M)     =            -eslINFINITY;            /* no I_M state        */
-
-    for (k = M-1; k >= 1; k--)
-    {
-      MMX(curr,k) = p7_FLogsum( p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                                p7_FLogsum( IMX(prev3,k)   + TSC(p7P_MI,k),
-                                            ivx[k+1]      + TSC(p7P_MM,k))),
-                                            XMX(i,p7G_E) + esc);
-
-      DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
-                                            DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                            ivx[k+1]     + TSC(p7P_DM,k));
-
-      IMX(curr,k) = p7_FLogsum(           IMX(prev3,k  )   + TSC(p7P_II,k),
-                                          ivx[k+1]         + TSC(p7P_IM,k));
-    }
-
-    MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
-  }
-
-  /* Main recursion */
-  for (i = L-5; i > 0; i--)
-  {
-    t = u;
-    u = v;
-    v = w;
-    w = x;
-
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(dsq[i+1] < p7P_MAXNUC) x = dsq[i+1];
-    else                                              x = p7P_MAXCODONS5; 
-  
-    /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1_FS5(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-
-    c2 = p7P_CODON2_FS5(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-
-    c3 = p7P_CODON3_FS5(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-
-    c4 = p7P_CODON4_FS5(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-
-    c5 = p7P_CODON5_FS5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-    rsc1 = gm_fs5->rsc[c1];
-    rsc2 = gm_fs5->rsc[c2];
-    rsc3 = gm_fs5->rsc[c3];
-    rsc4 = gm_fs5->rsc[c4];
-    rsc5 = gm_fs5->rsc[c5];
-
-    curr  =  i    % PARSER_ROWS_BWD;
-    prev1 = (i+1) % PARSER_ROWS_BWD;
-    prev2 = (i+2) % PARSER_ROWS_BWD;
-    prev3 = (i+3) % PARSER_ROWS_BWD;
-    prev4 = (i+4) % PARSER_ROWS_BWD;
-    prev5 = (i+5) % PARSER_ROWS_BWD;
-
-    ivx[1] = p7_FLogsum( MMX(prev1,1) + MSC_FS1(1),
-            p7_FLogsum( MMX(prev2,1) + MSC_FS2(1),
-            p7_FLogsum( MMX(prev3,1) + MSC_FS3(1),
-            p7_FLogsum( MMX(prev4,1) + MSC_FS4(1),
-                        MMX(prev5,1) + MSC_FS5(1)))));
-
-    XMX(i,p7G_B) = ivx[1] + TSC(p7P_BM,0);
-
-    for (k = 2; k <= M; k++) {
-      ivx[k] = p7_FLogsum( MMX(prev1,k) + MSC_FS1(k),
-              p7_FLogsum( MMX(prev2,k) + MSC_FS2(k),
-              p7_FLogsum( MMX(prev3,k) + MSC_FS3(k),
-              p7_FLogsum( MMX(prev4,k) + MSC_FS4(k),
-                          MMX(prev5,k) + MSC_FS5(k)))));
-
-      XMX(i,p7G_B) = p7_FLogsum( XMX(i, p7G_B), ivx[k] + TSC(p7P_BM,k-1));  
-    }
-  
-    XMX(i,p7G_J) = p7_FLogsum( XMX(i+3,p7G_J) + gm_fs5->xsc[p7P_J][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs5->xsc[p7P_J][p7P_MOVE]);
-    XMX(i,p7G_C) =             XMX(i+3,p7G_C) + gm_fs5->xsc[p7P_C][p7P_LOOP];
-    XMX(i,p7G_N) = p7_FLogsum( XMX(i+3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP],
-                               XMX(i,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]);
-    XMX(i,p7G_E) = p7_FLogsum( XMX(i,p7G_J) + gm_fs5->xsc[p7P_E][p7P_LOOP],
-                               XMX(i,p7G_C) + gm_fs5->xsc[p7P_E][p7P_MOVE]);
-    
-    MMX(curr,M)     = DMX(curr,M) = XMX(i,p7G_E); /* {MD}_M <- E (prob 1.0) */
-    IMX(curr,M)     = -eslINFINITY;            /* no I_M state        */
-
-    for (k = M-1; k >= 1; k--)
-    {
-      MMX(curr,k) = p7_FLogsum( p7_FLogsum( DMX(curr,k+1)   + TSC(p7P_MD,k),
-                             p7_FLogsum( IMX(prev3,k)   + TSC(p7P_MI,k),
-                                         ivx[k+1]      + TSC(p7P_MM,k))),
-                                         XMX(i,p7G_E) + esc);
-
-      DMX(curr,k) = p7_FLogsum( p7_FLogsum( XMX(i,p7G_E) + esc,
-                                         DMX(curr, k+1)  + TSC(p7P_DD,k)),
-                                         ivx[k+1]      + TSC(p7P_DM,k));
-
-      IMX(curr,k) = p7_FLogsum(             IMX(prev3,k  ) + TSC(p7P_II,k),
-                                         ivx[k+1]      + TSC(p7P_IM,k));
-    }
-
-    MMX(curr,0) = IMX(curr,0) = DMX(curr,0)  = -eslINFINITY;
-
-  }
-
-  /* At i=0, only N,B states are reachable. */
-    t = u;
-    u = v;
-    v = w;
-    w = x;
-
-    /* if new nucleotide is not A,C,G, or T set it to placeholder value */  
-    if(dsq[1] < p7P_MAXNUC) x = dsq[1];
-    else                                              x = p7P_MAXCODONS5; 
-  
-    /* find correct index for looking up scores of codons and quasicodons */ 
-    c1 = p7P_CODON1_FS5(x);
-    c1 = p7P_MINIDX(c1, p7P_DEGEN5_QC2);
-
-    c2 = p7P_CODON2_FS5(x, w);
-    c2 = p7P_MINIDX(c2, p7P_DEGEN5_QC1);
-
-    c3 = p7P_CODON3_FS5(x, w, v);
-    c3 = p7P_MINIDX(c3, p7P_DEGEN5_C);
-
-    c4 = p7P_CODON4_FS5(x, w, v, u);
-    c4 = p7P_MINIDX(c4, p7P_DEGEN5_QC1);
-
-    c5 = p7P_CODON5_FS5(x, w, v, u, t);
-    c5 = p7P_MINIDX(c5, p7P_DEGEN5_QC2);
-    rsc1 = gm_fs5->rsc[c1];
-    rsc2 = gm_fs5->rsc[c2];
-    rsc3 = gm_fs5->rsc[c3];
-    rsc4 = gm_fs5->rsc[c4];
-    rsc5 = gm_fs5->rsc[c5];
-
-    prev1 = 1 % PARSER_ROWS_BWD;
-    prev2 = 2 % PARSER_ROWS_BWD;
-    prev3 = 3 % PARSER_ROWS_BWD;
-    prev4 = 4 % PARSER_ROWS_BWD;
-    prev5 = 5 % PARSER_ROWS_BWD;
-
-  /* Rows past L do not exist; when L < 5 they contribute nothing. */
-  ivx[1] = p7_FLogsum(               MMX(prev1,1) + MSC_FS1(1),
-           p7_FLogsum( (L >= 2 ? MMX(prev2,1) + MSC_FS2(1) : -eslINFINITY),
-           p7_FLogsum( (L >= 3 ? MMX(prev3,1) + MSC_FS3(1) : -eslINFINITY),
-           p7_FLogsum( (L >= 4 ? MMX(prev4,1) + MSC_FS4(1) : -eslINFINITY),
-                       (L >= 5 ? MMX(prev5,1) + MSC_FS5(1) : -eslINFINITY)))));
-
-  XMX(0,p7G_B) = ivx[1] + TSC(p7P_BM,0);
-
-  for (k = 2; k <= M; k++)
-  {
-   ivx[k] =  p7_FLogsum(               MMX(prev1,k) + MSC_FS1(k),
-             p7_FLogsum( (L >= 2 ? MMX(prev2,k) + MSC_FS2(k) : -eslINFINITY),
-             p7_FLogsum( (L >= 3 ? MMX(prev3,k) + MSC_FS3(k) : -eslINFINITY),
-             p7_FLogsum( (L >= 4 ? MMX(prev4,k) + MSC_FS4(k) : -eslINFINITY),
-                         (L >= 5 ? MMX(prev5,k) + MSC_FS5(k) : -eslINFINITY)))));
-
-    XMX(0,p7G_B) = p7_FLogsum(XMX(0, p7G_B), ivx[k] + TSC(p7P_BM,k-1));
-  }
-
-  XMX(0,p7G_J) = XMX(0,p7G_C) = XMX(0,p7G_E) = -eslINFINITY;
-
-  XMX(0,p7G_N) = p7_FLogsum( (L >= 3 ? XMX(3,p7G_N) + gm_fs5->xsc[p7P_N][p7P_LOOP] : -eslINFINITY),
-                             XMX(0,  p7G_B) + gm_fs5->xsc[p7P_N][p7P_MOVE]);
+  for (i = L; i >= 0; i--)
+    p7_GBackwardRow_Frameshift_3Codons(dsq, L, gm_fs3, gx->dp, xmx, iv->ivx, i);
 
   if (opt_sc != NULL) *opt_sc =  p7_FLogsum( XMX(0,p7G_N),
                                  p7_FLogsum( XMX(1,p7G_N),
                                              (L >= 2 ? XMX(2,p7G_N) : -eslINFINITY)));
-
-  gx->M = M;
+  gx->M = gm_fs3->M;
   gx->L = L;
-
   return eslOK;
-
 }
 
 
 
-/*------------- end: forward, backward, hybrid ------------------*/
-
 /*****************************************************************
- * 2. Benchmark driver.
+ * 3. Benchmark driver.
  *****************************************************************/
 #ifdef p7GENERIC_FWDBACK_FRAMESHIFT_BENCHMARK
 /*
@@ -2097,10 +1293,8 @@ static ESL_OPTIONS options[] = {
   { "-N",        eslARG_INT,   "2000", NULL, "n>0", NULL,  NULL, NULL, "number of random target seqs",                   0 },
   { "-B",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Backward_Frameshift()",           0 },
   { "-F",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Forward_Frameshift()",            0 },
-  { "-P",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark Parsers",                         0 },
-  { "-U",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, NULL, "only benchmark full matrix version",             0 },
-  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 3 codon length Forward Parser",   0 },
-  { "-V",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  "-P", NULL, "only benchmark 5 codon length Forward Parser",   0 },
+  { "-T",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-V", "only benchmark 3 codon lengths",                 0 },
+  { "-V",        eslARG_NONE,   FALSE, NULL, NULL,  NULL,  NULL, "-T", "only benchmark 5 codon lengths",                 0 },
   {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 static char usage[]  = "[-options] <hmmfile>";
@@ -2121,9 +1315,8 @@ main(int argc, char **argv)
   P7_BG          *bgAA    = NULL;
   P7_FS_PROFILE  *gm_fs5  = NULL;
   P7_FS_PROFILE  *gm_fs3  = NULL;
-  P7_GMX         *fwd_p   = NULL;
-  P7_GMX         *bck_p   = NULL;
   P7_GMX         *fwd     = NULL;
+  P7_GMX         *fwd3    = NULL;
   P7_GMX         *bck     = NULL;
   P7_IVX         *iv      = NULL;
   ESL_GENCODE    *gcode   = NULL;
@@ -2146,9 +1339,8 @@ main(int argc, char **argv)
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, L/3, p7_UNILOCAL);
   p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs3, L/3, p7_UNILOCAL);
 
-  fwd_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
-  bck_p = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_BWD, L, p7G_NSCELLS);
   fwd   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS_FS);
+  fwd3  = p7_gmx_Create(gm_fs3->M, L, L, p7G_NSCELLS);
   bck   = p7_gmx_Create(gm_fs5->M, L, L, p7G_NSCELLS);
   iv    = p7_ivx_Create(gm_fs5->M, p7P_5CODONS);
 
@@ -2164,19 +1356,16 @@ main(int argc, char **argv)
   {
       esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
       if (! esl_opt_GetBoolean(go, "-B"))  {
-        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_GForward_Frameshift (dsq, L, gm_fs5, fwd, iv, &sc);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-T")) p7_GForwardParser_Frameshift_5Codons(dsq, L, gm_fs5, fwd_p, iv, &sc);
-        p7_gmx_Reuse(fwd_p);
-        if (! esl_opt_GetBoolean(go, "-U") && ! esl_opt_GetBoolean(go, "-V")) p7_GForwardParser_Frameshift_3Codons(dsq, L, gm_fs3, fwd_p, iv, &sc);
-      } 
+        if (! esl_opt_GetBoolean(go, "-T")) p7_GForward_Frameshift_5Codons(dsq, L, gm_fs5, fwd,  iv, &sc);
+        if (! esl_opt_GetBoolean(go, "-V")) p7_GForward_Frameshift_3Codons(dsq, L, gm_fs3, fwd3, iv, &sc);
+      }
       if (! esl_opt_GetBoolean(go, "-F"))  {
-        if (! esl_opt_GetBoolean(go, "-P"))                                   p7_GBackward_Frameshift(dsq, L, gm_fs5, bck, iv, NULL); 
-        if (! esl_opt_GetBoolean(go, "-U"))                                   p7_GBackwardParser_Frameshift_3Codons(dsq, L, gm_fs3, bck_p, iv, NULL);
+        if (! esl_opt_GetBoolean(go, "-T")) p7_GBackward_Frameshift_5Codons(dsq, L, gm_fs5, bck, iv, NULL);
+        if (! esl_opt_GetBoolean(go, "-V")) p7_GBackward_Frameshift_3Codons(dsq, L, gm_fs3, bck, iv, NULL);
      }
 
-     p7_gmx_Reuse(fwd_p);
-     p7_gmx_Reuse(bck_p);
      p7_gmx_Reuse(fwd);
+     p7_gmx_Reuse(fwd3);
      p7_gmx_Reuse(bck);
     
   }
@@ -2188,9 +1377,8 @@ main(int argc, char **argv)
   printf("# %.1f Mc/s\n", Mcs);
 
   free(dsq);
-  p7_gmx_Destroy(bck_p);
-  p7_gmx_Destroy(fwd_p);
   p7_gmx_Destroy(bck);
+  p7_gmx_Destroy(fwd3);
   p7_gmx_Destroy(fwd);
   p7_ivx_Destroy(iv);
   p7_profile_fs_Destroy(gm_fs5);
@@ -2214,7 +1402,7 @@ main(int argc, char **argv)
 
 
 /*****************************************************************
- * 3. Unit tests
+ * 4. Unit tests
  *****************************************************************/
 #ifdef p7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE
 #include <string.h>
@@ -2233,15 +1421,14 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
   P7_TRACE    *tr;
   ESL_DSQ     *dsqAA  = NULL;
   ESL_DSQ     *dsqDNA = NULL;
-  P7_GMX      *fwd_p  = NULL;
-  P7_GMX      *bck_p  = NULL;
   P7_GMX      *fwd    = NULL;
+  P7_GMX      *fwd3   = NULL;
   P7_GMX      *bck    = NULL;
   P7_GMX      *vit    = NULL;
   P7_IVX      *iv     = NULL;
   int         idx;
   float       vsc, fsc, bsc;
-  float       fsc_p, bsc_p;
+  float       fsc3, bsc3;
   float       nullsc;
 
   p7_FLogsumInit();
@@ -2249,9 +1436,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
   if ((sq     = esl_sq_CreateDigital(abcAA))                                  == NULL)  esl_fatal("sequence creation failed");
   if ((dsqAA  = malloc(sizeof(ESL_DSQ) *((L/3)+2)))                           == NULL)  esl_fatal("malloc failed");
   if ((dsqDNA = malloc(sizeof(ESL_DSQ) *(L+2)))                               == NULL)  esl_fatal("malloc failed");
-  if ((fwd_p  = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_FWD, L, p7G_NSCELLS))    == NULL)  esl_fatal("matrix creation failed");
-  if ((bck_p  = p7_gmx_Create(gm_fs5->M, PARSER_ROWS_BWD, L, p7G_NSCELLS))    == NULL)  esl_fatal("matrix creation failed");
   if ((fwd    = p7_gmx_Create(gm_fs5->M, L,               L, p7G_NSCELLS_FS)) == NULL)  esl_fatal("matrix creation failed");
+  if ((fwd3   = p7_gmx_Create(gm_fs3->M, L,               L, p7G_NSCELLS))    == NULL)  esl_fatal("matrix creation failed");
   if ((bck    = p7_gmx_Create(gm_fs5->M, L,               L, p7G_NSCELLS))    == NULL)  esl_fatal("matrix creation failed");
   if ((vit    = p7_gmx_Create(gm_fs5->M, L,               L, p7G_NSCELLS))    == NULL)  esl_fatal("matrix creation failed");
   if ((tr     = p7_trace_Create())                                            == NULL)  esl_fatal("trace creation failed");
@@ -2269,8 +1455,8 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
         j+=3;
 	  }
       if (p7_GViterbi_Frameshift(dsqDNA, L, gm_fs5, vit, iv, &vsc)      != eslOK) esl_fatal("viterbi failed");
-      if (p7_GForward_Frameshift(dsqDNA, L, gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
-      if (p7_GBackward_Frameshift(dsqDNA, L, gm_fs5, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
+      if (p7_GForward_Frameshift_5Codons(dsqDNA, L, gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+      if (p7_GBackward_Frameshift_5Codons(dsqDNA, L, gm_fs5, bck, iv, &bsc)     != eslOK) esl_fatal("backward failed");
      
       if (fsc < vsc)             esl_fatal("Forward score can't be less than Viterbi score"); 
       if (fabs(fsc-bsc) > 0.001) esl_fatal("Forward/Backward failed: %f %f\n", fsc, bsc);
@@ -2279,28 +1465,17 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
    
       avg_sc_rnd += fsc - nullsc;
 
-      if (p7_GForwardParser_Frameshift_5Codons(dsqDNA, L, gm_fs5, fwd_p, iv, &fsc_p) != eslOK) esl_fatal("forward parser 5 failed");
+      p7_gmx_Reuse(bck);
+      if (p7_GForward_Frameshift_3Codons (dsqDNA, L, gm_fs3, fwd3, iv, &fsc3) != eslOK) esl_fatal("forward 3 failed");
+      if (p7_GBackward_Frameshift_3Codons(dsqDNA, L, gm_fs3, bck,  iv, &bsc3) != eslOK) esl_fatal("backward 3 failed");
 
-      if (fabs(fsc-fsc_p) > 0.001) esl_fatal("Forward/Forward Parser failed: %f %f\n", fsc, fsc_p);
-
-      if (p7_GBackwardParser_Frameshift_5Codons(dsqDNA, L, gm_fs5, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 5 failed");
-
-      if (fabs(bsc-bsc_p) > 0.001) esl_fatal("Backward/Backward Parser failed: %f %f\n", bsc, bsc_p);
-      if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 5 /Backward Parser 5 failed: %f %f\n", fsc_p, bsc_p);
-
-	  p7_gmx_Reuse(fwd_p);
-	  p7_gmx_Reuse(bck_p);
-      if (p7_GForwardParser_Frameshift_3Codons(dsqDNA, L, gm_fs3, fwd_p, iv, &fsc_p) != eslOK)  esl_fatal("forward parser 3 failed");
-      if (p7_GBackwardParser_Frameshift_3Codons(dsqDNA, L, gm_fs3, bck_p, iv, &bsc_p) != eslOK) esl_fatal("backward parser 3 failed");
-       
-      if (fabs(fsc_p-bsc_p) > 0.001) esl_fatal("Forward Parser 3 /Backward Parser 3 failed: %f %f\n", fsc_p, bsc_p);
+      if (fabs(fsc3-bsc3) > 0.001) esl_fatal("Forward 3 /Backward 3 failed: %f %f\n", fsc3, bsc3);
 
       if (esl_opt_GetBoolean(go, "--vv")) 
         printf("utest_forward_fs: Forward score on random sequence len %d: %.4f (total so far: %.4f)\n", L, fsc, avg_sc_rnd);
 
-      p7_gmx_Reuse(fwd_p);
-      p7_gmx_Reuse(bck_p);
       p7_gmx_Reuse(fwd);
+      p7_gmx_Reuse(fwd3);
       p7_gmx_Reuse(bck);
       p7_gmx_Reuse(vit);
     }
@@ -2327,7 +1502,7 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
 
 	  p7_gmx_GrowTo(fwd, gm->M, (sq->n*3), (sq->n*3));
 
-	  if (p7_GForward_Frameshift(dsqDNA, (sq->n*3), gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
+	  if (p7_GForward_Frameshift_5Codons(dsqDNA, (sq->n*3), gm_fs5, fwd, iv, &fsc)      != eslOK) esl_fatal("forward failed");
 
 	  p7_bg_SetLength(bgAA,  sq->n);
 
@@ -2344,8 +1519,7 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
   if (avg_sc_rnd > avg_sc_gen) esl_fatal("Average Forwrd scores on random sequence (%f) and better than on generated seqeucen (%f)", avg_sc_rnd, avg_sc_gen);
 
   esl_sq_Destroy(sq);
-  p7_gmx_Destroy(fwd_p);
-  p7_gmx_Destroy(bck_p);
+  p7_gmx_Destroy(fwd3);
   p7_gmx_Destroy(fwd);
   p7_gmx_Destroy(bck);
   p7_gmx_Destroy(vit);
@@ -2358,12 +1532,11 @@ utest_forward_fs(ESL_GETOPTS *go, ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, P7_COD
 
 
 /* utest_fwdback_agree_fs()
- * The frameshift Forward, Forward parser (5 codon lengths) and Backward
- * must sum the same paths: on random DNA and on the back-translated
- * consensus of <hmm> with two nucleotides deleted and two inserted,
- * with the model's frameshift probability raised to 0.05 so that codon
- * lengths other than 3 carry weight, the three scores must agree to
- * within 0.01 nats.
+ * The frameshift Forward and Backward (5 codon lengths) must sum the
+ * same paths: on random DNA and on the back-translated consensus of
+ * <hmm> with two nucleotides deleted and two inserted, with the model's
+ * frameshift probability raised to 0.05 so that codon lengths other
+ * than 3 carry weight, the two scores must agree to within 0.01 nats.
  */
 static void
 utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ESL_GENCODE *gcode, P7_CODONTABLE *codon_table, P7_BG *bgAA, P7_BG *bgDNA, P7_HMM *hmm, int nseq)
@@ -2374,13 +1547,12 @@ utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abc
   float          fsprob  = hmm->fsprob;
   P7_FS_PROFILE *gm_fs5  = p7_profile_fs_Create(M, abcAA, 5);
   P7_GMX        *fx      = p7_gmx_Create(M, L, L, p7G_NSCELLS_FS);
-  P7_GMX        *px      = p7_gmx_Create(M, PARSER_ROWS_FWD, L, p7G_NSCELLS);
   P7_GMX        *bx      = p7_gmx_Create(M, L, L, p7G_NSCELLS);
   P7_IVX        *iv      = p7_ivx_Create(M, p7P_5CODONS);
   ESL_SQ        *sq      = esl_sq_CreateDigital(abcAA);
   ESL_DSQ       *dsq     = malloc(sizeof(ESL_DSQ) * (L+2));
   ESL_DSQ       *tmp     = malloc(sizeof(ESL_DSQ) * (L+2));
-  float          fsc, psc, bsc;
+  float          fsc, bsc;
   int            n, i, j, Ln, start, del1, del2, ins1, ins2;
 
   hmm->fsprob = 0.05;
@@ -2405,11 +1577,10 @@ utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abc
       Ln = j - 1;
 
       if (p7_ProfileConfig_fs(hmm, bgAA, gcode, gm_fs5, Ln/3, p7_LOCAL)          != eslOK) esl_fatal(msg);
-      if (p7_GForward_Frameshift              (dsq, Ln, gm_fs5, fx, iv, &fsc)   != eslOK) esl_fatal(msg);
-      if (p7_GForwardParser_Frameshift_5Codons(dsq, Ln, gm_fs5, px, iv, &psc)   != eslOK) esl_fatal(msg);
-      if (p7_GBackward_Frameshift             (dsq, Ln, gm_fs5, bx, iv, &bsc)   != eslOK) esl_fatal(msg);
-      if (fabs(fsc - bsc) > 0.01 || fabs(psc - bsc) > 0.01)
-        esl_fatal("%s: Forward %.4f, Forward parser %.4f, Backward %.4f nats", msg, fsc, psc, bsc);
+      if (p7_GForward_Frameshift_5Codons (dsq, Ln, gm_fs5, fx, iv, &fsc) != eslOK) esl_fatal(msg);
+      if (p7_GBackward_Frameshift_5Codons(dsq, Ln, gm_fs5, bx, iv, &bsc) != eslOK) esl_fatal(msg);
+      if (fabs(fsc - bsc) > 0.01)
+        esl_fatal("%s: Forward %.4f, Backward %.4f nats", msg, fsc, bsc);
     }
 
   hmm->fsprob = fsprob;
@@ -2418,7 +1589,6 @@ utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abc
   esl_sq_Destroy(sq);
   p7_ivx_Destroy(iv);
   p7_gmx_Destroy(fx);
-  p7_gmx_Destroy(px);
   p7_gmx_Destroy(bx);
   p7_profile_fs_Destroy(gm_fs5);
 }
@@ -2426,7 +1596,7 @@ utest_fwdback_agree_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abc
 /*------------------------- end, unit tests ---------------------*/
 
 /*****************************************************************
- * 4. Test driver.
+ * 5. Test driver.
  *****************************************************************/
 
 /* gcc -g -Wall -Dp7GENERIC_FWDBACK_FRAMESHIFT_TESTDRIVE -I. -I../easel -L. -L../easel -o generic_fwdback_frameshift_utest generic_fwdback_frameshift.c -lhmmer -leasel -lm

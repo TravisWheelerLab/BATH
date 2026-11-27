@@ -730,8 +730,8 @@ main(int argc, char **argv)
   tr  = p7_trace_fs_CreateWithPP();
 
   esl_rsq_xfIID(r, bgDNA->f, abcDNA->K, L, dsq);
-  p7_GForward_Frameshift(dsq, L, gm_fs5, gx1, iv, &fsc);
-  p7_GBackward_Frameshift(dsq, L, gm_fs5, gbck, iv, &bsc);
+  p7_GForward_Frameshift_5Codons(dsq, L, gm_fs5, gx1, iv, &fsc);
+  p7_GBackward_Frameshift_5Codons(dsq, L, gm_fs5, gbck, iv, &bsc);
   p7_GDecoding_Frameshift(gm_fs5, gx1, gbck);
 
   esl_stopwatch_Start(w);

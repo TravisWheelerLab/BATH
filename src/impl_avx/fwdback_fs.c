@@ -524,7 +524,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   P7_OMX         *oxb    = p7_omx_Create(M, PARSER_ROWS_BWD, M);
   P7_OMX         *fwd    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS_FS);
   P7_OMX         *bck    = p7_omx_Create_dpf(M, M, M, p7X_NSCELLS);
-  P7_GMX         *fgx    = p7_gmx_Create(M, PARSER_ROWS_FWD, M, p7X_NSCELLS);
+  P7_GMX         *fgx3   = p7_gmx_Create(M, M, M, p7G_NSCELLS);
+  P7_GMX         *fgx5   = p7_gmx_Create(M, M, M, p7G_NSCELLS_FS);
   P7_IVX         *iv3    = p7_ivx_Create(M, p7P_3CODONS);
   P7_IVX         *iv5    = p7_ivx_Create(M, p7P_5CODONS);
   P7_OIVX        *ov3    = p7_oivx_Create(M, p7P_3CODONS);
@@ -571,11 +572,11 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
       p7_fs_ReconfigLength(gm_fs5, sq->n);
 
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
-      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
+      p7_gmx_GrowTo(fgx3, M, curr_L, curr_L);
 
       /* 3-codon SSE vs scalar */
       if (p7_ForwardParser_Frameshift_3Codons(dsq, curr_L, om_fs3, oxf, ov3, &fsc3) == eslERANGE) continue;
-	  p7_GForwardParser_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx, iv3, &generic_fsc3);
+	  p7_GForward_Frameshift_3Codons(dsq, curr_L, gm_fs3, fgx3, iv3, &generic_fsc3);
 
       if (fabs(fsc3-generic_fsc3) > generic_tolerance) esl_fatal(msg);
 
@@ -586,10 +587,10 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
 
       /* 5-codon SSE vs scalar */
       p7_omx_GrowTo(oxf, M, PARSER_ROWS_FWD, curr_L);
-      p7_gmx_GrowTo(fgx, M, PARSER_ROWS_FWD, curr_L);
+      p7_gmx_GrowTo(fgx5, M, curr_L, curr_L);
 
       if (p7_ForwardParser_Frameshift_5Codons(dsq, curr_L, om_fs5, oxf, ov5, &fsc5) == eslERANGE) continue;
-      p7_GForwardParser_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx, iv5, &generic_fsc5);
+      p7_GForward_Frameshift_5Codons(dsq, curr_L, gm_fs5, fgx5, iv5, &generic_fsc5);
 
       if (fabs(fsc5-generic_fsc5) > generic_tolerance) esl_fatal(msg);
 
@@ -616,7 +617,8 @@ utest_fwdbackfs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABET *abcDNA, ES
   p7_omx_Destroy(oxb);
   p7_omx_Destroy(fwd);
   p7_omx_Destroy(bck);
-  p7_gmx_Destroy(fgx);
+  p7_gmx_Destroy(fgx3);
+  p7_gmx_Destroy(fgx5);
   p7_ivx_Destroy(iv3);
   p7_ivx_Destroy(iv5);
   p7_oivx_Destroy(ov3);
@@ -742,18 +744,18 @@ utest_backward_rowL_scale_fs(ESL_RANDOMNESS *r, ESL_ALPHABET *abcAA, ESL_ALPHABE
           if (fwd_full(dsq, L, om5, fwd,      ov5, NULL) != eslOK) esl_fatal(msg);
           if (bck_full(dsq, L, om5, fwd, bck, ov5, NULL) != eslOK) esl_fatal(msg);
           if (fwd->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f) nfull++;
-          p7_GBackward_Frameshift(dsq, L, gm5, gx, iv5, NULL);
+          p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
           rowL_compare_specials(bck, gx, L, tol, msg, "full matrix");
 
           if (fwd_p5(dsq, L, om5, pf,     ov5, NULL) != eslOK) esl_fatal(msg);
           if (bck_p5(dsq, L, om5, pf, pb, ov5, NULL) != eslOK) esl_fatal(msg);
-          p7_GBackwardParser_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
+          p7_GBackward_Frameshift_5Codons(dsq, L, gm5, gx, iv5, NULL);
           rowL_compare_specials(pb, gx, L, tol, msg, "5-codon parser");
 
           if (fwd_p3(dsq, L, om3, pf,     ov3, NULL) != eslOK) esl_fatal(msg);
           if (pf->xmx[L*p7X_NXCELLS+p7X_SCALE] > 1.0f || pf->xmx[(L-1)*p7X_NXCELLS+p7X_SCALE] > 1.0f) np3++;
           if (bck_p3(dsq, L, om3, pf, pb, ov3, NULL) != eslOK) esl_fatal(msg);
-          p7_GBackwardParser_Frameshift_3Codons(dsq, L, gm3, gx, iv3, NULL);
+          p7_GBackward_Frameshift_3Codons(dsq, L, gm3, gx, iv3, NULL);
           rowL_compare_specials(pb, gx, L, tol, msg, "3-codon parser");
         }
       p7_hmm_Destroy(hmm);

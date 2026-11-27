@@ -656,6 +656,7 @@ extern int p7_Null2_fs_ByExpectation(const P7_FS_OPROFILE *om_fs, P7_OMX *pp, fl
 extern int p7_Null2_fs_FromCounts(const P7_FS_OPROFILE *om_fs, __m128 *cnt, float *cntx, float *null2);
 
 /* optacc.c */
+extern void p7_OptimalAccuracyRow (const P7_OPROFILE *om, const __m128 *ppp, const float *ppx, float *xmx, __m128 *dpc, const __m128 *dpp, int i);
 extern int p7_OptimalAccuracy(const P7_OPROFILE *om, const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OATrace        (const P7_OPROFILE *om,                   const P7_OMX *ox, P7_TRACE *tr);
 extern int p7_OptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);

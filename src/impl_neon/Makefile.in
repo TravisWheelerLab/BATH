@@ -43,6 +43,7 @@ OBJS =  decoding.o\
 	null2.o\
 	null2_fs.o\
 	optacc.o\
+	optacc_sweep.o\
 	optacc_fs.o\
 	stotrace.o\
 	stotrace_fs.o\

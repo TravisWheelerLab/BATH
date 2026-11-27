@@ -41,81 +41,6 @@
  * 1. OA sweep and trace
  *****************************************************************/
 
-/* oa_row()
- * OA row <i> (1..L) into dp[i] and xmx row i, from row i-1 and the
- * posterior row <pp> / <ppx> of row i. Same calculation as
- * p7_GOptimalAccuracy().
- */
-static void
-oa_row(const P7_PROFILE *gm, const float *pp, const float *ppx, float **dp, float *xmx, int i)
-{
-  float const *tsc = gm->tsc;
-  int          M   = gm->M;
-  float        esc = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
-  float        t1, t2;
-  int          k;
-
-  MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
-
-  for (k = 1; k < M; k++)
-    {
-      MMX(i,k)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M]),
-                                     TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M])),
-                             ESL_MAX(TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M]),
-                                     TSCDELTA(p7P_BM, k-1) * (XMX(i-1,p7G_B)+ pp[k*p7G_NSCELLS + p7G_M])));
-
-      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX(i,k));
-
-      IMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MI, k) * (MMX(i-1,k) + pp[k*p7G_NSCELLS + p7G_I]),
-                             TSCDELTA(p7P_II, k) * (IMX(i-1,k) + pp[k*p7G_NSCELLS + p7G_I]));
-
-      DMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
-                             TSCDELTA(p7P_DD, k-1) * DMX(i,k-1));
-    }
-
-  MMX(i,M)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, M-1) * (MMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M]),
-                                 TSCDELTA(p7P_IM, M-1) * (IMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M])),
-                         ESL_MAX(TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M]),
-                                 TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B)+ pp[M*p7G_NSCELLS + p7G_M])));
-  IMX(i,M)     = -eslINFINITY;
-  DMX(i,M)     = ESL_MAX(TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
-                         TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
-  XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
-
-  t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-1,p7G_J) + ppx[p7G_J]),
-                           t2 * XMX(i,  p7G_E));
-
-  t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + ppx[p7G_C]),
-                          t2 * XMX(i,  p7G_E));
-
-  t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + ppx[p7G_N]);
-
-  t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-  XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N),
-                          t2 * XMX(i,  p7G_J));
-}
-
-/* oa_row_0()
- * OA row 0 into dp[0] and xmx row 0, as p7_GOptimalAccuracy() sets it.
- */
-static void
-oa_row_0(const P7_PROFILE *gm, float **dp, float *xmx)
-{
-  int k;
-
-  XMX(0,p7G_N) = 0.;
-  XMX(0,p7G_B) = 0.;
-  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;
-  for (k = 0; k <= gm->M; k++)
-    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;
-}
-
 /* oat_store_row()
  * Store into <ox> what the OA trace reads from OA row <i>: for each k,
  * the predecessors of an M at (i+1,k), an I at (i+1,k) and a D at
@@ -265,7 +190,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
   fdp[0] = mem;
   odp[0] = mem + 2*W;
   p7_GForwardRow(dsq, gm, fdp, fxmx, 0);
-  oa_row_0(gm, odp, oxmx);
+  p7_GOptimalAccuracyRow(gm, NULL, NULL, odp, oxmx, 0);
   oat_store_row(gm, odp, oxmx, NULL, NULL, ox, 0);
 
   for (i = 1; i <= L; i++)
@@ -278,7 +203,7 @@ p7_GOptimalAccuracySweep(const ESL_DSQ *dsq, int L, const P7_PROFILE *gm, P7_CHK
 
       p7_GForwardRow(dsq, gm, fdp, fxmx, i);
       p7_GDecodingRow(gm, fdp[i], fxmx + (i-1)*p7G_NXCELLS, cx->dp[i], cx->xmx + i*p7G_NXCELLS, overall_sc, pp, ppx);
-      oa_row(gm, pp, ppx, odp, oxmx, i);
+      p7_GOptimalAccuracyRow(gm, pp, ppx, odp, oxmx, i);
       oat_store_row(gm, odp, oxmx, pp, ppx, ox, i);
 
       /* posterior sums for null2, added up as p7_GNull2_ByExpectation() does */

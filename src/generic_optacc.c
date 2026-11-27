@@ -43,6 +43,84 @@
  */
 
 
+/* Function:  p7_GOptimalAccuracyRow()
+ * Synopsis:  One row of the optimal accuracy DP fill.
+ *
+ * Purpose:   OA row <i> (0..L) into <dp[i]> and row <i> of the special
+ *            states <xmx>, from row i-1 and the posterior row <pp> (one
+ *            row, [k*p7G_NSCELLS+s]) with its special states <ppx>. Row 0
+ *            is the initialization (<pp>, <ppx> unused). <dp[i]>, <xmx>
+ *            row i may be the posterior row itself: each posterior is
+ *            read before the OA score at its place is written. Used by
+ *            <p7_GOptimalAccuracy()> for each row and by the OA sweep
+ *            <p7_GOptimalAccuracySweep()>.
+ */
+void
+p7_GOptimalAccuracyRow(const P7_PROFILE *gm, const float *pp, const float *ppx, float **dp, float *xmx, int i)
+{
+  float const *tsc = gm->tsc;
+  int          M   = gm->M;
+  float        esc = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
+  float        t1, t2;
+  int          k;
+
+  if (i == 0)
+    {
+      XMX(0,p7G_N) = 0.;                                          /* S->N, p=1            */
+      XMX(0,p7G_B) = 0.;                                          /* S->N->B, no N-tail   */
+      XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;  /* need seq to get here */
+      for (k = 0; k <= M; k++)
+        MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;            /* need seq to get here */
+      return;
+    }
+
+  MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
+
+  for (k = 1; k < M; k++)
+    {
+      MMX(i,k)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M]),
+                                     TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M])),
+                             ESL_MAX(TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)  + pp[k*p7G_NSCELLS + p7G_M]),
+                                     TSCDELTA(p7P_BM, k-1) * (XMX(i-1,p7G_B)+ pp[k*p7G_NSCELLS + p7G_M])));
+
+      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), esc * MMX(i,k));
+
+      IMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MI, k) * (MMX(i-1,k) + pp[k*p7G_NSCELLS + p7G_I]),
+                             TSCDELTA(p7P_II, k) * (IMX(i-1,k) + pp[k*p7G_NSCELLS + p7G_I]));
+
+      DMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
+                             TSCDELTA(p7P_DD, k-1) * DMX(i,k-1));
+    }
+
+  MMX(i,M)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, M-1) * (MMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M]),
+                                 TSCDELTA(p7P_IM, M-1) * (IMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M])),
+                         ESL_MAX(TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)  + pp[M*p7G_NSCELLS + p7G_M]),
+                                 TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B)+ pp[M*p7G_NSCELLS + p7G_M])));
+  IMX(i,M)     = -eslINFINITY;
+  DMX(i,M)     = ESL_MAX(TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
+                         TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
+  XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
+
+  t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-1,p7G_J) + ppx[p7G_J]),
+                           t2 * XMX(i,  p7G_E));
+
+  t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + ppx[p7G_C]),
+                          t2 * XMX(i,  p7G_E));
+
+  t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
+  XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + ppx[p7G_N]);
+
+  t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
+  XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N),
+                          t2 * XMX(i,  p7G_J));
+}
+
+
 /* Function:  p7_GOptimalAccuracy()
  * Synopsis:  Optimal accuracy decoding: fill. 
  * Incept:    SRE, Fri Feb 29 11:56:49 2008 [Janelia]
@@ -76,81 +154,15 @@ int
 p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp, P7_GMX *gx, float *ret_e)
 {
   int          L    = pp->L;
-  float      **dp   = gx->dp;
-  float       *xmx  = gx->xmx;
-  float const *tsc  = gm->tsc;
-  int          i,k;
-  int          M    = gm->M;
-  float        esc  = p7_profile_IsLocal(gm) ? 1.0 : 0.0;
-  float        t1, t2;
+  int          i;
 
-  gx->M = M;
+  gx->M = gm->M;
   gx->L = L;
 
-  /* Initialization of the zero row (i=0; no residues to account for.  */
-  XMX(0,p7G_N) = 0.;                                          /* S->N, p=1            */
-  XMX(0,p7G_B) = 0.;                                          /* S->N->B, no N-tail   */
-  XMX(0,p7G_E) = XMX(0,p7G_C) = XMX(0,p7G_J) = -eslINFINITY;  /* need seq to get here */
-  for (k = 0; k <= M; k++)
-    MMX(0,k) = IMX(0,k) = DMX(0,k) = -eslINFINITY;            /* need seq to get here */
+  for (i = 0; i <= L; i++)
+    p7_GOptimalAccuracyRow(gm, i ? pp->dp[i] : NULL, i ? pp->xmx + i*p7G_NXCELLS : NULL, gx->dp, gx->xmx, i);
 
-  for (i = 1; i <= L; i++)
-    {
-      MMX(i,0) = IMX(i,0) = DMX(i,0) = XMX(i,p7G_E) = -eslINFINITY;
-
-      for (k = 1; k < M; k++)
-	{
-	  MMX(i,k)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, k-1) * (MMX(i-1,k-1)  + pp->dp[i][k*p7G_NSCELLS + p7G_M]),
-					 TSCDELTA(p7P_IM, k-1) * (IMX(i-1,k-1)  + pp->dp[i][k*p7G_NSCELLS + p7G_M])),
-				 ESL_MAX(TSCDELTA(p7P_DM, k-1) * (DMX(i-1,k-1)  + pp->dp[i][k*p7G_NSCELLS + p7G_M]),
-					 TSCDELTA(p7P_BM, k-1) * (XMX(i-1,p7G_B)+ pp->dp[i][k*p7G_NSCELLS + p7G_M])));
-
-	  XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), 
-				 esc * MMX(i,k));
-
-	  IMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MI, k) * (MMX(i-1,k) + pp->dp[i][k*p7G_NSCELLS + p7G_I]),
-				 TSCDELTA(p7P_II, k) * (IMX(i-1,k) + pp->dp[i][k*p7G_NSCELLS + p7G_I]));
-
-	  DMX(i,k)     = ESL_MAX(TSCDELTA(p7P_MD, k-1) * MMX(i,k-1),
-				 TSCDELTA(p7P_DD, k-1) * DMX(i,k-1));
-	} 
-
-      /* last node (k=M) is unrolled; it has no I state, and it has a p=1.0 {MD}->E transition even in local mode */
-      MMX(i,M)     = ESL_MAX(ESL_MAX(TSCDELTA(p7P_MM, M-1) * (MMX(i-1,M-1)  + pp->dp[i][M*p7G_NSCELLS + p7G_M]),
-				     TSCDELTA(p7P_IM, M-1) * (IMX(i-1,M-1)  + pp->dp[i][M*p7G_NSCELLS + p7G_M])),
-			     ESL_MAX(TSCDELTA(p7P_DM, M-1) * (DMX(i-1,M-1)  + pp->dp[i][M*p7G_NSCELLS + p7G_M]),
-				     TSCDELTA(p7P_BM, M-1) * (XMX(i-1,p7G_B)+ pp->dp[i][M*p7G_NSCELLS + p7G_M])));
-
-      IMX(i,M)     = -eslINFINITY;
-      DMX(i,M)     = ESL_MAX(TSCDELTA(p7P_MD, M-1) * MMX(i,M-1),
-			     TSCDELTA(p7P_DD, M-1) * DMX(i,M-1));
-
-      /* note: we calculated XMX before DMX in the loop, because we probably had MMX(i,k) in a register. 
-       * but now we can't do that, because XMX depends on DMX
-       */
-      XMX(i,p7G_E) = ESL_MAX(XMX(i,p7G_E), ESL_MAX(MMX(i,M), DMX(i, M)));
-
-      /* now the special states; it's important that E is already done, and B is done after N,J */
-      t1 = ( (gm->xsc[p7P_J][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-      t2 = ( (gm->xsc[p7P_E][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-      XMX(i, p7G_J) = ESL_MAX( t1 * (XMX(i-1,p7G_J) + pp->xmx[i*p7G_NXCELLS + p7G_J]),
-			       t2 * XMX(i,  p7G_E));
-
-      t1 = ( (gm->xsc[p7P_C][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-      t2 = ( (gm->xsc[p7P_E][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-      XMX(i,p7G_C) = ESL_MAX( t1 * (XMX(i-1,p7G_C) + pp->xmx[i*p7G_NXCELLS + p7G_C]),
-			      t2 * XMX(i,  p7G_E));
-      
-      t1 = ( (gm->xsc[p7P_N][p7P_LOOP] == -eslINFINITY) ? FLT_MIN : 1.0);
-      XMX(i,p7G_N) = t1 *  (XMX(i-1,p7G_N) + pp->xmx[i*p7G_NXCELLS + p7G_N]);
-
-      t1 = ( (gm->xsc[p7P_N][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-      t2 = ( (gm->xsc[p7P_J][p7P_MOVE] == -eslINFINITY) ? FLT_MIN : 1.0);
-      XMX(i,p7G_B) = ESL_MAX( t1 * XMX(i,  p7G_N), 
-			      t2 * XMX(i,  p7G_J));
-    }
-  
-  *ret_e = XMX(L,p7G_C);
+  *ret_e = gx->xmx[L*p7G_NXCELLS + p7G_C];
   return eslOK;
 }
 /*---------------------- end, oa fill ---------------------------*/

@@ -1485,6 +1485,7 @@ extern int p7_GNull2_fs_ByExpectation(const P7_FS_PROFILE *gm_fs5, P7_GMX *pp, f
 extern int p7_GNull2_fs_FromCounts   (const P7_FS_PROFILE *gm_fs5, float *cnt, float *cntx, float *null2);
 
 /* generic_optacc.c */
+extern void p7_GOptimalAccuracyRow(const P7_PROFILE *gm, const float *pp, const float *ppx, float **dp, float *xmx, int i);
 extern int p7_GOptimalAccuracy(const P7_PROFILE *gm, const P7_GMX *pp,       P7_GMX *gx, float *ret_e);
 extern int p7_GOATrace        (const P7_PROFILE *gm,                   const P7_GMX *gx, P7_TRACE *tr);
 

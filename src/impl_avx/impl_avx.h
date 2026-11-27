@@ -972,6 +972,7 @@ extern int (*p7_OATraceSweep)        (const P7_OPROFILE *om, const P7_OATMX *ox,
 
 /* optacc_sse.c — SSE implementations */
 #ifdef eslENABLE_SSE
+extern void p7_OptimalAccuracyRow_sse       (const P7_OPROFILE *om, const __m128 *ppp, const float *ppx, float *xmx, __m128 *dpc, const __m128 *dpp, int i);
 extern int p7_OptimalAccuracy_sse           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OptimalAccuracySweep_sse      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
 extern int p7_OATraceSweep_sse              (const P7_OPROFILE    *om,    const P7_OATMX *ox, P7_TRACE *tr);
@@ -979,6 +980,7 @@ extern int p7_OATrace_sse                   (const P7_OPROFILE    *om,          
 #endif
 /* optacc_avx.c — AVX2 implementations */
 #ifdef eslENABLE_AVX
+extern void p7_OptimalAccuracyRow_avx       (const P7_OPROFILE *om, const __m256 *ppp, const float *ppx, float *xmx, __m256 *dpc, const __m256 *dpp, int i);
 extern int p7_OptimalAccuracy_avx           (const P7_OPROFILE    *om,    const P7_OMX *pp,       P7_OMX *ox, float *ret_e);
 extern int p7_OptimalAccuracySweep_avx      (const ESL_DSQ *dsq, int L, const P7_OPROFILE *om, P7_CHKOMX *cx, P7_OATMX *ox, float *opt_null2, float *opt_fsc, float *ret_oasc);
 extern int p7_OATraceSweep_avx              (const P7_OPROFILE    *om,    const P7_OATMX *ox, P7_TRACE *tr);

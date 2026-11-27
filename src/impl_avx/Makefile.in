@@ -60,6 +60,8 @@ OBJS =  decoding.o\
 	optacc.o\
 	optacc_sse.o\
 	optacc_avx.o\
+	optacc_sweep_sse.o\
+	optacc_sweep_avx.o\
 	optacc_fs.o\
 	optacc_fs_sse.o\
 	optacc_fs_avx.o\
